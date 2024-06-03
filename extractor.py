@@ -119,8 +119,8 @@ class Extractor:
                     elif ordinary_field_match := re.compile(r"^(.*?)=(.*)$").match(field): # A = B
                         key, value = ordinary_field_match.groups()
                         scope[-1][key.strip()] = value.strip()
-            # else:
-            #     pass
+
+
     def dump_json(self, output, sections=None, separate=False):
         """
         Serialize the parsed data to JSON and write it to a specified output file.
@@ -137,8 +137,6 @@ class Extractor:
         for k, v in data_output.items():
             with open(f"{output}_{k}.json", "w") as f:
                 f.write(json.dumps(v, indent=4))
-
-
 
     
     def unquote(self, scope=None):
@@ -170,12 +168,8 @@ class Extractor:
                         scope[key][i] = item.replace("\"", "")
 
 
-# data = Extractor("./common/achievements/standard_achievments.txt")
-# data = Extractor("./common/cultures/00_cultures.txt").data
-# with open("output.json", "w") as file:
-#     file.write(json.dumps(data, indent=4))
 if __name__ == "__main__":
-    def extract_common():
+    def extract_common(): # Parse all vic3 common files into a python dict and save into json files
         files = list(Path("common").rglob("*.[tT][xX][tT]"))
         for file in files:
             folder = file.parents[0]
@@ -189,7 +183,9 @@ if __name__ == "__main__":
             Path(result_folder).mkdir(parents=True, exist_ok=True)
             with open(str(file).replace('common\\', 'common_json\\').replace('.txt', '.json'), "w") as f:
                 f.write(json.dumps(result, indent=4))
-    extract_common()
+    # extract_common()
+
+    # Example extraction with a save file
     # save_file = "./save files/1865.v3"
     # try:
     #     data = Extractor(save_file)
@@ -197,21 +193,4 @@ if __name__ == "__main__":
     #     data.dump_json("./save files/save_output", separate=True)
     # except:
     #     data = Extractor(save_file, True)
-
-
-# files = list(Path("common").rglob("*.[tT][xX][tT]"))
-# for file in files:
-#     folder = file.parents[0]
-#     print(file)
-#     print(folder)
-#     # try:
-#     result = Extractor(file).data
-#     # except:
-#         # continue
-#     print(file)
-#     print(folder)
-#     result_folder = str(folder).replace("common", "common_json", 1)
-#     Path(result_folder).mkdir(parents=True, exist_ok=True)
-#     with open(f"{str(file).replace('common', 'common_json').replace('.txt', '.json')}", "w") as f:
-#         f.write(json.dumps(result, indent=4))
 

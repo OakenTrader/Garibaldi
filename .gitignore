@@ -1,0 +1,8 @@
+*.json
+common_json/**
+__pycache__
+events/**
+common/**
+save files/**
+localization/**
+check_infamy.py

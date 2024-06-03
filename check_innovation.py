@@ -1,4 +1,3 @@
-#%%
 import json
 import pandas as pd
 import numpy as np
@@ -27,7 +26,6 @@ def check_innovation():
 
     with open("./common_json/production_methods/07_government.json", "r") as file:
         pms = json.load(file)
-        # print(pms)
     base = 50
     df_inno = pd.DataFrame(columns=["country", "innovation", "cap"])
     for kc in countries:
@@ -42,39 +40,28 @@ def check_innovation():
         universities_country = {i: universities[i] for i in universities if universities[i]["state"] in states}
         for i in universities_country:
             university_c = universities_country[i]
-            # print(university_c)
             output = 0
             employees = 0
             employees_pl = dict()
             for kpm, pm in pms.items():
-                # print(pm)
-                # print(university_c["production_methods"]["value"])
                 if kpm in university_c["production_methods"]["value"]:
                     if "country_modifiers" in pm and "workforce_scaled" in pm["country_modifiers"] and "country_weekly_innovation_add" in pm["country_modifiers"]["workforce_scaled"]:
                         output += float(pm["country_modifiers"]["workforce_scaled"]["country_weekly_innovation_add"])
                     if "building_modifiers" in pm and "level_scaled" in pm["building_modifiers"]:
                         for key, addition in pm["building_modifiers"]["level_scaled"].items():
-                            # print(key, addition)
                             if key not in employees_pl:
                                 employees_pl[key] = int(addition)
                             else:
                                 employees_pl[key] += int(addition)
             
             for pop in pops.copy():
-                # print(pop)
                 if pops[pop]["workplace"] == i:
                     pp = pops.pop(pop)
                     employees += int(pp["workforce"] )
-                    # print(pp)
 
-            # print(employees_pl)
-            # print(f"Total Employees at level {int(university_c['level'])}: {employees}")
             employees /= sum([employees_pl[e] for e in employees_pl])
-            # print(f"Employees ratio: {employees}")
-            # print([employees_pl[e] for e in employees_pl])
             if "throughput" not in university_c:
                 university_c["throughput"] = 1.0
-            # print(output)
             innov_out =  output * float(university_c["throughput"]) * employees
             innov_list.append(innov_out)
             innov += innov_out
@@ -86,4 +73,5 @@ def check_innovation():
     df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df_inno)
+        
 check_innovation()

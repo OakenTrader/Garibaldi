@@ -21,7 +21,6 @@ def check_infamy():
     vlist = []
     for k, v in infamies.items():
         if k in players or float(v[1]) > 0:
-            # print(v[0] ,v[1])
             vlist.append([v[0] ,float(v[1])])
     
     df = pd.DataFrame(vlist, columns=["country", "infamy"])

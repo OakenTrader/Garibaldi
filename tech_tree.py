@@ -1,5 +1,4 @@
-#%%
-import json, re
+import json
 import convert_localization, extractor
 from pathlib import Path
 
@@ -15,22 +14,17 @@ localization = dict()
 for d in dicts:
     localization.update(d)
 
-#%%
 countries_data = extractor.Extractor(save_name, "country_manager")
 tech_data = extractor.Extractor(save_name,"technology")
 countries_data.unquote()
 tech_data.unquote()
 
-#%%
 countries_data = countries_data.data["country_manager"]["database"]
 tech_data = tech_data.data["technology"]["database"]
 
-#%%
 
 techs = dict()
-# print(tech_data["13"])
 for key in tech_data:
-    # print(key, tech_data[key])
     if tech_data[key] == "none":
         continue
     researched = tech_data[key]["acquired_technologies"]["value"]
@@ -47,7 +41,7 @@ with open("./common_json/technology/technologies/20_military.json", "r") as file
 with open("./common_json/technology/technologies/30_society.json", "r") as file:
     soc_tech = [f'{tech}' for tech in json.load(file)]
 
-#determine which new tech is being researched
+# Determine which new tech is being researched
 print("Techs in research")
 researching_techs = dict()
 for key in tech_data:
@@ -86,5 +80,3 @@ for tech_id in tech_data:
         print(len(his_missing_tech), his_missing_tech)
         print("")
 
-
-# %%

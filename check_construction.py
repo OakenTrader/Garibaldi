@@ -1,4 +1,3 @@
-#%%
 import json
 import pandas as pd
 import numpy as np
@@ -24,11 +23,9 @@ def check_construction():
         return csectors, countries, pops
 
     csectors, countries, pops = load()
-    # print(pops)
 
     with open("./common_json/production_methods/13_construction.json", "r") as file:
         pms = json.load(file)
-        # print(pms)
     base = 10
     columns = ["country", "construction", "used_cons", "avg_cost", "total_cost"]
     df_construction = pd.DataFrame(columns=columns)
@@ -44,13 +41,10 @@ def check_construction():
             csector_c = csectors_country[i]
             if csector_c["level"] == "0":
                 continue
-            # print(university_c)
             output = 0
             employees = 0
             employees_pl = dict()
             for kpm, pm in pms.items():
-                # print(pm)
-                # print(university_c["production_methods"]["value"])
                 if kpm in csector_c["production_methods"]["value"]:
                     if "country_modifiers" in pm and "workforce_scaled" in pm["country_modifiers"] and "country_construction_add" in pm["country_modifiers"]["workforce_scaled"]:
                         output += float(pm["country_modifiers"]["workforce_scaled"]["country_construction_add"])
@@ -63,19 +57,13 @@ def check_construction():
                                 employees_pl[key] += int(addition)
             
             for pop in pops.copy():
-                # print(f"pop: {pop['workplace']}")
                 if pops[pop]["workplace"] == i:
                     pp = pops.pop(pop)
                     employees += int(pp["workforce"] )
 
-            # print(employees_pl)
-            # print(f"Total Employees at level {int(csector_c['level'])}: {employees}")
             employees /= sum([employees_pl[e] for e in employees_pl])
-            # print(f"Employees ratio: {employees}")
-            # print([employees_pl[e] for e in employees_pl])
             if "throughput" not in csector_c:
                 csector_c["throughput"] = 1.0
-            # print(output)
 
             construction_out =  output * float(csector_c["throughput"]) * employees
             try:
@@ -86,7 +74,6 @@ def check_construction():
             construction_list.append([construction_out, construction_cost])
             construction += construction_out
             csectors.pop(i)
-            # print(construction_out)
         
         """
         Check current used construction
@@ -106,8 +93,6 @@ def check_construction():
             out_list, cost_list = construction_list[:, 0], construction_list[:, 1]
             total_cost = np.sum(cost_list)
             average_cost = total_cost / used_cons
-            # print(country["definition"], construction)
-            # print(construction_list)
         else:
             total_cost = 0
             average_cost = 0
@@ -119,5 +104,3 @@ def check_construction():
         print(df_construction)
 
 check_construction()
-
-# %%
