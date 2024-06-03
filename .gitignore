@@ -6,3 +6,4 @@ common/**
 save files/**
 localization/**
 check_infamy.py
+!*/.gitkeep
