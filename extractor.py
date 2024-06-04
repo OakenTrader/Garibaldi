@@ -1,6 +1,5 @@
 import json
 import re
-from pathlib import Path
 
 class Extractor:
     """
@@ -33,7 +32,7 @@ class Extractor:
     extractor = Extractor("path/to/victoria3_data.txt", focus="population", pline=True)
     extractor.dump_json("output.json")
     """
-    def __init__(self, address, focus=None, pline=False) -> None:
+    def __init__(self, address, focuses=None, pline=False) -> None:
         self.data = dict()
         bracket_counter = 0
         scope = [self.data]
@@ -48,10 +47,13 @@ class Extractor:
                     lines.append(line)
         text = "\n".join(lines)
         del lines
-        for num, sstr in enumerate(re.split(r"([{}])", text)):
-            if focus is not None:
-                if focus in sstr and bracket_counter == 0:
-                    in_focus = True
+        for sstr in re.split(r"([{}])", text):
+            if focuses is not None:
+                for focus in focuses:
+                    if focus in sstr and bracket_counter == 0:
+                        in_focus = True
+                        focuses.pop(focuses.index(focus))
+                        break
                 if not in_focus:
                     if "{" in sstr:
                         bracket_counter += 1
@@ -79,8 +81,11 @@ class Extractor:
                 scope = scope[:-1]
                 if bracket_counter == scope_boolean: # End of a Boolean Check
                     scope_boolean = False
-                if bracket_counter == 0 and focus is not None and in_focus:
-                    break
+                if bracket_counter == 0 and focuses is not None and in_focus:
+                    if focuses == []:
+                        break
+                    else:
+                        in_focus = False
             elif all([i not in sstr for i in [">", "=", "<"]]): # Simple list of values
                 values = parts
                 if "field_type" not in scope[-1]:
@@ -120,7 +125,6 @@ class Extractor:
                         key, value = ordinary_field_match.groups()
                         scope[-1][key.strip()] = value.strip()
 
-
     def dump_json(self, output, sections=None, separate=False):
         """
         Serialize the parsed data to JSON and write it to a specified output file.
@@ -137,6 +141,8 @@ class Extractor:
         for k, v in data_output.items():
             with open(f"{output}_{k}.json", "w") as f:
                 f.write(json.dumps(v, indent=4))
+
+
 
     
     def unquote(self, scope=None):
@@ -166,31 +172,4 @@ class Extractor:
                 for i, item in enumerate(scope[key]):
                     if isinstance(item, str):
                         scope[key][i] = item.replace("\"", "")
-
-
-if __name__ == "__main__":
-    def extract_common(): # Parse all vic3 common files into a python dict and save into json files
-        files = list(Path("common").rglob("*.[tT][xX][tT]"))
-        for file in files:
-            folder = file.parents[0]
-            print(file)
-            try:
-                result = Extractor(file).data
-            except:
-                result = Extractor(file, pline=True).data
-                # continue
-            result_folder = str(folder).replace("common", "common_json", 1)
-            Path(result_folder).mkdir(parents=True, exist_ok=True)
-            with open(str(file).replace('common\\', 'common_json\\').replace('.txt', '.json'), "w") as f:
-                f.write(json.dumps(result, indent=4))
-    # extract_common()
-
-    # Example extraction with a save file
-    # save_file = "./save files/1865.v3"
-    # try:
-    #     data = Extractor(save_file)
-    #     data.unquote()
-    #     data.dump_json("./save files/save_output", separate=True)
-    # except:
-    #     data = Extractor(save_file, True)
 
