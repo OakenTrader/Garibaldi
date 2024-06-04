@@ -1,6 +1,11 @@
 import re
 
 def get_localization(address):
+    """
+    Obtains the localization text from the files.
+    
+    Returns a Python Dictionary
+    """
     data = dict()
     with open(address, "r", encoding="utf8") as file:
         for line in file:
