@@ -1,4 +1,5 @@
-import json, sys
+import json, sys, os
+from extractor import Extractor
 
 def jopen(address:str):
     with open(address) as file:
@@ -35,10 +36,6 @@ def retrieve_from_tree(tree:dict, directory:list):
     """
     Retrieve a value from a nested dictionary (tree) using a list of keys (directory).
 
-    Args:
-        tree (dict): The nested dictionary to retrieve the value from.
-        directory (list): A list of keys representing the path to the desired value.
-
     Returns:
         The value found at the specified directory path, or None if any key in the path does not exist in the tree.
 
@@ -53,3 +50,19 @@ def retrieve_from_tree(tree:dict, directory:list):
             return None
         current = tree[subdir]
     return current
+
+def load(address:str, topics:list):
+    """
+    Load a subset of information from a save file or pre-extracted json files
+    """
+    if address is not None:
+        data = Extractor(address, topics)
+        data.unquote()
+        data = data.data
+    elif "save_output_all.json" in os.listdir("./save files"):
+        data = jopen("./save files/save_output_all.json")
+    else:
+        data = dict()
+        for topic in topics:
+            data.update(jopen(f"./save files/save_output_{topic}.json"))
+    return (topic for k, topic in data.items())
