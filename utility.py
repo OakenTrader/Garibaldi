@@ -1,5 +1,6 @@
 import json, sys, os
 from extractor import Extractor
+import time
 
 def jopen(address:str):
     with open(address) as file:
@@ -55,6 +56,7 @@ def load(topics:list, address:str=None):
     """
     Load a subset of information from a save file or pre-extracted json files
     """
+    t0 = time.time()
     if address is not None:
         data = Extractor(address, topics.copy())
         data.unquote()
@@ -65,4 +67,5 @@ def load(topics:list, address:str=None):
         data = dict()
         for topic in topics:
             data.update(jopen(f"./saves/save_output_{topic}.json"))
+    print(f"Finished loading in {time.time() - t0} seconds")
     return (data[topic] for topic in topics)

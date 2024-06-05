@@ -1,4 +1,3 @@
-#%%
 import pandas as pd
 import numpy as np
 from convert_localization import get_all_localization

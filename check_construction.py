@@ -1,4 +1,3 @@
-#%%
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -39,7 +38,6 @@ def check_construction(address=None):
         for csector_id, csector_c in csectors_country.items():
             if csector_c["level"] == "0":
                 continue
-            # print(university_c)
             output = 0
             employees = 0
             employees_pl = dict()
@@ -65,7 +63,6 @@ def check_construction(address=None):
             # print([employees_pl[e] for e in employees_pl])
             if "throughput" not in csector_c:
                 csector_c["throughput"] = 1.0
-            # print(output)
 
             construction_out =  output * float(csector_c["throughput"]) * employees
             try:
@@ -94,8 +91,6 @@ def check_construction(address=None):
             out_list, cost_list = construction_list[:, 0], construction_list[:, 1]
             total_cost = np.sum(cost_list)
             average_cost = total_cost / used_cons
-            # print(country["definition"], construction)
-            # print(construction_list)
         else:
             total_cost = 0
             average_cost = 0
@@ -120,7 +115,6 @@ def check_construction(address=None):
 
     return df_construction
 
-# %%
 def plot_construction(dfs):
     fig, ax = plt.subplots()
     countries = dict()

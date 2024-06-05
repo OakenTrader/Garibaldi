@@ -1,15 +1,10 @@
-import convert_localization, extractor
+import convert_localization
 from utility import load, jopen
-from pathlib import Path
-import time
 
 def get_tech_tree(address):
     localization = convert_localization.get_all_localization()
-
-    t0 = time.time()
     countries, technologies, players = load(["country_manager", "technology", "player_manager"], address)
     countries, technologies, players = countries["database"], technologies["database"], players["database"]
-    print(f"Loaded data in {time.time() - t0} seconds")
     players = [v["country"] for k, v in players.items()]
 
     techs = dict()
