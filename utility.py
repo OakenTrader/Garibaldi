@@ -51,7 +51,7 @@ def retrieve_from_tree(tree:dict, directory:list):
         current = tree[subdir]
     return current
 
-def load(address:str, topics:list):
+def load(topics:list, address:str=None):
     """
     Load a subset of information from a save file or pre-extracted json files
     """
