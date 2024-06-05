@@ -1,77 +1,78 @@
-import json
+#%%
 import pandas as pd
 import numpy as np
-import os
+from convert_localization import get_all_localization
+from utility import jopen, load, retrieve_from_tree
 
-def check_innovation():
-    def load():
-        if "save_output_country_manager.json" in os.listdir("./save files"):
-            with open("./save files/save_output_building_manager.json", "r") as file:
-                buildings = json.load(file)["database"]
-                universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
-            with open("./save files/save_output_country_manager.json", "r") as file:
-                countries = json.load(file)["database"]
-            with open("./save files/save_output_pops.json", "r") as file:
-                pops = {k: v for k, v in json.load(file)["database"].items() if "workplace" in v and v["workplace"] in universities}
-        elif "save_output_all.json" in os.listdir("./save files"):
-            with open("./save files/save_output_all.json", "r") as file:
-                data = json.load(file)
-                buildings = data["building_manager"]["database"]
-                countries = data["country_manager"]["database"]
-                universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
-                pops = {k: v for k, v in data["pops"]["database"].items() if "workplace" in v and v["workplace"] in universities}
-        return universities, countries, pops
+def check_innovation(address=None):
+    localization = get_all_localization()
+    buildings, countries, pops, players = load(["building_manager", "country_manager", "pops", "player_manager"], address)
+    buildings, countries, pops, players = buildings["database"], countries["database"], pops["database"], players["database"]
+    universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
+    for pop_id, pop in pops.items():
+        if "workplace" not in pop or pop["workplace"] not in universities:
+            continue
+        building = universities[pop["workplace"]]
+        if "pops_employed" not in building:
+            building["pops_employed"] = dict()
+        building["pops_employed"][pop_id] = pop
+    players = [v["country"] for k, v in players.items()]
 
-    universities, countries, pops = load()
+    def_production_methods = jopen("./common_json/production_methods/07_government.json")
+    def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
+    base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
-    with open("./common_json/production_methods/07_government.json", "r") as file:
-        pms = json.load(file)
-    base = 50
-    df_inno = pd.DataFrame(columns=["country", "innovation", "cap"])
-    for kc in countries:
-        country = countries[kc]
-        if country == "none":
+    columns = ["country", "innovation", "cap"]
+    df_inno = pd.DataFrame(columns=columns)
+    for kc, country in countries.items():
+        if any([country == "none", "states" not in country]):
             continue
         literacy = country["literacy"]["channels"]["0"]["values"]["value"][-1]
-        inno_cap = base + 150 * float(literacy)
+        inno_cap = base_innovation + 150 * float(literacy)
         states = country["states"]["value"]
-        innov = base
+        innov = base_innovation
         innov_list = []
         universities_country = {i: universities[i] for i in universities if universities[i]["state"] in states}
-        for i in universities_country:
-            university_c = universities_country[i]
+        for u_key, university_c in universities_country.items():
             output = 0
             employees = 0
             employees_pl = dict()
-            for kpm, pm in pms.items():
-                if kpm in university_c["production_methods"]["value"]:
-                    if "country_modifiers" in pm and "workforce_scaled" in pm["country_modifiers"] and "country_weekly_innovation_add" in pm["country_modifiers"]["workforce_scaled"]:
-                        output += float(pm["country_modifiers"]["workforce_scaled"]["country_weekly_innovation_add"])
-                    if "building_modifiers" in pm and "level_scaled" in pm["building_modifiers"]:
-                        for key, addition in pm["building_modifiers"]["level_scaled"].items():
-                            if key not in employees_pl:
-                                employees_pl[key] = int(addition)
-                            else:
-                                employees_pl[key] += int(addition)
+            for pm_name in university_c["production_methods"]["value"]:
+                pm = def_production_methods[pm_name]
+                if (innov_uni := retrieve_from_tree(pm, ["country_modifiers", "workforce_scaled", "country_weekly_innovation_add"])) is not None:
+                    output += float(innov_uni)
+                if (employees_dict := retrieve_from_tree(pm, ["building_modifiers", "level_scaled"])) is not None:
+                    for key, addition in employees_dict.items():
+                        if key not in employees_pl:
+                            employees_pl[key] = int(addition)
+                        else:
+                            employees_pl[key] += int(addition)
             
-            for pop in pops.copy():
-                if pops[pop]["workplace"] == i:
-                    pp = pops.pop(pop)
-                    employees += int(pp["workforce"] )
+            if "pops_employed" in university_c:
+                for key, pop in university_c["pops_employed"].items():
+                    employees += int(pop["workforce"] )
 
+            # print(employees_pl)
+            # print(f"Total Employees at level {int(university_c['level'])}: {employees}")
             employees /= sum([employees_pl[e] for e in employees_pl])
+            # print(f"Employees ratio: {employees}")
+            # print([employees_pl[e] for e in employees_pl])
             if "throughput" not in university_c:
                 university_c["throughput"] = 1.0
+            # print(output)
             innov_out =  output * float(university_c["throughput"]) * employees
             innov_list.append(innov_out)
             innov += innov_out
-            universities.pop(i)
-        print(country["definition"], innov)
-        new_data = pd.DataFrame([[country["definition"], innov, inno_cap]], columns=["country", "innovation", "cap"])
+        if country["definition"] in localization:
+            country_name = localization[country["definition"]]
+        else:
+            country_name = country["definition"]
+        new_data = pd.DataFrame([[country_name, innov, inno_cap]], columns=["country", "innovation", "cap"])
         df_inno = pd.concat([df_inno, new_data], ignore_index=True)
     df_inno["capped_innovation"] = np.minimum(df_inno["innovation"], df_inno["cap"])
     df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df_inno)
-        
-check_innovation()
+        """
+        [ ] Print to a file 
+        """
