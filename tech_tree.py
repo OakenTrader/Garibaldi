@@ -4,15 +4,7 @@ from pathlib import Path
 import time
 
 def get_tech_tree(save_name):
-    lcl_files = list(Path("./localization").rglob("*.yml"))
-    dicts = []
-    for f in lcl_files:
-        print(f)
-        names = convert_localization.get_localization(f)
-        dicts.append(names)
-    localization = dict()
-    for d in dicts:
-        localization.update(d)
+    localization = convert_localization.get_all_localization()
 
     t0 = time.time()
     data = extractor.Extractor(save_name, ["country_manager", "technology", "player_manager"])
