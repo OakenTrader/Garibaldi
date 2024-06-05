@@ -6,6 +6,10 @@ from convert_localization import get_all_localization
 from utility import jopen, retrieve_from_tree, load
 
 def check_construction(address=None):
+    """
+    Retrieve the construction, construction in use, construction cost and its average per construction point
+    of player nations and nations with more construction than a minimum player's construction
+    """
     localization = get_all_localization()
     buildings, countries, pops, players = load(["building_manager", "country_manager", "pops", "player_manager"], address)
     buildings, countries, pops, players = buildings["database"], countries["database"], pops["database"], players["database"]

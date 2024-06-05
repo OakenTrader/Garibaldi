@@ -2,6 +2,9 @@ from utility import load
 import pandas as pd
 
 def check_infamy(address=None):
+    """
+    Retrieve infamy of player countries and countries with non-zero infamy
+    """
     players, countries = load(["player_manager", "country_manager"], address)
     print(players)
     players = [v["country"] for k, v in players["database"].items()]
