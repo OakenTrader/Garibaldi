@@ -1,23 +1,19 @@
-import json
+from utility import load
 import pandas as pd
 
-def check_infamy():
-    with open("./save files/save_output_player_manager.json") as file:
-        players = json.load(file)["database"]
-        players = [v["country"] for k, v in players.items()]
-
-    with open("./save files/save_output_country_manager.json") as file:
-        countries = json.load(file)["database"]
-
+def check_infamy(address=None):
+    players, countries = load(["player_manager", "country_manager"], address)
+    print(players)
+    players = [v["country"] for k, v in players["database"].items()]
     infamies = dict()
-    for k, v in countries.items():
-        if "definition" in v:
-            if "infamy" in v:
-                infamies[k] = (v["definition"], v["infamy"])
-            else:
-                infamies[k] = (v["definition"], 0)
+    for k, v in countries["database"].items():
+        if "definition" not in v:
+            continue
+        if "infamy" in v:
+            infamies[k] = (v["definition"], v["infamy"])
+        else:
+            infamies[k] = (v["definition"], 0)
 
-    
     vlist = []
     for k, v in infamies.items():
         if k in players or float(v[1]) > 0:
@@ -27,6 +23,6 @@ def check_infamy():
     df = df.sort_values(by='infamy', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df)
-
-if __name__ == "__main__":
-    check_infamy()
+        """
+        [ ] Print to a file 
+        """
