@@ -140,7 +140,7 @@ class Extractor:
             data_output = {"full": data_output}
         for k, v in data_output.items():
             with open(f"{output}_{k}.json", "w") as f:
-                f.write(json.dumps(v, indent=4))
+                f.write(json.dumps({k : v}, indent=4))
 
 
 
