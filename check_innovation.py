@@ -63,10 +63,14 @@ def check_innovation(address=None):
             innov_out =  output * float(university_c["throughput"]) * employees
             innov_list.append(innov_out)
             innov += innov_out
+
+        if not (kc in players or innov > base_innovation):
+            continue
         if country["definition"] in localization:
             country_name = localization[country["definition"]]
         else:
             country_name = country["definition"]
+
         new_data = pd.DataFrame([[country_name, innov, inno_cap]], columns=["country", "innovation", "cap"])
         df_inno = pd.concat([df_inno, new_data], ignore_index=True)
     df_inno["capped_innovation"] = np.minimum(df_inno["innovation"], df_inno["cap"])
@@ -76,3 +80,5 @@ def check_innovation(address=None):
         """
         [ ] Print to a file 
         """
+
+check_innovation("./save files/autosave_1848.txt")
