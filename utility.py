@@ -56,7 +56,7 @@ def load(topics:list, address:str=None):
     Load a subset of information from a save file or pre-extracted json files
     """
     if address is not None:
-        data = Extractor(address, topics)
+        data = Extractor(address, topics.copy())
         data.unquote()
         data = data.data
     elif "save_output_all.json" in os.listdir("./save files"):
@@ -65,4 +65,4 @@ def load(topics:list, address:str=None):
         data = dict()
         for topic in topics:
             data.update(jopen(f"./save files/save_output_{topic}.json"))
-    return (topic for k, topic in data.items())
+    return (data[topic] for topic in topics)
