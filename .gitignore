@@ -3,6 +3,6 @@ common_json/**
 __pycache__
 events/**
 common/**
-save files/**
+saves/**
 localization/**
 !*/.gitkeep

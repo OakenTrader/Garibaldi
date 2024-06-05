@@ -3,7 +3,7 @@ import re
 
 class Extractor:
     """
-    A class dedicated to parsing Victoria 3's common and save files from plain text to a JSON-parsable Python dictionary.
+    A class dedicated to parsing Victoria 3's common and saves from plain text to a JSON-parsable Python dictionary.
 
     Based on observed pattern, this class processes text data by removing comments, normalizing whitespace, and structuring data based on 
     nesting levels indicated by curly braces. It specifically handles conditions, logical checks, and assignments 
@@ -140,7 +140,7 @@ class Extractor:
             data_output = {"full": data_output}
         for k, v in data_output.items():
             with open(f"{output}_{k}.json", "w") as f:
-                f.write(json.dumps(v, indent=4))
+                f.write(json.dumps({k : v}, indent=4))
 
 
 
