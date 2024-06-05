@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 def get_localization(address):
     """
@@ -19,3 +20,14 @@ def get_localization(address):
                 result = match.group(1)
                 data[key] = result
     return data
+
+def get_all_localization():
+    lcl_files = list(Path("./localization").rglob("*.yml"))
+    dicts = []
+    for f in lcl_files:
+        names = get_localization(f)
+        dicts.append(names)
+    localization = dict()
+    for d in dicts:
+        localization.update(d)
+    return localization
