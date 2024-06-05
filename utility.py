@@ -48,7 +48,7 @@ def retrieve_from_tree(tree:dict, directory:list):
     for subdir in directory:
         if subdir not in current:
             return None
-        current = tree[subdir]
+        current = current[subdir]
     return current
 
 def load(topics:list, address:str=None):
