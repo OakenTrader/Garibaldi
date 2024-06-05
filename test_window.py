@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-import json
+from utility import jopen
 
 class DictViewer(tk.Tk):
     def __init__(self, dictionary):
@@ -46,10 +46,7 @@ class DictViewer(tk.Tk):
                 self.tree.insert(parent, 'end', text=f"{key}: {value}")
 
 # Sample dictionary to visualize
-with open("./save files/save_output_interest_groups.json") as file:
-    data = json.load(file)
-with open("./common_json/mobilization_options/00_mobilization_option.json") as file:
-    data = json.load(file)
+data = jopen("./save files/save_output_country_manager.json")
 
 # Run the application
 if __name__ == "__main__":
