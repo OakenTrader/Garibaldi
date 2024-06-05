@@ -59,10 +59,10 @@ def load(topics:list, address:str=None):
         data = Extractor(address, topics.copy())
         data.unquote()
         data = data.data
-    elif "save_output_all.json" in os.listdir("./save files"):
-        data = jopen("./save files/save_output_all.json")
+    elif "save_output_all.json" in os.listdir("./saves"):
+        data = jopen("./saves/save_output_all.json")
     else:
         data = dict()
         for topic in topics:
-            data.update(jopen(f"./save files/save_output_{topic}.json"))
+            data.update(jopen(f"./saves/save_output_{topic}.json"))
     return (data[topic] for topic in topics)
