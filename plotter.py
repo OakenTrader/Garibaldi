@@ -12,7 +12,7 @@ def plot_stat(campaign_folder, mode):
     for folder in os.listdir(f"saves/{campaign_folder}"):
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and "campaign_data" not in folder:
-            metadata = load(["meta_data"], save_folder)
+            metadata = load(["meta_data"], save_folder, True)
             year, month, day = metadata["meta_data"]["game_date"].split(".")
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
             if f"{mode}.csv" not in os.listdir(save_folder):
@@ -32,8 +32,9 @@ def plot_stat(campaign_folder, mode):
     for name, country in countries.items():
         df = np.stack(country)
         ax.plot(df[:, 0], df[:, 1], label=name)
-    ax.legend()
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     ax.set_title(f"{mode} graph over the years")
     ax.grid(True)
+    plt.tight_layout()
     plt.savefig(f"saves/{campaign_folder}/campaign_data/{mode}.png")
     plt.show()
