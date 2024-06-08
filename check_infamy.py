@@ -27,6 +27,7 @@ def check_infamy(address=None):
     df = df.sort_values(by='infamy', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df)
+        df.to_csv(f"{address}/infamy.csv", delimiter=",")
         with open(f"{address}/infamy.txt", "w") as file:
             file.write(df.to_string())
         """

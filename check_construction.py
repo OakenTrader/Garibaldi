@@ -110,6 +110,7 @@ def check_construction(address=None):
     df_construction = df_construction[df_construction["construction"] >= min_players_cons]
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df_construction)
+        df_construction.to_csv(f"{address}/construction.csv", delimiter=",")
         with open(f"{address}/construction.txt", "w") as file:
             file.write(df_construction.to_string())
         """
