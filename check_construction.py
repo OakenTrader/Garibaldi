@@ -10,8 +10,9 @@ def check_construction(address=None):
     of player nations and nations with more construction than a minimum player's construction
     """
     localization = get_all_localization()
-    buildings, countries, pops, players = load(["building_manager", "country_manager", "pops", "player_manager"], address)
-    buildings, countries, pops, players = buildings["database"], countries["database"], pops["database"], players["database"]
+    topics = ["building_manager", "country_manager", "pops", "player_manager"]
+    data = load(topics, address)
+    buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     csectors = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_construction_sector"}
     for pop_id, pop in pops.items():
         if "workplace" not in pop or pop["workplace"] not in csectors:

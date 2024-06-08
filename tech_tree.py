@@ -3,8 +3,9 @@ from utility import load, jopen
 
 def get_tech_tree(address):
     localization = convert_localization.get_all_localization()
-    countries, technologies, players = load(["country_manager", "technology", "player_manager"], address)
-    countries, technologies, players = countries["database"], technologies["database"], players["database"]
+    topics = ["country_manager", "technology", "player_manager"]
+    data = load(topics, address)
+    countries, technologies, players = [data[topic]["database"] for topic in topics]
     players = [v["country"] for k, v in players.items()]
 
     techs = dict()

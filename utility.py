@@ -52,23 +52,29 @@ def retrieve_from_tree(tree:dict, directory:list):
         current = current[subdir]
     return current
 
-def load(topics:list, address:str=None):
+def load(topics:list, address:str):
     """
     Load a subset of information from a save file or pre-extracted json files
+    Returns a dictionary of data according to the specified topic
     """
+    topics = topics.copy()
     t0 = time.time()
-    if address is not None:
-        data = Extractor(address, topics.copy())
-        data.unquote()
-        data = data.data
-    elif "save_output_all.json" in os.listdir("./saves"):
-        data = jopen("./saves/save_output_all.json")
-    else:
-        data = dict()
+    data_output = dict()
+    for i, topic in enumerate(topics):
+        if f"save_output_{topic}.json" in os.listdir(address):
+            data_output[topic] = jopen(f"{address}/save_output_{topic}.json")
+            topics.pop(i)
+    if len(topics) > 0:
+        if "save_output_all.json" in os.listdir(address):
+            data = jopen("./saves/save_output_all.json")
+        else:
+            data = Extractor(f"{address}/save.txt", topics.copy())
+            data.unquote()
+            data = data.data
         for topic in topics:
-            data.update(jopen(f"./saves/save_output_{topic}.json"))
+            data_output[topic] = data[topic]
     print(f"Finished loading in {time.time() - t0} seconds")
-    return (data[topic] for topic in topics)
+    return data_output
 
 def make_save_dirs(campaign_folder):
     "Make a folder for each individual save in a campaign folder"

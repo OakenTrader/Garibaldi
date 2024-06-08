@@ -5,11 +5,12 @@ def check_infamy(address=None):
     """
     Retrieve infamy of player countries and countries with non-zero infamy
     """
-    players, countries = load(["player_manager", "country_manager"], address)
-    print(players)
-    players = [v["country"] for k, v in players["database"].items()]
+    topics = ["player_manager", "country_manager"]
+    data = load(topics, address)
+    players, countries = [data[topic]["database"] for topic in topics]
+    players = [v["country"] for k, v in players.items()]
     infamies = dict()
-    for k, v in countries["database"].items():
+    for k, v in countries.items():
         if "definition" not in v:
             continue
         if "infamy" in v:
