@@ -110,8 +110,10 @@ def check_construction(address=None):
     df_construction = df_construction[df_construction["construction"] >= min_players_cons]
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df_construction)
+        with open(f"{address}/construction.txt", "w") as file:
+            file.write(df_construction.to_string())
         """
-        [ ] Print to a file 
+        [x] Print to a file 
         """
 
     return df_construction
@@ -133,3 +135,5 @@ def plot_construction(dfs):
     ax.set_title("Construction graph over the years")
     ax.grid(True)
     plt.show()
+
+check_construction("./saves/campaign_France/autosave_1844")

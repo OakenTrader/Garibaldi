@@ -80,6 +80,5 @@ def check_innovation(address=None):
     df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df_inno)
-        """
-        [ ] Print to a file 
-        """
+        with open(f"{address}/innovation.txt", "w") as file:
+            file.write(df_inno.to_string())
