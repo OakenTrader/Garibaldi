@@ -113,26 +113,5 @@ def check_construction(address=None):
         df_construction.to_csv(f"{address}/construction.csv", sep=",", index=False)
         with open(f"{address}/construction.txt", "w") as file:
             file.write(df_construction.to_string())
-        """
-        [x] Print to a file 
-        """
 
     return df_construction
-
-def plot_construction(dfs):
-    fig, ax = plt.subplots()
-    countries = dict()
-    for year, df in dfs.items():
-        df = df.to_numpy()
-        for row in df:
-            country = row[1]
-            if country not in countries:
-                countries[country] = []
-            countries[country].append([year, row[2]])
-    for name, country in countries.items():
-        df = np.stack(country)
-        ax.plot(df[:, 0], df[:, 1], label=name)
-    ax.legend()
-    ax.set_title("Construction graph over the years")
-    ax.grid(True)
-    plt.show()
