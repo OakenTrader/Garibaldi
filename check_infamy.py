@@ -30,6 +30,4 @@ def check_infamy(address=None):
         df.to_csv(f"{address}/infamy.csv", sep=",", index=False)
         with open(f"{address}/infamy.txt", "w") as file:
             file.write(df.to_string())
-        """
-        [x] Print to a file 
-        """
+    return df

@@ -83,3 +83,4 @@ def check_innovation(address=None):
         df_inno.to_csv(f"{address}/innovation.csv", sep=",", index=False)
         with open(f"{address}/innovation.txt", "w") as file:
             file.write(df_inno.to_string())
+    return df_inno
