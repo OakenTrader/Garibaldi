@@ -79,11 +79,13 @@ def load(topics:list, address:str):
 def make_save_dirs(campaign_folder):
     "Make a folder for each individual save in a campaign folder"
     saves = os.listdir(f"./saves/{campaign_folder}")
+    try:
+        os.mkdir(f"./saves/{campaign_folder}/campaign_data")
+    except FileExistsError:
+        pass
     for save in saves:
         if fnmatch.fnmatch(save, "*.txt"):
             source = f"./saves/{campaign_folder}/{save}"
             dest = f"./saves/{campaign_folder}/{save.replace(".txt", "")}/save.txt"
             os.mkdir(f"./saves/{campaign_folder}/{save.replace(".txt", "")}")
             shutil.move(source, dest)
-
-        
