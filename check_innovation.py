@@ -80,6 +80,6 @@ def check_innovation(address=None):
     df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(df_inno)
-        df_inno.to_csv(f"{address}/innovation.csv", delimiter=",")
+        df_inno.to_csv(f"{address}/innovation.csv", sep=",", index=False)
         with open(f"{address}/innovation.txt", "w") as file:
             file.write(df_inno.to_string())
