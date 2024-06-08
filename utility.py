@@ -52,17 +52,20 @@ def retrieve_from_tree(tree:dict, directory:list):
         current = current[subdir]
     return current
 
-def load(topics:list, address:str):
+def load(topics:list, address:str, save=False):
     """
     Load a subset of information from a save file or pre-extracted json files
+
     Returns a dictionary of data according to the specified topic
+
+    May optionally save a loaded result from the Extractor into a json
     """
     topics = topics.copy()
     t0 = time.time()
     data_output = dict()
     for i, topic in enumerate(topics):
         if f"save_output_{topic}.json" in os.listdir(address):
-            data_output[topic] = jopen(f"{address}/save_output_{topic}.json")
+            data_output[topic] = jopen(f"{address}/save_output_{topic}.json")[topic]
             topics.pop(i)
     if len(topics) > 0:
         if "save_output_all.json" in os.listdir(address):
@@ -70,6 +73,8 @@ def load(topics:list, address:str):
         else:
             data = Extractor(f"{address}/save.txt", topics.copy())
             data.unquote()
+            if save:
+                data.dump_json(f"{address}/save_output", separate=True)
             data = data.data
         for topic in topics:
             data_output[topic] = data[topic]
