@@ -25,7 +25,7 @@ def check_innovation(address=None):
     def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
-    columns = ["country", "innovation", "cap"]
+    columns = ["tag", "country", "innovation", "cap"]
     df_inno = pd.DataFrame(columns=columns)
     for kc, country in countries.items():
         if any([country == "none", "states" not in country]):
@@ -74,7 +74,7 @@ def check_innovation(address=None):
         else:
             country_name = country["definition"]
 
-        new_data = pd.DataFrame([[country_name, innov, inno_cap]], columns=["country", "innovation", "cap"])
+        new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=["country", "innovation", "cap"])
         df_inno = pd.concat([df_inno, new_data], ignore_index=True)
     df_inno["capped_innovation"] = np.minimum(df_inno["innovation"], df_inno["cap"])
     df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)

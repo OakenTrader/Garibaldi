@@ -27,7 +27,7 @@ def check_construction(address=None):
     def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
-    columns = ["id", "country", "construction", "used_cons", "avg_cost", "total_cost"]
+    columns = ["tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
     df_construction = pd.DataFrame(columns=columns)
     for country_id, country in countries.items():
         if country == "none" or "states" not in country:
@@ -100,7 +100,7 @@ def check_construction(address=None):
             country_name = country["definition"]
         else:
             country_name = localization[country["definition"]]
-        new_data = pd.DataFrame([[country_id, country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
+        new_data = pd.DataFrame([[country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
         df_construction = pd.concat([df_construction, new_data], ignore_index=True)
 
     df_construction = df_construction.sort_values(by='construction', ascending=False)
