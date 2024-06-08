@@ -65,5 +65,3 @@ def get_tech_tree(address):
     with open(f"{address}/tech_tree.txt", "w") as file:
         print(output)
         file.write(output)
-
-get_tech_tree("./saves/campaign_France/autosave_1846")

@@ -135,5 +135,3 @@ def plot_construction(dfs):
     ax.set_title("Construction graph over the years")
     ax.grid(True)
     plt.show()
-
-check_construction("./saves/campaign_France/autosave_1844")
