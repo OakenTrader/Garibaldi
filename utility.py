@@ -112,5 +112,8 @@ def make_save_dirs(campaign_folder):
         if fnmatch.fnmatch(save, "*.txt"):
             source = f"./saves/{campaign_folder}/{save}"
             dest = f"./saves/{campaign_folder}/{save.replace(".txt", "")}/save.txt"
-            os.mkdir(f"./saves/{campaign_folder}/{save.replace(".txt", "")}")
+            try:
+                os.mkdir(f"./saves/{campaign_folder}/{save.replace(".txt", "")}")
+            except FileExistsError:
+                pass
             shutil.move(source, dest)
