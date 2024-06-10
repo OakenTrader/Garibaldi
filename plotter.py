@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-def plot_stat(campaign_folder, checker, mode):
+def plot_stat(campaign_folder, mode, checker=None):
     "Plot a variable over the campaign"
     dfs = dict()
     for folder in os.listdir(f"saves/{campaign_folder}"):
@@ -14,6 +14,8 @@ def plot_stat(campaign_folder, checker, mode):
             year, month, day = metadata["meta_data"]["game_date"].split(".")
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
             if f"{mode}.csv" not in os.listdir(save_folder):
+                if checker is None:
+                    raise ValueError("No checker provided.")
                 df_stat = checker(save_folder)
             else:
                 df_stat = pd.read_csv(f"{save_folder}/{mode}.csv")
