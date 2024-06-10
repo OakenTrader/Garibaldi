@@ -1,6 +1,17 @@
 import json, sys, os, shutil, fnmatch
 from extractor import Extractor
-import time
+import time, functools
+
+def t_execute(func):
+    @functools.wraps(func)
+    def return_func(*args, **kwargs):
+        start = time.time()
+        out = func(*args, **kwargs)
+        length = time.time() - start
+        print(f"Length of time used by {func.__name__}: {length} seconds")
+        return out
+
+    return return_func
 
 def jopen(address:str):
     with open(address) as file:
