@@ -3,12 +3,10 @@ from utility import load
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from variables import keywords
 
-def plot_stat(campaign_folder, mode):
+def plot_stat(campaign_folder, checker, mode):
     "Plot a variable over the campaign"
     dfs = dict()
-    checker = keywords[mode]
     for folder in os.listdir(f"saves/{campaign_folder}"):
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and "campaign_data" not in folder:
