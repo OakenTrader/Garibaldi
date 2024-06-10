@@ -105,7 +105,7 @@ def check_construction(address=None):
 
     df_construction = df_construction.sort_values(by='construction', ascending=False)
     # Output countries that are players or have more construction than the players' least
-    players_cons = df_construction[df_construction["id"].isin(players)]
+    players_cons = df_construction[df_construction["tag"].isin(players)]
     min_players_cons = players_cons["construction"].min()
     df_construction = df_construction[df_construction["construction"] >= min_players_cons]
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
