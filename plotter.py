@@ -1,5 +1,5 @@
 import os
-from utility import load
+from utility import load_save
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ def plot_stat(campaign_folder, checker, mode):
     for folder in os.listdir(f"saves/{campaign_folder}"):
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and "campaign_data" not in folder:
-            metadata = load(["meta_data"], save_folder, True)
+            metadata = load_save(["meta_data"], save_folder, True)
             year, month, day = metadata["meta_data"]["game_date"].split(".")
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
             if f"{mode}.csv" not in os.listdir(save_folder):

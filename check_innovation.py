@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from convert_localization import get_all_localization
-from utility import jopen, load, retrieve_from_tree
+from utility import load_def, load_save, retrieve_from_tree
 
 def check_innovation(address=None):
     """
@@ -9,7 +9,7 @@ def check_innovation(address=None):
     """
     localization = get_all_localization()
     topics = ["building_manager", "country_manager", "pops", "player_manager"]
-    data = load(topics, address)
+    data = load_save(topics, address)
     buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
     for pop_id, pop in pops.items():
@@ -19,10 +19,10 @@ def check_innovation(address=None):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
-    players = [v["country"] for k, v in players.items()]
+    players = [countries[v["country"]]["definition"] for k, v in players.items()]
 
-    def_production_methods = jopen("./common_json/production_methods/07_government.json")
-    def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
+    def_production_methods = load_def("./common/production_methods/07_government.txt")
+    def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
     columns = ["tag", "country", "innovation", "cap"]
@@ -74,7 +74,7 @@ def check_innovation(address=None):
         else:
             country_name = country["definition"]
 
-        new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=["country", "innovation", "cap"])
+        new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=columns)
         df_inno = pd.concat([df_inno, new_data], ignore_index=True)
     df_inno["capped_innovation"] = np.minimum(df_inno["innovation"], df_inno["cap"])
     df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)

@@ -1,4 +1,4 @@
-from utility import load
+from utility import load_save
 import pandas as pd
 from convert_localization import get_all_localization
 
@@ -8,7 +8,7 @@ def check_infamy(address=None):
     """
     localization = get_all_localization()
     topics = ["player_manager", "country_manager"]
-    data = load(topics, address)
+    data = load_save(topics, address)
     players, countries = [data[topic]["database"] for topic in topics]
     players = [v["country"] for k, v in players.items()]
     infamies = dict()

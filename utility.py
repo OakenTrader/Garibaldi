@@ -1,4 +1,4 @@
-import json, sys, os, glob, shutil, fnmatch
+import json, sys, os, shutil, fnmatch
 from extractor import Extractor
 import time
 
@@ -52,7 +52,16 @@ def retrieve_from_tree(tree:dict, directory:list):
         current = current[subdir]
     return current
 
-def load(topics:list, address:str, save=False):
+def load_def(address):
+    """
+    Load a define (content) script
+    """
+    data = Extractor(address)
+    data.unquote()
+    data = data.data
+    return data
+
+def load_save(topics:list, address:str, save=False):
     """
     Load a subset of information from a save file or pre-extracted json files
 

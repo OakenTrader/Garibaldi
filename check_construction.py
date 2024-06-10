@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from convert_localization import get_all_localization
-from utility import jopen, retrieve_from_tree, load
+from utility import load_def, retrieve_from_tree, load_save
 
 def check_construction(address=None):
     """
@@ -11,7 +11,7 @@ def check_construction(address=None):
     """
     localization = get_all_localization()
     topics = ["building_manager", "country_manager", "pops", "player_manager"]
-    data = load(topics, address)
+    data = load_save(topics, address)
     buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     csectors = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_construction_sector"}
     for pop_id, pop in pops.items():
@@ -21,10 +21,9 @@ def check_construction(address=None):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
-    players = [v["country"] for k, v in players.items()]
-
-    def_production_methods = jopen("./common_json/production_methods/13_construction.json")
-    def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
+    players = [countries[v["country"]]["definition"] for k, v in players.items()]
+    def_production_methods = load_def("./common/production_methods/13_construction.txt")
+    def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
     columns = ["tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]

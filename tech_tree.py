@@ -1,10 +1,10 @@
 import convert_localization
-from utility import load, jopen
+from utility import load_save, load_def
 
 def get_tech_tree(address):
     localization = convert_localization.get_all_localization()
     topics = ["country_manager", "technology", "player_manager"]
-    data = load(topics, address)
+    data = load_save(topics, address)
     countries, technologies, players = [data[topic]["database"] for topic in topics]
     players = [v["country"] for k, v in players.items()]
     output = ""
@@ -20,9 +20,9 @@ def get_tech_tree(address):
             else:
                 techs[t] += 1
     
-    def_prod_tech = jopen("./common_json/technology/technologies/10_production.json")
-    def_mil_tech = jopen("./common_json/technology/technologies/20_military.json")
-    def_soc_tech = jopen("./common_json/technology/technologies/30_society.json")
+    def_prod_tech = load_def("./common_json/technology/technologies/10_production.json")
+    def_mil_tech = load_def("./common_json/technology/technologies/20_military.json")
+    def_soc_tech = load_def("./common_json/technology/technologies/30_society.json")
 
     # Determine which new tech is being researched
     output += "Techs in research\n"
