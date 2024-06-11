@@ -1,5 +1,5 @@
 import sys, os, shutil, fnmatch, pickle, gzip
-from extractor import Extractor
+from scripts.extractor import Extractor
 import time, functools
 
 def t_execute(func):

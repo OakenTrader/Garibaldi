@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from convert_localization import get_all_localization
-from utility import load_def, load_save, retrieve_from_tree
+from scripts.convert_localization import get_all_localization
+from scripts.helpers.utility import load_def, load_save, retrieve_from_tree
 
 def check_innovation(address=None):
     """

@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from convert_localization import get_all_localization
-from utility import load_def, retrieve_from_tree, load_save
+from scripts.convert_localization import get_all_localization
+from scripts.helpers.utility import load_def, retrieve_from_tree, load_save
 
 def check_construction(address=None):
     """

@@ -1,5 +1,5 @@
-import convert_localization
-from utility import load_save, load_def
+import scripts.convert_localization as convert_localization
+from scripts.helpers.utility import load_save, load_def
 
 def get_tech_tree(address):
     localization = convert_localization.get_all_localization()

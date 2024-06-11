@@ -1,6 +1,6 @@
-from utility import load_save
+from scripts.helpers.utility import load_save
 import pandas as pd
-from convert_localization import get_all_localization
+from scripts.convert_localization import get_all_localization
 
 def check_infamy(address=None):
     """
