@@ -1,5 +1,4 @@
-import json
-import re
+import re, gzip, pickle, os
 
 class Extractor:
     """
@@ -8,7 +7,8 @@ class Extractor:
     Based on observed pattern, this class processes text data by removing comments, normalizing whitespace, and structuring data based on 
     nesting levels indicated by curly braces. It specifically handles conditions, logical checks, and assignments 
     within the game's data files, ensuring accurate representation in dictionary format which can be serialized into JSON.
-
+    Extracted data is saved by first pickling the object and then zip it.
+    
     Issues: 
     - Strings with whitespaces will be separated into different entries, "United States of America" will
     not be kept in a single variable.
@@ -26,11 +26,11 @@ class Extractor:
     data (dict): The structured data extracted from the file, organized as a nested dictionary.
     
     Methods:
-    dump_json(output): Serializes the parsed data into JSON format and writes it to a specified output file.
+    write(output, sections=None, separate=False): Write the data tree into a zipped pickle.
 
     Examples:
     extractor = Extractor("path/to/victoria3_data.txt", focus="population", pline=True)
-    extractor.dump_json("output.json")
+    extractor.write("saves/campaign/save", ["population"])
     """
     def __init__(self, address, focuses=None, pline=False) -> None:
         self.data = dict()
@@ -125,12 +125,14 @@ class Extractor:
                         key, value = ordinary_field_match.groups()
                         scope[-1][key.strip()] = value.strip()
 
-    def dump_json(self, output, sections=None, separate=False):
+    def write(self, output, sections=None, separate=False):
         """
-        Serialize the parsed data to JSON and write it to a specified output file.
+        Write the data tree into a zipped pickle.
 
-        Parameters:
-        output (str): The file path where the JSON data will be written.
+        Arguments:
+        output: Folder address
+        sections: List of subtrees to be written. Default is None (Write all)
+        separate: Whether or not the data should be written in one file. Default is False
         """ 
         if sections is not None:
             data_output = {k : v for k, v in self.data.items() if k in sections}
@@ -138,11 +140,13 @@ class Extractor:
             data_output = self.data
         if not separate:
             data_output = {"full": data_output}
+        try:
+            os.mkdir(f"{output}/extracted_save")
+        except FileExistsError:
+            pass
         for k, v in data_output.items():
-            with open(f"{output}_{k}.json", "w") as f:
-                f.write(json.dumps({k : v}, indent=4))
-
-
+            with gzip.open(f"{output}/extracted_save/{k}.gz", 'wb') as f:
+                pickle.dump({k : v}, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     
     def unquote(self, scope=None):

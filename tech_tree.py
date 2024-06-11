@@ -20,9 +20,9 @@ def get_tech_tree(address):
             else:
                 techs[t] += 1
     
-    def_prod_tech = load_def("./common_json/technology/technologies/10_production.json")
-    def_mil_tech = load_def("./common_json/technology/technologies/20_military.json")
-    def_soc_tech = load_def("./common_json/technology/technologies/30_society.json")
+    def_prod_tech = load_def("./common/technology/technologies/10_production.txt")
+    def_mil_tech = load_def("./common/technology/technologies/20_military.txt")
+    def_soc_tech = load_def("./common/technology/technologies/30_society.txt")
 
     # Determine which new tech is being researched
     output += "Techs in research\n"

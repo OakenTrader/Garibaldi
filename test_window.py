@@ -46,7 +46,7 @@ class DictViewer(tk.Tk):
                 self.tree.insert(parent, 'end', text=f"{key}: {value}")
 
 # Sample dictionary to visualize
-data = jopen("./saves/save_output_country_manager.json")
+data = zopen("./saves/campaign_France/autosave_1842/full.cz")
 
 # Run the application
 if __name__ == "__main__":
