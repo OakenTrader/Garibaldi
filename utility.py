@@ -1,4 +1,4 @@
-import json, sys, os, shutil, fnmatch
+import sys, os, shutil, fnmatch, pickle, gzip
 from extractor import Extractor
 import time, functools
 
@@ -13,9 +13,9 @@ def t_execute(func):
 
     return return_func
 
-def jopen(address:str):
-    with open(address) as file:
-        return json.load(file)
+def zopen(address:str):
+    with gzip.open(address, 'rb') as f:
+        return pickle.load(f)
 
 def get_all_possible_keys(data:dict):
     """
@@ -74,27 +74,29 @@ def load_def(address):
 
 def load_save(topics:list, address:str, save=False):
     """
-    Load a subset of information from a save file or pre-extracted json files
+    Load a subset of information from a save file or pre-extracted data files
 
     Returns a dictionary of data according to the specified topic
 
-    May optionally save a loaded result from the Extractor into a json
+    save: May optionally save a loaded result from the Extractor
     """
     topics = topics.copy()
     t0 = time.time()
     data_output = dict()
-    for i, topic in enumerate(topics):
-        if f"save_output_{topic}.json" in os.listdir(address):
-            data_output[topic] = jopen(f"{address}/save_output_{topic}.json")[topic]
-            topics.pop(i)
+    if "extracted_save" not in os.listdir(address):
+        os.mkdir(f"{address}/extracted_save")
+    for topic in topics.copy():
+        if f"{topic}.gz" in os.listdir(f"{address}/extracted_save"):
+            data_output[topic] = zopen(f"{address}/extracted_save/{topic}.gz")[topic]
+            topics.pop(topics.index(topic))
     if len(topics) > 0:
-        if "save_output_all.json" in os.listdir(address):
-            data = jopen("./saves/save_output_all.json")
+        if "full.gz" in os.listdir(f"{address}/extracted_save"):
+            data = zopen(f"{address}/extracted_save/full.gz")
         else:
             data = Extractor(f"{address}/save.txt", topics.copy())
             data.unquote()
             if save:
-                data.dump_json(f"{address}/save_output", separate=True)
+                data.write(address, separate=True)
             data = data.data
         for topic in topics:
             data_output[topic] = data[topic]
