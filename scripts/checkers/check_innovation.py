@@ -3,7 +3,7 @@ import numpy as np
 from scripts.convert_localization import get_all_localization
 from scripts.helpers.utility import load_def, load_save, retrieve_from_tree
 
-def check_innovation(address=None):
+def check_innovation(address=None, **kwargs):
     """
     Retrieve Innovation and its cap of player nations and nations with > base innovation
     """
@@ -19,7 +19,7 @@ def check_innovation(address=None):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
-    players = [countries[v["country"]]["definition"] for k, v in players.items()]
+    players = [countries[v["country"]]["definition"] for k, v in players.items() if countries[v["country"]] != "none"]
 
     def_production_methods = load_def("./common/production_methods/07_government.txt")
     def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
@@ -30,7 +30,17 @@ def check_innovation(address=None):
     for kc, country in countries.items():
         if any([country == "none", "states" not in country]):
             continue
-        literacy = country["literacy"]["channels"]["0"]["values"]["value"][-1]
+        if "player_only" in kwargs and kwargs["player_only"] and country["definition"] not in players:
+            continue
+        try:
+            literacy = country["literacy"]["channels"]["0"]["values"]["value"][-1]
+        except KeyError:
+            literacy = 0
+            """
+            FIXME Some countries don't provide literacy graph and we need to extract it somehow else
+            Either interpolate it from nearby saves or calculate directly from pops info
+            """
+            # raise KeyError(country["literacy"])
         inno_cap = base_innovation + 150 * float(literacy)
         states = country["states"]["value"]
         innov = base_innovation

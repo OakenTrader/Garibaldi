@@ -2,7 +2,7 @@ from scripts.helpers.utility import load_save
 import pandas as pd
 from scripts.convert_localization import get_all_localization
 
-def check_infamy(address=None):
+def check_infamy(address=None, **kwargs):
     """
     Retrieve infamy of player countries and countries with non-zero infamy
     """
@@ -16,6 +16,8 @@ def check_infamy(address=None):
         if "definition" not in country:
             continue
         tag = country["definition"]
+        if "player_only" in kwargs and kwargs["player_only"] and k not in players:
+            continue
         if tag in localization:
             country_name = localization[tag]
         else:

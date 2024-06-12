@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scripts.convert_localization import get_all_localization
 from scripts.helpers.utility import load_def, retrieve_from_tree, load_save
 
-def check_construction(address=None):
+def check_construction(address=None, **kwargs):
     """
     Retrieve the construction, construction in use, construction cost and its average per construction point
     of player nations and nations with more construction than a minimum player's construction
@@ -30,6 +30,8 @@ def check_construction(address=None):
     df_construction = pd.DataFrame(columns=columns)
     for country_id, country in countries.items():
         if country == "none" or "states" not in country:
+            continue
+        if "player_only" in kwargs and kwargs["player_only"] and country["definition"] not in players:
             continue
         states = country["states"]["value"]
         construction = base_construction
@@ -65,11 +67,14 @@ def check_construction(address=None):
                 csector_c["throughput"] = 1.0
 
             construction_out =  output * float(csector_c["throughput"]) * employees
-            try:
+            if "goods_cost" in csector_c and "salaries" in csector_c:
                 construction_cost = float(csector_c["goods_cost"]) + float(csector_c["salaries"])
-            except:
-                # print(csector_c)
+            elif "dividends" in csector_c:
                 construction_cost = -float(csector_c["dividends"])
+            elif "salaries" in csector_c:
+                construction_cost = float(csector_c["salaries"])
+            else:
+                construction_cost = 0
             construction_list.append([construction_out, construction_cost])
             construction += construction_out
             csectors.pop(csector_id)
