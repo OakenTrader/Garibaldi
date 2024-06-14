@@ -1,34 +1,37 @@
-from extractor import Extractor
-from utility import get_size
-from tech_tree import get_tech_tree
-from check_innovation import check_innovation
-from check_construction import check_construction
-from check_infamy import check_infamy
+from scripts.extractor import Extractor
+from scripts.helpers.utility import *
+from scripts.helpers.plotter import *
+from scripts.checkers.tech_tree import get_tech_tree
+from scripts.checkers.check_innovation import check_innovation
+from scripts.checkers.check_construction import check_construction
+from scripts.checkers.check_infamy import check_infamy
 import time
 
-# Fully extract save file into json files
+# Fully extract save file
 def extract_save_file(save_file):
     try:
         t0 = time.time()
-        data = Extractor(save_file)
+        data = Extractor(f"{save_file}/save.txt")
         print(f"Size: {get_size(data.data)}")
         print(f"{time.time() - t0} seconds")
         t0 = time.time()
         data.unquote()
         print(f"{time.time() - t0} seconds")
         t0 = time.time()
-        data.dump_json("./saves/save_output", separate=True)
+        data.write(save_file, separate=True)
         print(f"{time.time() - t0} seconds")
     except:
         data = Extractor(save_file, True)
 
-save_file = "./saves/autosave_1844.txt"
-extract_save_file(save_file)
-get_tech_tree(save_file)
-check_innovation(save_file)
-check_construction(save_file)
-check_infamy(save_file)
 
-
-
+sample_save = "./saves/campaign_folder/save_folder"
+extract_save_file(sample_save)
+check_construction(sample_save)
+check_infamy(sample_save)
+check_innovation(sample_save)
+get_tech_tree(sample_save)
+campaign_folder = "campaign_folder" # No ./saves
+plot_stat(campaign_folder, "construction", check_construction, input_file="construction.csv", player_only=True, reset=True)
+plot_stat(campaign_folder, "innovation", check_innovation, reset=True, player_only=False)
+plot_stat(campaign_folder, "infamy", check_infamy, reset=True, player_only=True)
 

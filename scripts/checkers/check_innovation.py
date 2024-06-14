@@ -1,15 +1,17 @@
 import pandas as pd
 import numpy as np
-from convert_localization import get_all_localization
-from utility import jopen, load, retrieve_from_tree
+from scripts.convert_localization import get_all_localization
+from scripts.helpers.utility import load_def, load_save, retrieve_from_tree, get_save_date
 
-def check_innovation(address=None):
+def check_innovation(address=None, **kwargs):
     """
     Retrieve Innovation and its cap of player nations and nations with > base innovation
     """
     localization = get_all_localization()
-    buildings, countries, pops, players = load(["building_manager", "country_manager", "pops", "player_manager"], address)
-    buildings, countries, pops, players = buildings["database"], countries["database"], pops["database"], players["database"]
+    topics = ["building_manager", "country_manager", "pops", "player_manager"]
+    year, month, day = get_save_date(address)
+    data = load_save(topics, address)
+    buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
     for pop_id, pop in pops.items():
         if "workplace" not in pop or pop["workplace"] not in universities:
@@ -18,18 +20,28 @@ def check_innovation(address=None):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
-    players = [v["country"] for k, v in players.items()]
+    players = [countries[v["country"]]["definition"] for k, v in players.items() if countries[v["country"]] != "none"]
 
-    def_production_methods = jopen("./common_json/production_methods/07_government.json")
-    def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
+    def_production_methods = load_def("./common/production_methods/07_government.txt")
+    def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
-    columns = ["country", "innovation", "cap"]
-    df_inno = pd.DataFrame(columns=columns)
+    columns = ["tag", "country", "innovation", "cap"]
+    df_innov = pd.DataFrame(columns=columns)
     for kc, country in countries.items():
         if any([country == "none", "states" not in country]):
             continue
-        literacy = country["literacy"]["channels"]["0"]["values"]["value"][-1]
+        if "player_only" in kwargs and kwargs["player_only"] and country["definition"] not in players:
+            continue
+        try:
+            literacy = country["literacy"]["channels"]["0"]["values"]["value"][-1]
+        except KeyError:
+            literacy = 0
+            """
+            FIXME Some countries don't provide literacy graph and we need to extract it somehow else
+            Either interpolate it from nearby saves or calculate directly from pops info
+            """
+            # raise KeyError(country["literacy"])
         inno_cap = base_innovation + 150 * float(literacy)
         states = country["states"]["value"]
         innov = base_innovation
@@ -72,13 +84,24 @@ def check_innovation(address=None):
             country_name = localization[country["definition"]]
         else:
             country_name = country["definition"]
+        if retrieve_from_tree(country, "civil_war") is not None:
+            country_name = "Revolutionary " + country_name 
 
-        new_data = pd.DataFrame([[country_name, innov, inno_cap]], columns=["country", "innovation", "cap"])
-        df_inno = pd.concat([df_inno, new_data], ignore_index=True)
-    df_inno["capped_innovation"] = np.minimum(df_inno["innovation"], df_inno["cap"])
-    df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)
+        new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=columns)
+        df_innov = pd.concat([df_innov, new_data], ignore_index=True)
+        # print(kc, country["definition"], innov)
+
+    players_innov = df_innov[df_innov["tag"].isin(players)]
+    min_players_innov = players_innov["innovation"].min()
+    df_innov = df_innov[df_innov["innovation"] >= min_players_innov]
+    df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["cap"])
+    df_innov = df_innov.sort_values(by='capped_innovation', ascending=False)
+
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(df_inno)
-        """
-        [ ] Print to a file 
-        """
+        print(f"{day}/{month}/{year}")
+        print(df_innov)
+        df_innov.to_csv(f"{address}/innovation.csv", sep=",", index=False)
+        with open(f"{address}/innovation.txt", "w") as file:
+            file.write(f"{day}/{month}/{year}\n")
+            file.write(df_innov.to_string())
+    return df_innov

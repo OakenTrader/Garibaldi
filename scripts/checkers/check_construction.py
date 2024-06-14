@@ -1,17 +1,19 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from convert_localization import get_all_localization
-from utility import jopen, retrieve_from_tree, load
+from scripts.convert_localization import get_all_localization
+from scripts.helpers.utility import load_def, retrieve_from_tree, load_save, get_save_date
 
-def check_construction(address=None):
+def check_construction(address=None, **kwargs):
     """
     Retrieve the construction, construction in use, construction cost and its average per construction point
     of player nations and nations with more construction than a minimum player's construction
     """
     localization = get_all_localization()
-    buildings, countries, pops, players = load(["building_manager", "country_manager", "pops", "player_manager"], address)
-    buildings, countries, pops, players = buildings["database"], countries["database"], pops["database"], players["database"]
+    topics = ["building_manager", "country_manager", "pops", "player_manager"]
+    year, month, day = get_save_date(address)
+    data = load_save(topics, address)
+    buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     csectors = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_construction_sector"}
     for pop_id, pop in pops.items():
         if "workplace" not in pop or pop["workplace"] not in csectors:
@@ -20,16 +22,17 @@ def check_construction(address=None):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
-    players = [v["country"] for k, v in players.items()]
-
-    def_production_methods = jopen("./common_json/production_methods/13_construction.json")
-    def_static_modifiers = jopen("./common_json/modifiers/00_static_modifiers.json")
+    players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
+    def_production_methods = load_def("./common/production_methods/13_construction.txt")
+    def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
-    columns = ["id", "country", "construction", "used_cons", "avg_cost", "total_cost"]
+    columns = ["tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
     df_construction = pd.DataFrame(columns=columns)
     for country_id, country in countries.items():
         if country == "none" or "states" not in country:
+            continue
+        if "player_only" in kwargs and kwargs["player_only"] and country["definition"] not in players:
             continue
         states = country["states"]["value"]
         construction = base_construction
@@ -65,11 +68,14 @@ def check_construction(address=None):
                 csector_c["throughput"] = 1.0
 
             construction_out =  output * float(csector_c["throughput"]) * employees
-            try:
+            if "goods_cost" in csector_c and "salaries" in csector_c:
                 construction_cost = float(csector_c["goods_cost"]) + float(csector_c["salaries"])
-            except:
-                # print(csector_c)
+            elif "dividends" in csector_c:
                 construction_cost = -float(csector_c["dividends"])
+            elif "salaries" in csector_c:
+                construction_cost = float(csector_c["salaries"])
+            else:
+                construction_cost = 0
             construction_list.append([construction_out, construction_cost])
             construction += construction_out
             csectors.pop(csector_id)
@@ -99,36 +105,22 @@ def check_construction(address=None):
             country_name = country["definition"]
         else:
             country_name = localization[country["definition"]]
-        new_data = pd.DataFrame([[country_id, country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
+        if retrieve_from_tree(country, "civil_war") == "yes":
+            country_name = "Revolutionary " + country_name 
+        new_data = pd.DataFrame([[country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
         df_construction = pd.concat([df_construction, new_data], ignore_index=True)
 
     df_construction = df_construction.sort_values(by='construction', ascending=False)
     # Output countries that are players or have more construction than the players' least
-    players_cons = df_construction[df_construction["id"].isin(players)]
+    players_cons = df_construction[df_construction["tag"].isin(players)]
     min_players_cons = players_cons["construction"].min()
     df_construction = df_construction[df_construction["construction"] >= min_players_cons]
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(f"{day}/{month}/{year}")
         print(df_construction)
-        """
-        [ ] Print to a file 
-        """
+        df_construction.to_csv(f"{address}/construction.csv", sep=",", index=False)
+        with open(f"{address}/construction.txt", "w") as file:
+            file.write(f"{day}/{month}/{year}\n")
+            file.write(df_construction.to_string())
 
     return df_construction
-
-def plot_construction(dfs):
-    fig, ax = plt.subplots()
-    countries = dict()
-    for year, df in dfs.items():
-        df = df.to_numpy()
-        for row in df:
-            country = row[1]
-            if country not in countries:
-                countries[country] = []
-            countries[country].append([year, row[2]])
-    for name, country in countries.items():
-        df = np.stack(country)
-        ax.plot(df[:, 0], df[:, 1], label=name)
-    ax.legend()
-    ax.set_title("Construction graph over the years")
-    ax.grid(True)
-    plt.show()

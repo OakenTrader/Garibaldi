@@ -1,11 +1,14 @@
-import convert_localization
-from utility import load, jopen
+import scripts.convert_localization as convert_localization
+from scripts.helpers.utility import load_save, load_def, get_save_date
 
 def get_tech_tree(address):
     localization = convert_localization.get_all_localization()
-    countries, technologies, players = load(["country_manager", "technology", "player_manager"], address)
-    countries, technologies, players = countries["database"], technologies["database"], players["database"]
+    topics = ["country_manager", "technology", "player_manager"]
+    year, month, day = get_save_date(address)
+    data = load_save(topics, address)
+    countries, technologies, players = [data[topic]["database"] for topic in topics]
     players = [v["country"] for k, v in players.items()]
+    output = ""
 
     techs = dict()
     for key in technologies:
@@ -18,12 +21,12 @@ def get_tech_tree(address):
             else:
                 techs[t] += 1
     
-    def_prod_tech = jopen("./common_json/technology/technologies/10_production.json")
-    def_mil_tech = jopen("./common_json/technology/technologies/20_military.json")
-    def_soc_tech = jopen("./common_json/technology/technologies/30_society.json")
+    def_prod_tech = load_def("./common/technology/technologies/10_production.txt")
+    def_mil_tech = load_def("./common/technology/technologies/20_military.txt")
+    def_soc_tech = load_def("./common/technology/technologies/30_society.txt")
 
     # Determine which new tech is being researched
-    print("Techs in research")
+    output += "Techs in research\n"
     researching_techs = dict()
     for key in technologies:
         if "research_technology" in technologies[key]:
@@ -32,10 +35,10 @@ def get_tech_tree(address):
                 researching_techs[researching] = 1
             else:
                 researching_techs[researching] += 1
-    print(researching_techs)
-    print("Research Frontier")
+    output += f"{researching_techs}\n"
+    output += f"Research Frontier (World's new technologies being researched)\n"
     frontier = [tech for tech in researching_techs if tech not in techs]
-    print(frontier)
+    output += f"{frontier}\n"
 
     # Who is researching which
     notable_countries = players
@@ -50,13 +53,18 @@ def get_tech_tree(address):
         else:
             country_name = localization[country_tag]
         if researching_tech in frontier or country_id in notable_countries:
-            print(f"{tech_id} {country_tag} {country_name} : {researching_tech}")
+            output += f"{tech_id} {country_tag} {country_name} : {researching_tech}\n"
             his_tech = technologies[tech_id]["acquired_technologies"]["value"]
             his_prod_tech = [tech for tech in his_tech if tech in def_prod_tech]
             his_mil_tech = [tech for tech in his_tech if tech in def_mil_tech]
             his_soc_tech = [tech for tech in his_tech if tech in def_soc_tech]
-            print(f"Number of tech: {len(his_tech)}, {[len(his_prod_tech), len(his_mil_tech), len(his_soc_tech)]}")
+            output += f"Number of tech: {len(his_tech)}, {[len(his_prod_tech), len(his_mil_tech), len(his_soc_tech)]}\n"
             his_missing_tech = [tech for tech in techs if tech not in his_tech]
-            print("Missing tech")
-            print(len(his_missing_tech), his_missing_tech)
-            print("")
+            output += "Missing tech\n"
+            output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
+
+    with open(f"{address}/tech_tree.txt", "w") as file:
+        print(f"{day}/{month}/{year}")
+        print(output)
+        file.write(f"{day}/{month}/{year}\n")
+        file.write(output)
