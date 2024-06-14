@@ -1,4 +1,4 @@
-import sys, os, shutil, fnmatch, pickle, gzip, glob
+import sys, os, shutil, fnmatch, pickle, gzip, glob, json
 from scripts.extractor import Extractor
 import time, functools
 
@@ -16,6 +16,10 @@ def t_execute(func):
 def zopen(address:str):
     with gzip.open(address, 'rb') as f:
         return pickle.load(f)
+
+def jopen(address:str):
+    with open(address, "r") as file:
+        return json.load(file)
 
 def get_all_possible_keys(data:dict):
     """
