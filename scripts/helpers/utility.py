@@ -100,9 +100,16 @@ def load_save(topics:list, address:str, save=False):
     data_output = dict()
     if "extracted_save" not in os.listdir(address):
         os.mkdir(f"{address}/extracted_save")
+    if "miscellaneous.gz" in os.listdir(f"{address}/extracted_save"):
+        miscellaneous = zopen(f"{address}/extracted_save/miscellaneous.gz")
+    else:
+        miscellaneous = dict()
     for topic in topics.copy():
         if f"{topic}.gz" in os.listdir(f"{address}/extracted_save"):
             data_output[topic] = zopen(f"{address}/extracted_save/{topic}.gz")[topic]
+            topics.pop(topics.index(topic))
+        elif topic in miscellaneous:
+            data_output[topic] = miscellaneous[topic]
             topics.pop(topics.index(topic))
     if len(topics) > 0:
         if "full.gz" in os.listdir(f"{address}/extracted_save"):

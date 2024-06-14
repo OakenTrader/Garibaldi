@@ -1,0 +1,4 @@
+{
+    "large_topics": ["country_manager", "pops", "interest_groups",
+    "building_manager", "states", "character_manager", "journal_entry_manager", "relations", "laws", "new_combat_unit_manager", "provinces"]
+}

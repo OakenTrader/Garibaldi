@@ -1,4 +1,7 @@
-import re, gzip, pickle, os
+import re, gzip, pickle, os, json
+
+with open("./scripts/variables.json", "r") as file:
+    VARIABLES = json.load(file)
 
 class Extractor:
     """
@@ -144,9 +147,16 @@ class Extractor:
             os.mkdir(f"{output}/extracted_save")
         except FileExistsError:
             pass
+        miscellaneous = dict()
         for k, v in data_output.items():
+            if k not in VARIABLES["large_topics"]:
+                miscellaneous[k] = v
+                continue
             with gzip.open(f"{output}/extracted_save/{k}.gz", 'wb') as f:
                 pickle.dump({k : v}, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with gzip.open(f"{output}/extracted_save/miscellaneous.gz", 'wb') as f:
+            pickle.dump(miscellaneous, f, protocol=pickle.HIGHEST_PROTOCOL)
+
 
     
     def unquote(self, scope=None):
