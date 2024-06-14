@@ -84,6 +84,8 @@ def check_innovation(address=None, **kwargs):
             country_name = localization[country["definition"]]
         else:
             country_name = country["definition"]
+        if retrieve_from_tree(country, "civil_war") is not None:
+            country_name = "Revolutionary " + country_name 
 
         new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=columns)
         df_innov = pd.concat([df_innov, new_data], ignore_index=True)

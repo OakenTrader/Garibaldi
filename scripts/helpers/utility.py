@@ -57,8 +57,10 @@ def retrieve_from_tree(tree:dict, directory:list):
         result = retrieve_from_tree(tree, directory)  # result will be 'value'
     """
     current = tree
+    if isinstance(directory, str):
+        directory = [directory]
     for subdir in directory:
-        if subdir not in current:
+        if not isinstance(current, dict) or subdir not in current:
             return None
         current = current[subdir]
     return current
@@ -71,6 +73,19 @@ def load_def(address):
     data.unquote()
     data = data.data
     return data
+
+def load_def_multiple(folder):
+    """
+    Load a define (content) script
+    """
+    defs = dict()
+    for address in glob.glob(f"{folder}/*.txt"):
+        data = Extractor(address)
+        data.unquote()
+        data = data.data
+        defs.update(data)
+    return defs
+
 
 def load_save(topics:list, address:str, save=False):
     """
@@ -93,7 +108,10 @@ def load_save(topics:list, address:str, save=False):
         if "full.gz" in os.listdir(f"{address}/extracted_save"):
             data = zopen(f"{address}/extracted_save/full.gz")
         else:
-            data = Extractor(f"{address}/save.txt", topics.copy())
+            try:
+                data = Extractor(f"{address}/save.txt", topics.copy())
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Unable to locate {address}/save.txt while attempting to load {topics}")
             data.unquote()
             if save:
                 data.write(address, separate=True)
@@ -119,3 +137,19 @@ def make_save_dirs(campaign_folder):
             except FileExistsError:
                 pass
             shutil.move(source, dest)
+
+def rename_folder_to_date(campaign_folder):
+    campaign_folder = f"saves/{campaign_folder}"
+    for folder in os.listdir(campaign_folder):
+        if "campaign_data" in folder:
+            continue
+        save_folder = f"{campaign_folder}/{folder}"
+        metadata = load_save(["meta_data"], save_folder)
+        year, month, day = metadata["meta_data"]["game_date"].split(".")
+        new_name = f"{campaign_folder.split("/")[-1]}_{year}_{month}_{day}"
+        os.rename(save_folder, f"{campaign_folder}/{new_name}")
+
+def get_save_date(save_folder):
+    metadata = load_save(["meta_data"], save_folder)
+    year, month, day = metadata["meta_data"]["game_date"].split(".")
+    return year, month, day

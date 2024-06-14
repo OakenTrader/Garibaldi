@@ -1,4 +1,3 @@
-from scripts.helpers.utility import load_save
 import pandas as pd
 from scripts.helpers.utility import load_save, get_save_date, retrieve_from_tree
 from scripts.convert_localization import get_all_localization
@@ -24,6 +23,8 @@ def check_infamy(address=None, **kwargs):
             country_name = localization[tag]
         else:
             country_name = tag
+        if retrieve_from_tree(country, "civil_war") is not None:
+            country_name = "Revolutionary " + country_name 
         if "infamy" in country:
             infamies[k] = (tag, country_name, country["infamy"])
         else:

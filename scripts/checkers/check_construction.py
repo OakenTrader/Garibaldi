@@ -22,7 +22,7 @@ def check_construction(address=None, **kwargs):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
-    players = [countries[v["country"]]["definition"] for k, v in players.items()]
+    players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
     def_production_methods = load_def("./common/production_methods/13_construction.txt")
     def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
@@ -105,6 +105,8 @@ def check_construction(address=None, **kwargs):
             country_name = country["definition"]
         else:
             country_name = localization[country["definition"]]
+        if retrieve_from_tree(country, "civil_war") == "yes":
+            country_name = "Revolutionary " + country_name 
         new_data = pd.DataFrame([[country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
         df_construction = pd.concat([df_construction, new_data], ignore_index=True)
 
