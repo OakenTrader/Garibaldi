@@ -1,5 +1,3 @@
-*.json
-common_json/**
 __pycache__
 events/**
 common/**

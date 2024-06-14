@@ -89,7 +89,7 @@ def check_innovation(address=None, **kwargs):
 
         new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=columns)
         df_innov = pd.concat([df_innov, new_data], ignore_index=True)
-        print(kc, country["definition"], innov)
+        # print(kc, country["definition"], innov)
 
     players_innov = df_innov[df_innov["tag"].isin(players)]
     min_players_innov = players_innov["innovation"].min()
