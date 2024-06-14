@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from scripts.convert_localization import get_all_localization
-from scripts.helpers.utility import load_def, load_save, retrieve_from_tree
+from scripts.helpers.utility import load_def, load_save, retrieve_from_tree, get_save_date
 
 def check_innovation(address=None, **kwargs):
     """
@@ -9,6 +9,7 @@ def check_innovation(address=None, **kwargs):
     """
     localization = get_all_localization()
     topics = ["building_manager", "country_manager", "pops", "player_manager"]
+    year, month, day = get_save_date(address)
     data = load_save(topics, address)
     buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
@@ -26,7 +27,7 @@ def check_innovation(address=None, **kwargs):
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
     columns = ["tag", "country", "innovation", "cap"]
-    df_inno = pd.DataFrame(columns=columns)
+    df_innov = pd.DataFrame(columns=columns)
     for kc, country in countries.items():
         if any([country == "none", "states" not in country]):
             continue
@@ -85,12 +86,20 @@ def check_innovation(address=None, **kwargs):
             country_name = country["definition"]
 
         new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=columns)
-        df_inno = pd.concat([df_inno, new_data], ignore_index=True)
-    df_inno["capped_innovation"] = np.minimum(df_inno["innovation"], df_inno["cap"])
-    df_inno = df_inno.sort_values(by='capped_innovation', ascending=False)
+        df_innov = pd.concat([df_innov, new_data], ignore_index=True)
+        print(kc, country["definition"], innov)
+
+    players_innov = df_innov[df_innov["tag"].isin(players)]
+    min_players_innov = players_innov["innovation"].min()
+    df_innov = df_innov[df_innov["innovation"] >= min_players_innov]
+    df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["cap"])
+    df_innov = df_innov.sort_values(by='capped_innovation', ascending=False)
+
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(df_inno)
-        df_inno.to_csv(f"{address}/innovation.csv", sep=",", index=False)
+        print(f"{day}/{month}/{year}")
+        print(df_innov)
+        df_innov.to_csv(f"{address}/innovation.csv", sep=",", index=False)
         with open(f"{address}/innovation.txt", "w") as file:
-            file.write(df_inno.to_string())
-    return df_inno
+            file.write(f"{day}/{month}/{year}\n")
+            file.write(df_innov.to_string())
+    return df_innov

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scripts.convert_localization import get_all_localization
-from scripts.helpers.utility import load_def, retrieve_from_tree, load_save
+from scripts.helpers.utility import load_def, retrieve_from_tree, load_save, get_save_date
 
 def check_construction(address=None, **kwargs):
     """
@@ -11,6 +11,7 @@ def check_construction(address=None, **kwargs):
     """
     localization = get_all_localization()
     topics = ["building_manager", "country_manager", "pops", "player_manager"]
+    year, month, day = get_save_date(address)
     data = load_save(topics, address)
     buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     csectors = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_construction_sector"}
@@ -113,9 +114,11 @@ def check_construction(address=None, **kwargs):
     min_players_cons = players_cons["construction"].min()
     df_construction = df_construction[df_construction["construction"] >= min_players_cons]
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(f"{day}/{month}/{year}")
         print(df_construction)
         df_construction.to_csv(f"{address}/construction.csv", sep=",", index=False)
         with open(f"{address}/construction.txt", "w") as file:
+            file.write(f"{day}/{month}/{year}\n")
             file.write(df_construction.to_string())
 
     return df_construction

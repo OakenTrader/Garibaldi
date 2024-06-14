@@ -1,9 +1,10 @@
 import scripts.convert_localization as convert_localization
-from scripts.helpers.utility import load_save, load_def
+from scripts.helpers.utility import load_save, load_def, get_save_date
 
 def get_tech_tree(address):
     localization = convert_localization.get_all_localization()
     topics = ["country_manager", "technology", "player_manager"]
+    year, month, day = get_save_date(address)
     data = load_save(topics, address)
     countries, technologies, players = [data[topic]["database"] for topic in topics]
     players = [v["country"] for k, v in players.items()]
@@ -63,5 +64,7 @@ def get_tech_tree(address):
             output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
 
     with open(f"{address}/tech_tree.txt", "w") as file:
+        print(f"{day}/{month}/{year}")
         print(output)
+        file.write(f"{day}/{month}/{year}\n")
         file.write(output)

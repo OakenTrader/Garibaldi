@@ -1,5 +1,6 @@
 from scripts.helpers.utility import load_save
 import pandas as pd
+from scripts.helpers.utility import load_save, get_save_date, retrieve_from_tree
 from scripts.convert_localization import get_all_localization
 
 def check_infamy(address=None, **kwargs):
@@ -8,6 +9,7 @@ def check_infamy(address=None, **kwargs):
     """
     localization = get_all_localization()
     topics = ["player_manager", "country_manager"]
+    year, month, day = get_save_date(address)
     data = load_save(topics, address)
     players, countries = [data[topic]["database"] for topic in topics]
     players = [v["country"] for k, v in players.items()]
@@ -35,8 +37,10 @@ def check_infamy(address=None, **kwargs):
     df = pd.DataFrame(vlist, columns=["tag", "country", "infamy"])
     df = df.sort_values(by='infamy', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(f"{day}/{month}/{year}")
         print(df)
         df.to_csv(f"{address}/infamy.csv", sep=",", index=False)
         with open(f"{address}/infamy.txt", "w") as file:
+            file.write(f"{day}/{month}/{year}\n")
             file.write(df.to_string())
     return df
