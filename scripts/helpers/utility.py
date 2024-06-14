@@ -1,4 +1,4 @@
-import sys, os, shutil, fnmatch, pickle, gzip
+import sys, os, shutil, fnmatch, pickle, gzip, glob
 from scripts.extractor import Extractor
 import time, functools
 
