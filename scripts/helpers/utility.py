@@ -155,12 +155,41 @@ def rename_folder_to_date(campaign_folder):
         if "campaign_data" in folder:
             continue
         save_folder = f"{campaign_folder}/{folder}"
-        metadata = load_save(["meta_data"], save_folder)
-        year, month, day = metadata["meta_data"]["game_date"].split(".")
+        year, month, day = get_save_date(save_folder)
         new_name = f"{campaign_folder.split("/")[-1]}_{year}_{month}_{day}"
         os.rename(save_folder, f"{campaign_folder}/{new_name}")
 
-def get_save_date(save_folder):
+def get_save_date(save_folder, split=True):
     metadata = load_save(["meta_data"], save_folder)
-    year, month, day = metadata["meta_data"]["game_date"].split(".")
-    return year, month, day
+    save_date = metadata["meta_data"]["game_date"]
+    if split:
+        year, month, day = save_date.split(".")
+        return year, month, day
+    return save_date
+
+def date_to_day(date:str):
+    """
+    Get the number of days passed since the start of the year to the current date
+    """
+    year, month, day = date.split(".")
+    year, month, day = int(year), int(month), int(day)
+    def_month = {1:0, 2:31, 3:59, 4:90, 5:120, 6:151, 7:181, 8:212, 9:243, 10:273, 11:304, 12:334}
+    if year % 4 == 0 and not year % 100 == 0:
+        for i in range(3, 13):
+            def_month[i] += 1
+    return def_month[month] + day
+
+def get_duration(this_date, start_date, end_date=None):
+    """
+    Get duration since start date (if end_date isn't provided) and the total duration and the fraction of time since start_date
+    Doesn't exactly follow the calendar format so subject to ~1% inaccuracy
+    """
+    year1, month1, day1 = [int(i) for i in this_date.split(".")]
+    year2, month2, day2 = [int(i) for i in start_date.split(".")]
+    year3, month3, day3 = [int(i) for i in end_date.split(".")]
+    duration_from_start = (year2 - year1) + (date_to_day(this_date) - date_to_day(start_date)) / 365.2422
+    if end_date is not None:
+        total_duration = (year3 - year2) + (date_to_day(end_date) - date_to_day(start_date)) / 365.2422
+        return duration_from_start, total_duration, duration_from_start / total_duration
+    else:
+        return duration_from_start
