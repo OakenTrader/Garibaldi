@@ -48,7 +48,7 @@ def get_size(obj, seen=None):
         size += sum([get_size(i, seen) for i in obj])
     return size
 
-def retrieve_from_tree(tree:dict, directory:list):
+def retrieve_from_tree(tree:dict, directory:list, null=None):
     """
     Retrieve a value from a nested dictionary (tree) using a list of keys (directory).
 
@@ -65,7 +65,7 @@ def retrieve_from_tree(tree:dict, directory:list):
         directory = [directory]
     for subdir in directory:
         if not isinstance(current, dict) or subdir not in current:
-            return None
+            return null
         current = current[subdir]
     return current
 
