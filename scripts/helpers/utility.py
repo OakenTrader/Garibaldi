@@ -193,3 +193,51 @@ def get_duration(this_date, start_date, end_date=None):
         return duration_from_start, total_duration, duration_from_start / total_duration
     else:
         return duration_from_start
+
+def walk_tree(tree:dict, target, path:list=[]):
+    """
+    Check if there is a key existing in any end part of the tree
+    Return a list of keys relative to the root dictionary
+    """
+    root = path.copy()
+    leaves = []
+    for key, value in tree.items():
+        if key == target:
+            leaves.append(root + [target]) 
+        if isinstance(value, dict):
+            leaves += walk_tree(value, target, root + [key])
+    return leaves
+
+def get_building_output(building, target, def_production_methods):
+    """
+    Calculate a building's output of a variable with respected to production methods, employees and throughput
+    Employees must be added into a building from the outside in building["pops_employed"]
+    """
+    output = 0
+    employees = 0
+    employees_pl = dict()
+    for pm_name in building["production_methods"]["value"]:
+        pm = def_production_methods[pm_name]
+        if (output_workforce := retrieve_from_tree(pm, ["country_modifiers", "workforce_scaled", target])) is not None:
+            output += float(output_workforce)
+        if (employees_dict := retrieve_from_tree(pm, ["building_modifiers", "level_scaled"])) is not None:
+            for key, addition in employees_dict.items():
+                if key not in employees_pl:
+                    employees_pl[key] = int(addition)
+                else:
+                    employees_pl[key] += int(addition)
+    
+    if "pops_employed" in building:
+        for key, pop in building["pops_employed"].items():
+            employees += int(pop["workforce"] )
+
+    # print(employees_pl)
+    # print(f"Total Employees at level {int(building['level'])}: {employees}")
+    employees /= sum([employees_pl[e] for e in employees_pl])
+    # print(f"Employees ratio: {employees}")
+    # print([employees_pl[e] for e in employees_pl])
+    if "throughput" not in building:
+        building["throughput"] = 1.0
+    # print(output)
+    output =  output * float(building["throughput"]) * employees
+    return output
