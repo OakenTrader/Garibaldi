@@ -1,5 +1,5 @@
 import pandas as pd
-from scripts.helpers.utility import load_save, get_save_date, retrieve_from_tree
+from scripts.helpers.utility import *
 from scripts.convert_localization import get_all_localization
 
 def check_infamy(address=None, **kwargs):
@@ -19,12 +19,7 @@ def check_infamy(address=None, **kwargs):
         tag = country["definition"]
         if "player_only" in kwargs and kwargs["player_only"] and k not in players:
             continue
-        if tag in localization:
-            country_name = localization[tag]
-        else:
-            country_name = tag
-        if retrieve_from_tree(country, "civil_war") is not None:
-            country_name = "Revolutionary " + country_name 
+        country_name = get_country_name(country, localization)
         if "infamy" in country:
             infamies[k] = (tag, country_name, country["infamy"])
         else:
@@ -33,9 +28,9 @@ def check_infamy(address=None, **kwargs):
     vlist = []
     for k, v in infamies.items():
         if k in players or float(v[2]) > 0:
-            vlist.append([v[0] , v[1], float(v[2])])
+            vlist.append([k, v[0] , v[1], float(v[2])])
     
-    df = pd.DataFrame(vlist, columns=["tag", "country", "infamy"])
+    df = pd.DataFrame(vlist, columns=["id", "tag", "country", "infamy"])
     df = df.sort_values(by='infamy', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(f"{day}/{month}/{year}")

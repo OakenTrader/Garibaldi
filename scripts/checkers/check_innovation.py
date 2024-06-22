@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from scripts.convert_localization import get_all_localization
-from scripts.helpers.utility import load_def, load_save, retrieve_from_tree, get_save_date
+from scripts.helpers.utility import *
 
 def check_innovation(address=None, **kwargs):
     """
@@ -26,7 +26,7 @@ def check_innovation(address=None, **kwargs):
     def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
-    columns = ["tag", "country", "innovation", "cap"]
+    columns = ["id", "tag", "country", "innovation", "cap"]
     df_innov = pd.DataFrame(columns=columns)
     for kc, country in countries.items():
         if any([country == "none", "states" not in country]):
@@ -78,16 +78,9 @@ def check_innovation(address=None, **kwargs):
             innov_list.append(innov_out)
             innov += innov_out
 
-        if not (kc in players or innov > base_innovation):
-            continue
-        if country["definition"] in localization:
-            country_name = localization[country["definition"]]
-        else:
-            country_name = country["definition"]
-        if retrieve_from_tree(country, "civil_war") is not None:
-            country_name = "Revolutionary " + country_name 
+            country_name = get_country_name(country, localization)
 
-        new_data = pd.DataFrame([[country["definition"], country_name, innov, inno_cap]], columns=columns)
+        new_data = pd.DataFrame([[kc, country["definition"], country_name, innov, inno_cap]], columns=columns)
         df_innov = pd.concat([df_innov, new_data], ignore_index=True)
         # print(kc, country["definition"], innov)
 

@@ -1,7 +1,7 @@
 import scripts.convert_localization as convert_localization
-from scripts.helpers.utility import load_save, load_def, get_save_date
+from scripts.helpers.utility import *
 
-def get_tech_tree(address):
+def check_tech_tree(address):
     localization = convert_localization.get_all_localization()
     topics = ["country_manager", "technology", "player_manager"]
     year, month, day = get_save_date(address)
@@ -48,10 +48,8 @@ def get_tech_tree(address):
         country_id = technologies[tech_id]["country"]
         researching_tech = technologies[tech_id]["research_technology"]
         country_tag = countries[country_id]["definition"]
-        if country_tag not in localization:
-            country_name = country_tag
-        else:
-            country_name = localization[country_tag]
+        country_name = get_country_name(countries[country_id], localization)
+
         if researching_tech in frontier or country_id in notable_countries:
             output += f"{tech_id} {country_tag} {country_name} : {researching_tech}\n"
             his_tech = technologies[tech_id]["acquired_technologies"]["value"]
