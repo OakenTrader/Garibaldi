@@ -1,4 +1,4 @@
-import os
+import os, warnings
 from scripts.helpers.utility import *
 import matplotlib.pyplot as plt
 from matplotlib import colors as mpl_colors
@@ -27,7 +27,13 @@ def get_color(tag):
     Get a color of tag and its format
     """
     def_countries = load_def_multiple("./common/country_definitions")
-    color = def_countries[tag]["color"]
+    try:
+        color = def_countries[tag]["color"]
+    except KeyError:
+        color = {"field_type":"hsv360", "value":[np.random.randint(360), 100, 50]}
+        warnings.warn(f"No color provided for {tag}, used hsv360 {color["value"]}")
+        # raise KeyError(f"No color provided for {tag}")
+
     color_type = color["field_type"]
     if color_type == "list":
         color_type = "rgb"
@@ -48,7 +54,7 @@ def get_color(tag):
     colors = np.concatenate([colors, [1]])
     return np.array(colors)
 
-def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, player_only=False):
+def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=None, title=None, show=False, save_name=None):
     """
     Plot a variable over the campaign
     
@@ -56,11 +62,17 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     mode: The variable you want to plot
     checker: The checker function which to retrieve said variable if there is no existing output
     reset: Whether or not to run the checker regardless of the output's existence, overwriting it
-    player_only: Whether or not to only include players in the plot 
+    title: Title of the plot
+    limit: Int (Limit to first N places in the last save) or "players" (limit to players)
     """
+    if title is None:
+        title = mode
+    if save_name is None:
+        save_name = title
     dfs = dict()
     if input_file is None:
         input_file = f"{mode}.csv"
+    last_save = None
     for folder in os.listdir(f"saves/{campaign_folder}"):
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and "campaign_data" not in folder:
@@ -70,12 +82,22 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
             if input_file not in os.listdir(save_folder) or reset:
                 if checker is None:
                     raise ValueError("No checker provided.")
-                df_stat = checker(save_folder, player_only=player_only)
+                df_stat = t_execute(checker)(save_folder)
             else:
                 df_stat = pd.read_csv(f"{save_folder}/{input_file}")
+            if limit and limit == "players":
+                data = load_save(["player_manager"], save_folder)
+                players = data["player_manager"]["database"]
+                players = [int(v["country"]) for v in players.values()]
+                df_stat = df_stat[df_stat["id"].isin(players)]
+            elif limit and isinstance(limit, int):
+                df_stat = df_stat.sort_values(by=mode, ascending=False)
+                df_stat = df_stat.iloc[:limit]
+            elif limit:
+                raise KeyError(f"Expected limit argument in integers or 'players', received {limit}")
             dfs[year_number] = df_stat
     # Plotting
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(20,10))
     countries = dict()
     for year in sorted(dfs.keys()):
         df = dfs[year]
@@ -84,7 +106,13 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
             if country not in countries:
                 countries[country] = []
             countries[country].append([year, df.iloc[row][mode]])
-    for name, country in countries.items():
+
+    last_save = dfs[sorted(dfs.keys(), reverse=True)[0]]
+    last_save = last_save.sort_values(by=mode, ascending=False)
+    for c in range(len(last_save)):
+        row_c = last_save.iloc[c]
+        name = (row_c["tag"], row_c["country"])
+        country = countries[name]
         country_color = get_color(name[0])
         if "Revolutionary" in name[1]:
             country_color[-1] *= 0.7
@@ -92,9 +120,19 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
         ax.plot(df[:, 0], df[:, 1], label=name[1], color=country_color, linewidth=3.5)
         ax.plot(df[:, 0], df[:, 1], linestyle="--", color="black", linewidth=1)
     ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
-    ax.set_title(f"{mode} graph over the years")
+    ax.set_title(f"{title} graph over the years")
     ax.grid(True)
     # plt.tight_layout()
     plt.subplots_adjust(right=0.75)
-    plt.savefig(f"saves/{campaign_folder}/campaign_data/{mode}.png")
-    plt.show()
+    plt.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
+    if show:
+        plt.show()
+    return fig
+
+def plot_goods_produced(campaign_folder, limit=10):
+    """
+    Plot all goods produced in a campaign
+    """
+    goods = load_def_multiple("./common/goods")
+    for i, good in enumerate(goods.keys()):
+        plot_stat(campaign_folder, good, checker=None, input_file="goods_produced.csv", reset=False, limit=limit, title=good, save_name=f"goods_produced_{i + 1}_{good}")
