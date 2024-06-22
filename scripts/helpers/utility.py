@@ -241,3 +241,13 @@ def get_building_output(building, target, def_production_methods):
     # print(output)
     output =  output * float(building["throughput"]) * employees
     return output
+
+def get_country_name(country:dict, localization:dict):
+    country_tag = country["definition"]
+    if country_tag in localization:
+        country_name = localization[country_tag]
+    else:
+        country_name = country_tag
+    if retrieve_from_tree(country, "civil_war") is not None:
+        country_name = "Revolutionary " + country_name 
+    return country_name
