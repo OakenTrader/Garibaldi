@@ -78,7 +78,7 @@ def check_innovation(address=None, **kwargs):
             innov_list.append(innov_out)
             innov += innov_out
 
-            country_name = get_country_name(country, localization)
+        country_name = get_country_name(country, localization)
 
         new_data = pd.DataFrame([[kc, country["definition"], country_name, innov, inno_cap]], columns=columns)
         df_innov = pd.concat([df_innov, new_data], ignore_index=True)
