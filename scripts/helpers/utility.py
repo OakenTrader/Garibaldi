@@ -142,9 +142,9 @@ def make_save_dirs(campaign_folder):
     for save in saves:
         if fnmatch.fnmatch(save, "*.txt"):
             source = f"./saves/{campaign_folder}/{save}"
-            dest = f"./saves/{campaign_folder}/{save.replace(".txt", "")}/save.txt"
+            dest = f"./saves/{campaign_folder}/{save.replace('.txt', '')}/save.txt"
             try:
-                os.mkdir(f"./saves/{campaign_folder}/{save.replace(".txt", "")}")
+                os.mkdir(f"./saves/{campaign_folder}/{save.replace('.txt', '')}")
             except FileExistsError:
                 pass
             shutil.move(source, dest)
@@ -156,7 +156,7 @@ def rename_folder_to_date(campaign_folder):
             continue
         save_folder = f"{campaign_folder}/{folder}"
         year, month, day = get_save_date(save_folder)
-        new_name = f"{campaign_folder.split("/")[-1]}_{year}_{month}_{day}"
+        new_name = f"{campaign_folder.split('/')[-1]}_{year}_{month}_{day}"
         os.rename(save_folder, f"{campaign_folder}/{new_name}")
 
 def get_save_date(save_folder, split=True):

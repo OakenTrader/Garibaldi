@@ -21,7 +21,7 @@ def observe_file(target_file, destination_folder, interval=5):
                 if current_modified_time != last_modified_time:
                     print(f"{target_file} has been modified")
                     base, ext = os.path.splitext(destination_folder)
-                    dest_path = f"{base}_{int(time.time())}{ext}"
+                    dest_path = f"{base}_{int(time.time())}{ext}.v3"
                     shutil.copy(target_file, dest_path)
                     print(f"Copied {target_file} to {dest_path}")
 
