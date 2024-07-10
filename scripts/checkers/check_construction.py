@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scripts.convert_localization import get_all_localization
-from scripts.helpers.utility import *
+from scripts.helpers.utility import load_def, retrieve_from_tree, load_save, get_save_date
 
 def check_construction(address=None, **kwargs):
     """
@@ -27,7 +27,7 @@ def check_construction(address=None, **kwargs):
     def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
-    columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
+    columns = ["tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
     df_construction = pd.DataFrame(columns=columns)
     for country_id, country in countries.items():
         if country == "none" or "states" not in country:
@@ -56,8 +56,9 @@ def check_construction(address=None, **kwargs):
                         else:
                             employees_pl[key] += int(addition)
             
-            for key, pop in csector_c["pops_employed"].items():
-                employees += int(pop["workforce"] )
+            if "pops_employed" in csector_c:
+                for key, pop in csector_c["pops_employed"].items():
+                    employees += int(pop["workforce"] )
 
             # print(employees_pl)
             # print(f"Total Employees at level {int(csector_c['level'])}: {employees}")
@@ -101,8 +102,13 @@ def check_construction(address=None, **kwargs):
             total_cost = 0
             average_cost = 0
 
-        country_name = get_country_name(country, localization)
-        new_data = pd.DataFrame([[country_id, country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
+        if country["definition"] not in localization:
+            country_name = country["definition"]
+        else:
+            country_name = localization[country["definition"]]
+        if retrieve_from_tree(country, "civil_war") == "yes":
+            country_name = "Revolutionary " + country_name 
+        new_data = pd.DataFrame([[country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
         df_construction = pd.concat([df_construction, new_data], ignore_index=True)
 
     df_construction = df_construction.sort_values(by='construction', ascending=False)
