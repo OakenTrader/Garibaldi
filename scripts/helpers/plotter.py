@@ -31,7 +31,7 @@ def get_color(tag):
         color = def_countries[tag]["color"]
     except KeyError:
         color = {"field_type":"hsv360", "value":[np.random.randint(360), 100, 50]}
-        warnings.warn(f"No color provided for {tag}, used hsv360 {color["value"]}")
+        warnings.warn(f"No color provided for {tag}, used hsv360 {color['value']}")
         # raise KeyError(f"No color provided for {tag}")
 
     color_type = color["field_type"]
@@ -54,7 +54,7 @@ def get_color(tag):
     colors = np.concatenate([colors, [1]])
     return np.array(colors)
 
-def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=None, title=None, show=False, save_name=None):
+def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=10, players=True, title=None, show=False, save_name=None):
     """
     Plot a variable over the campaign
     
@@ -63,7 +63,9 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     checker: The checker function which to retrieve said variable if there is no existing output
     reset: Whether or not to run the checker regardless of the output's existence, overwriting it
     title: Title of the plot
-    limit: Int (Limit to first N places in the last save) or "players" (limit to players)
+    limit: Int (Limit to first N places in the last save)
+    players: Whether to include all players in the plot
+    save_name = the file name of the plot image
     """
     if title is None:
         title = mode
@@ -94,7 +96,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
                 df_stat = df_stat.sort_values(by=mode, ascending=False)
                 df_stat = df_stat.iloc[:limit]
             elif limit:
-                raise KeyError(f"Expected limit argument in integers or 'players', received {limit}")
+                raise KeyError(f"Expected limit argument in integers, received {limit}")
             dfs[year_number] = df_stat
     # Plotting
     fig, ax = plt.subplots(figsize=(20,10))
