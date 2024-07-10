@@ -1,6 +1,4 @@
-#%%
 import pandas as pd
-import numpy as np
 import os, warnings
 from scripts.helpers.utility import *
 from scripts.convert_localization import get_all_localization
@@ -8,6 +6,9 @@ from scripts.convert_localization import get_all_localization
 """
 There are several sources of prestige, some fixed to a certain amount, some scaling by another metric. (Vickypedia)
 """
+prestige_columns = ["tier prestige", "army projection", "navy projection", "GDP prestige",
+            "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "monuments prestige", "events prestige", "modifiers"]
+
 def check_prestige(address, **kwargs):
     localization = get_all_localization()
     save_date = get_save_date(address, split=False)
@@ -46,7 +47,10 @@ def check_prestige(address, **kwargs):
     """
     # Yet to see the way the game let modding country tiers so tiers are hardcoded here
     tiers = ["hegemony", "empire", "kingdom", "grand_principality", "principality", "city_state"]
-    def_tier = {k:float(defines[f"COUNTRY_TIER_{k.upper()}_PRESTIGE"]) for k in  tiers}
+    try:
+        def_tier = {k:float(defines[f"COUNTRY_TIER_{k.upper()}_PRESTIGE"]) for k in tiers}
+    except KeyError:
+        raise KeyError("Unsupported country tier modding: vanilla tier not found")
 
     """
     GDP
@@ -283,8 +287,6 @@ def check_prestige(address, **kwargs):
     Main Countries Loop
     """
 
-    columns = ["tier prestige", "army projection", "navy projection", "GDP prestige",
-                "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "monuments prestige", "events prestige", "modifiers"]
     df_prestige = []
     # focus = "RUS"
     for country_key, country in countries.items():
@@ -293,7 +295,7 @@ def check_prestige(address, **kwargs):
         # if country["definition"] not in players:
         #     continue
         country_tag = country["definition"]
-        national_prestige = {key:0 for key in columns}
+        national_prestige = {key:0 for key in prestige_columns}
         national_modifiers = dict()
         for relevant_modifier in relevant_modifiers:
             national_modifiers[relevant_modifier] = dict()
@@ -352,12 +354,19 @@ def check_prestige(address, **kwargs):
         """
         A country's tier provides a small amount of prestige. This is inherent to a specific nation and can only be increased by forming a new, higher tier nation. (Vickypedia)
         """
-        if country_tag in dynamic_countries:
-            dynamic_country_data = dynamic_countries[country_tag]
-            national_modifiers["country_prestige_add"]["Nation Tier"] = def_tier[dynamic_country_data["tier"]]
-        else:
-            national_modifiers["country_prestige_add"]["Nation Tier"] = def_tier[def_countries[country_tag]["tier"]]
-
+        try:
+            if country_tag in dynamic_countries:
+                dynamic_country_data = dynamic_countries[country_tag]
+                tier = dynamic_country_data["tier"]
+            else:
+                tier = def_countries[country_tag]["tier"]
+            if tier not in tiers:
+                raise NotImplementedError(f"Unsupported tier modding: {tier}")
+        except KeyError:
+            # Assume principality (tier prestige isn't that important anyway)
+            tier = "principality"
+            # raise KeyError(f"Tier undefined for {country_key}:{country["definition"]} in {save_date}")
+        national_modifiers["country_prestige_add"]["Nation Tier"] = def_tier[tier]
         national_prestige["tier prestige"] = national_modifiers["country_prestige_add"]["Nation Tier"]
 
         """
@@ -549,7 +558,7 @@ def check_prestige(address, **kwargs):
         df_country.update(country["national_prestige"])
         df_prestige.append(df_country)
 
-    df_prestige = pd.DataFrame(df_prestige, columns=["id", "tag", "country", "total"] + columns)
+    df_prestige = pd.DataFrame(df_prestige, columns=["id", "tag", "country", "total"] + prestige_columns)
     df_prestige = df_prestige.sort_values(by='total', ascending=False)
 
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
