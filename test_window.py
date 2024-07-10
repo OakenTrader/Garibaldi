@@ -3,7 +3,8 @@ from tkinter import ttk
 from scripts.helpers.utility import zopen
 import sys
 
-    
+want_size = False
+
 def get_size(obj, seen=None):
     """Recursively finds the size of objects."""
     size = sys.getsizeof(obj)
@@ -50,21 +51,27 @@ class DictViewer(tk.Tk):
 
     def populate_tree(self, parent, dictionary):
         for key, value in dictionary.items():
-            size = get_size(value)
+            size_out = ""
+            if want_size:
+                size = get_size(value)
+                size_out = f" ({size} bytes)"
             if isinstance(value, dict):
                 # Insert the parent node collapsed
-                node = self.tree.insert(parent, 'end', text=f"{key} ({size} bytes)", open=False)
+                node = self.tree.insert(parent, 'end', text=f"{key}{size_out}", open=False)
                 # Recursively populate the tree with the nested dictionary
                 self.populate_tree(node, value)
             elif isinstance(value, list):
                 # Insert the parent node collapsed
-                node = self.tree.insert(parent, 'end', text=f"{key} ({size} bytes)", open=False)
+                node = self.tree.insert(parent, 'end', text=f"{key}{size_out}", open=False)
                 for item in value:
-                    item_size = get_size(item)
-                    self.tree.insert(node, 'end', text=f"{str(item)} ({item_size} bytes)")
+                    item_size_out = ""
+                    if want_size:
+                        item_size = get_size(item)
+                        item_size_out = f" ({item_size} bytes)"
+                    self.tree.insert(node, 'end', text=f"{str(item)}{item_size_out}")
             else:
                 # Insert a leaf node
-                self.tree.insert(parent, 'end', text=f"{key}: {value} ({size} bytes)")
+                self.tree.insert(parent, 'end', text=f"{key}: {value}{size_out}")
                 
 # Sample dictionary to visualize
 data = zopen("your/extracted/save/file.gz")
