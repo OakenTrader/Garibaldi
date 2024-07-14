@@ -84,8 +84,10 @@ def check_construction(address=None, **kwargs):
     df_construction = df_construction.sort_values(by='construction', ascending=False)
     # Output countries that are players or have more construction than the players' least
     players_cons = df_construction[df_construction["tag"].isin(players)]
-    min_players_cons = players_cons["construction"].min()
-    df_construction = df_construction[df_construction["construction"] >= min_players_cons]
+    non_players_cons = df_construction[~df_construction["tag"].isin(players)]
+    min_players_cons = players_cons["construction"].min() + 0.0001 # Prevent showing everyone if a player has 10 construction
+    df_construction = pd.concat([players_cons, non_players_cons[non_players_cons["construction"] >= min_players_cons]])
+    df_construction = df_construction.sort_values(by='construction', ascending=False)
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         print(f"{day}/{month}/{year}")
         print(df_construction)

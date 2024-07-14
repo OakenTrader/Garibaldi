@@ -62,8 +62,9 @@ def check_innovation(address=None, **kwargs):
         # print(kc, country["definition"], innov)
 
     players_innov = df_innov[df_innov["tag"].isin(players)]
-    min_players_innov = players_innov["innovation"].min()
-    df_innov = df_innov[df_innov["innovation"] >= min_players_innov]
+    non_players_innov = df_innov[~df_innov["tag"].isin(players)]
+    min_players_innov = players_innov["innovation"].min() + 0.0001 # Prevent showing everyone if a player has 50 innovation
+    df_innov = pd.concat([players_innov, non_players_innov[non_players_innov["innovation"] >= min_players_innov]])
     df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["cap"])
     df_innov = df_innov.sort_values(by='capped_innovation', ascending=False)
 
