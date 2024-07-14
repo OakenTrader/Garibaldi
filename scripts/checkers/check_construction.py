@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
 from scripts.convert_localization import get_all_localization
-from scripts.helpers.utility import load_def, retrieve_from_tree, load_save, get_save_date
+from scripts.helpers.utility import *
+
+compat_dict = jopen("scripts/checkers/compat_dict.json")
 
 def check_construction(address=None, **kwargs):
     """
@@ -12,6 +15,7 @@ def check_construction(address=None, **kwargs):
     localization = get_all_localization()
     topics = ["building_manager", "country_manager", "pops", "player_manager"]
     year, month, day = get_save_date(address)
+    version = get_version(address)
     data = load_save(topics, address)
     buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     csectors = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_construction_sector"}
@@ -24,10 +28,10 @@ def check_construction(address=None, **kwargs):
         building["pops_employed"][pop_id] = pop
     players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
     def_production_methods = load_def("./common/production_methods/13_construction.txt")
-    def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
+    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version])
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
-    columns = ["tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
+    columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
     df_construction = pd.DataFrame(columns=columns)
     for country_id, country in countries.items():
         if country == "none" or "states" not in country:
@@ -39,7 +43,7 @@ def check_construction(address=None, **kwargs):
         construction_list = []
         csectors_country = {i: csectors[i] for i in csectors if csectors[i]["state"] in states}
         for csector_id, csector_c in csectors_country.items():
-            if csector_c["level"] == "0":
+            if csector_c[compat_dict["building_levels"][version]] == "0":
                 continue
             output = 0
             employees = 0
@@ -69,13 +73,11 @@ def check_construction(address=None, **kwargs):
                 csector_c["throughput"] = 1.0
 
             construction_out =  output * float(csector_c["throughput"]) * employees
-            if "goods_cost" in csector_c and "salaries" in csector_c:
-                construction_cost = float(csector_c["goods_cost"]) + float(csector_c["salaries"])
-            elif "dividends" in csector_c:
-                construction_cost = -float(csector_c["dividends"])
-            elif "salaries" in csector_c:
-                construction_cost = float(csector_c["salaries"])
+            if (construction_cost_term := compat_dict["construction_cost"][version]) in csector_c:
+                construction_cost = -float(csector_c[construction_cost_term])
             else:
+                warnings.warn(f"No construction cost for building {csector_c}, assumed zero cost instead")
+                # raise ValueError("construction cost not available")
                 construction_cost = 0
             construction_list.append([construction_out, construction_cost])
             construction += construction_out

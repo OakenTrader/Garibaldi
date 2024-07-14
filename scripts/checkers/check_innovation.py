@@ -3,6 +3,8 @@ import numpy as np
 from scripts.convert_localization import get_all_localization
 from scripts.helpers.utility import *
 
+compat_dict = jopen("scripts/checkers/compat_dict.json")
+
 def check_innovation(address=None, **kwargs):
     """
     Retrieve Innovation and its cap of player nations and nations with > base innovation
@@ -10,6 +12,7 @@ def check_innovation(address=None, **kwargs):
     localization = get_all_localization()
     topics = ["building_manager", "country_manager", "pops", "player_manager"]
     year, month, day = get_save_date(address)
+    version = get_version(address)
     data = load_save(topics, address)
     buildings, countries, pops, players = [data[topic]["database"] for topic in topics]
     universities = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_university"}
@@ -22,8 +25,8 @@ def check_innovation(address=None, **kwargs):
         building["pops_employed"][pop_id] = pop
     players = [countries[v["country"]]["definition"] for k, v in players.items() if countries[v["country"]] != "none"]
 
-    def_production_methods = load_def("./common/production_methods/07_government.txt")
-    def_static_modifiers = load_def("./common/modifiers/00_static_modifiers.txt")
+    def_production_methods = load_def_multiple("./common/production_methods")
+    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version])
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
     columns = ["id", "tag", "country", "innovation", "cap"]

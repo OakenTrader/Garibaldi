@@ -251,3 +251,11 @@ def get_country_name(country:dict, localization:dict):
     if retrieve_from_tree(country, "civil_war") is not None:
         country_name = "Revolutionary " + country_name 
     return country_name
+
+def get_version(address):
+    meta_data = load_save(["meta_data"], address)["meta_data"]
+    version = meta_data["version"].split(".")
+    version = ".".join(version[:2])
+    return version
+
+     
