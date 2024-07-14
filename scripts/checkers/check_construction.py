@@ -45,34 +45,7 @@ def check_construction(address=None, **kwargs):
         for csector_id, csector_c in csectors_country.items():
             if csector_c[compat_dict["building_levels"][version]] == "0":
                 continue
-            output = 0
-            employees = 0
-            employees_pl = dict()
-
-            for pm_name in csector_c["production_methods"]["value"]:
-                pm = def_production_methods[pm_name]
-                if (innov_uni := retrieve_from_tree(pm, ["country_modifiers", "workforce_scaled", "country_construction_add"])) is not None:
-                    output += float(innov_uni)
-                if (employees_dict := retrieve_from_tree(pm, ["building_modifiers", "level_scaled"])) is not None:
-                    for key, addition in employees_dict.items():
-                        if key not in employees_pl:
-                            employees_pl[key] = int(addition)
-                        else:
-                            employees_pl[key] += int(addition)
-            
-            if "pops_employed" in csector_c:
-                for key, pop in csector_c["pops_employed"].items():
-                    employees += int(pop["workforce"] )
-
-            # print(employees_pl)
-            # print(f"Total Employees at level {int(csector_c['level'])}: {employees}")
-            employees /= sum([employees_pl[e] for e in employees_pl])
-            # print(f"Employees ratio: {employees}")
-            # print([employees_pl[e] for e in employees_pl])
-            if "throughput" not in csector_c:
-                csector_c["throughput"] = 1.0
-
-            construction_out =  output * float(csector_c["throughput"]) * employees
+            construction_out = get_building_output(csector_c, "country_construction_add", def_production_methods)
             if (construction_cost_term := compat_dict["construction_cost"][version]) in csector_c:
                 construction_cost = -float(csector_c[construction_cost_term])
             else:
@@ -104,13 +77,8 @@ def check_construction(address=None, **kwargs):
             total_cost = 0
             average_cost = 0
 
-        if country["definition"] not in localization:
-            country_name = country["definition"]
-        else:
-            country_name = localization[country["definition"]]
-        if retrieve_from_tree(country, "civil_war") == "yes":
-            country_name = "Revolutionary " + country_name 
-        new_data = pd.DataFrame([[country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
+        country_name = get_country_name(country, localization)
+        new_data = pd.DataFrame([[country_id, country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
         df_construction = pd.concat([df_construction, new_data], ignore_index=True)
 
     df_construction = df_construction.sort_values(by='construction', ascending=False)

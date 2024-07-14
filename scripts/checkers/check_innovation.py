@@ -51,33 +51,7 @@ def check_innovation(address=None, **kwargs):
         innov_list = []
         universities_country = {i: universities[i] for i in universities if universities[i]["state"] in states}
         for u_key, university_c in universities_country.items():
-            output = 0
-            employees = 0
-            employees_pl = dict()
-            for pm_name in university_c["production_methods"]["value"]:
-                pm = def_production_methods[pm_name]
-                if (innov_uni := retrieve_from_tree(pm, ["country_modifiers", "workforce_scaled", "country_weekly_innovation_add"])) is not None:
-                    output += float(innov_uni)
-                if (employees_dict := retrieve_from_tree(pm, ["building_modifiers", "level_scaled"])) is not None:
-                    for key, addition in employees_dict.items():
-                        if key not in employees_pl:
-                            employees_pl[key] = int(addition)
-                        else:
-                            employees_pl[key] += int(addition)
-            
-            if "pops_employed" in university_c:
-                for key, pop in university_c["pops_employed"].items():
-                    employees += int(pop["workforce"] )
-
-            # print(employees_pl)
-            # print(f"Total Employees at level {int(university_c['level'])}: {employees}")
-            employees /= sum([employees_pl[e] for e in employees_pl])
-            # print(f"Employees ratio: {employees}")
-            # print([employees_pl[e] for e in employees_pl])
-            if "throughput" not in university_c:
-                university_c["throughput"] = 1.0
-            # print(output)
-            innov_out =  output * float(university_c["throughput"]) * employees
+            innov_out = get_building_output(university_c, "country_weekly_innovation_add", def_production_methods)
             innov_list.append(innov_out)
             innov += innov_out
 
