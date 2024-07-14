@@ -85,6 +85,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
                 if checker is None:
                     raise ValueError("No checker provided.")
                 df_stat = t_execute(checker)(save_folder)
+                df_stat["id"] = df_stat["id"].astype(int)
             else:
                 df_stat = pd.read_csv(f"{save_folder}/{input_file}")
             if limit and limit == "players":
