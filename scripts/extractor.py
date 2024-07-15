@@ -35,7 +35,7 @@ class Extractor:
     extractor = Extractor("path/to/victoria3_data.txt", focus="population", pline=True)
     extractor.write("saves/campaign/save", ["population"])
     """
-    def __init__(self, address, focuses=None, pline=False) -> None:
+    def __init__(self, address, focuses=None, pline=False, version="1.7") -> None:
         self.data = dict()
         bracket_counter = 0
         scope = [self.data]
@@ -44,10 +44,16 @@ class Extractor:
         in_focus = False
         with open(address, "r", encoding='utf-8-sig') as file:
             lines = []
-            for line in list(file):
-                line = line.split("#")[0].strip()
-                if line:
-                    lines.append(line)
+            if address in VARIABLES["problematic_definition_files"][version]:
+                for i, line in enumerate(list(file)):
+                    line = line.split("#")[0].strip()
+                    if line and i + 1 not in VARIABLES["problematic_definition_files"][version][address]:
+                        lines.append(line)
+            else:
+                for line in list(file):
+                    line = line.split("#")[0].strip()
+                    if line:
+                        lines.append(line)
         text = "\n".join(lines)
         del lines
         for sstr in re.split(r"([{}])", text):
