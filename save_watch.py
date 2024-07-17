@@ -10,6 +10,7 @@ def observe_file(target_file, destination_folder, interval=5):
     last_modified_time = os.path.getmtime(target_file)
 
     try:
+        print("Save watcher watching")
         while True:
             # Wait for the specified interval before checking again
             time.sleep(interval)
@@ -20,11 +21,9 @@ def observe_file(target_file, destination_folder, interval=5):
                 # If the modification time has changed, copy the file
                 if current_modified_time != last_modified_time:
                     print(f"{target_file} has been modified")
-                    base, ext = os.path.splitext(destination_folder)
-                    dest_path = f"{base}_{int(time.time())}{ext}.v3"
-                    shutil.copy(target_file, dest_path)
-                    print(f"Copied {target_file} to {dest_path}")
-
+                    dest_path = f"autosave_{int(time.time())}.v3"
+                    shutil.copy(target_file, f"{destination_folder}/{dest_path}")
+                    print(f"Copied {target_file} to {destination_folder}/{dest_path}")
                     # Update the last modified time
                     last_modified_time = current_modified_time
             except FileNotFoundError:
