@@ -69,19 +69,23 @@ def retrieve_from_tree(tree:dict, directory:list, null=None):
         current = current[subdir]
     return current
 
-def load_def(address):
+def load_def(address, mode="Common Directory"):
     """
     Load a define (content) script
     """
+    user_variables = jopen("./user_variables.json")
+    address = user_variables[mode] + "/" + address
     data = Extractor(address)
     data.unquote()
     data = data.data
     return data
 
-def load_def_multiple(folder):
+def load_def_multiple(folder, mode="Common Directory"):
     """
     Load a define (content) script
     """
+    user_variables = jopen("./user_variables.json")
+    folder = user_variables[mode] + "/" + folder
     defs = dict()
     for address in glob.glob(f"{folder}/*.txt"):
         data = Extractor(address)
@@ -163,7 +167,7 @@ def get_save_date(save_folder, split=True):
     metadata = load_save(["meta_data"], save_folder)
     save_date = metadata["meta_data"]["game_date"]
     if split:
-        year, month, day = save_date.split(".")
+        year, month, day = save_date.split(".")[:3]
         return year, month, day
     return save_date
 

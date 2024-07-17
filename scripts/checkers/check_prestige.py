@@ -15,7 +15,7 @@ def check_prestige(address, **kwargs):
     localization = get_all_localization()
     save_date = get_save_date(address, split=False)
     version = get_version(address)
-    defines_file = load_def("./common/defines/00_defines.txt")
+    defines_file = load_def("defines/00_defines.txt", "Common Directory")
     defines = dict()
     for key, defs in defines_file.items():
         if not isinstance(defs, dict):
@@ -27,7 +27,7 @@ def check_prestige(address, **kwargs):
 
     relevant_modifiers = ["country_prestige_add", "country_prestige_mult",
                            "country_prestige_from_army_power_projection_mult", "country_prestige_from_navy_power_projection_mult"]
-    def_modifiers = {k:v for k, v in load_def_multiple("./common/modifiers").items() if any([vi in relevant_modifiers for vi in v.keys()])}
+    def_modifiers = {k:v for k, v in load_def_multiple("modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
 
     import_save = ["country_manager", "new_combat_unit_manager", "states",
                     "interest_groups", "military_formation_manager", "building_manager",
@@ -43,7 +43,7 @@ def check_prestige(address, **kwargs):
     dynamic_countries = retrieve_from_tree(save_data, ["country_manager", "dynamic_country_definition_data"], null=[])
     def_countries = dict()
     for countries_file in os.listdir("./common/country_definitions"):
-        def_countries.update(load_def(f"./common/country_definitions/{countries_file}"))
+        def_countries.update(load_def(f"country_definitions/{countries_file}", "Common Directory"))
     
     players = [countries[v["country"]]["definition"] for k, v in save_data["player_manager"]["database"].items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
 
@@ -67,8 +67,8 @@ def check_prestige(address, **kwargs):
     Military
     """
     pp_divisor = float(defines["POWER_PROJECTION_DIVISOR"])
-    def_unit_types = load_def("./common/combat_unit_types/00_combat_unit_types.txt")
-    def_unit_type_groups = load_def("./common/combat_unit_groups/00_combat_unit_groups.txt")
+    def_unit_types = load_def("combat_unit_types/00_combat_unit_types.txt", "Common Directory")
+    def_unit_type_groups = load_def("combat_unit_groups/00_combat_unit_groups.txt", "Common Directory")
     unit_types_specific_modifiers = [f"unit_{def_unit_type}_{modifier}" for def_unit_type in def_unit_types for modifier in ["offense_mult", "defense_mult", "offense_add", "defense_add"]]
     relevant_modifiers += unit_types_specific_modifiers
 
@@ -92,14 +92,14 @@ def check_prestige(address, **kwargs):
         countries[country]["mil_formations"][formation]["units"][key] = combat_unit
 
     # Get relevant mobilizations
-    mobilizations_def = load_def("./common/mobilization_options/00_mobilization_option.txt")
+    mobilizations_def = load_def("mobilization_options/00_mobilization_option.txt", "Common Directory")
     def_mobilizations = dict()
     for key, mobilization in mobilizations_def.items():
         if "unit_modifier" in mobilization:
             if any([x in mobilization["unit_modifier"] for x in relevant_modifiers]):
                 def_mobilizations[key] = mobilization
 
-    veterancy_def = load_def("./common/combat_unit_experience_levels/00_combat_unit_experience_levels.txt")
+    veterancy_def = load_def("combat_unit_experience_levels/00_combat_unit_experience_levels.txt", "Common Directory")
     def_veterancy = dict()
     for key, veterancy in veterancy_def.items():
         def_veterancy[veterancy["level"]] = veterancy
@@ -111,11 +111,10 @@ def check_prestige(address, **kwargs):
     Companies
     """
     def_companies = dict()
-    for company_file in os.listdir("./common/company_types"):
-        companies = load_def(f"./common/company_types/{company_file}")
-        for name, company_name in companies.items():
-            if any([x in relevant_modifiers for x in company_name["prosperity_modifier"]]):
-                def_companies.update({name:company_name["prosperity_modifier"]})
+    companies = load_def_multiple("company_types", "Common Directory")
+    for name, company_name in companies.items():
+        if any([x in relevant_modifiers for x in company_name["prosperity_modifier"]]):
+            def_companies.update({name:company_name["prosperity_modifier"]})
 
     companies = save_data["companies"]["database"]
     for name, company_name in companies.items():
@@ -133,7 +132,7 @@ def check_prestige(address, **kwargs):
     """
     Politics
     """
-    def_ig_traits_file = load_def_multiple("./common/interest_group_traits")
+    def_ig_traits_file = load_def_multiple("interest_group_traits", "Common Directory")
     def_ig_traits = dict()
     for ig_trait in def_ig_traits_file:
         if any([ig_mod in relevant_modifiers for ig_mod in def_ig_traits_file[ig_trait]["modifier"]]):
@@ -161,7 +160,7 @@ def check_prestige(address, **kwargs):
     def_character_traits = dict()
     characters = save_data["character_manager"]["database"]
     # Consider only ruler modifier
-    for character_trait_name, character_trait in load_def_multiple("./common/character_traits").items():
+    for character_trait_name, character_trait in load_def_multiple("character_traits", "Common Directory").items():
         if (ruler_modifiers := retrieve_from_tree(character_trait, "country_modifier")) is None:
             continue
         if any([modifier in relevant_modifiers for modifier in ruler_modifiers]):
@@ -171,7 +170,7 @@ def check_prestige(address, **kwargs):
     Technology
     """
     def_techs = dict()
-    file_techs = load_def_multiple("./common/technology/technologies")
+    file_techs = load_def_multiple("technology/technologies", "Common Directory")
     for name, tech in file_techs.items():
         if (tech_mod := retrieve_from_tree(tech, ["modifier"])) is None:
             continue
@@ -194,19 +193,19 @@ def check_prestige(address, **kwargs):
     """
 
     def_monument_methods = dict()
-    for pm_name, production_method in load_def_multiple("./common/production_methods").items():
+    for pm_name, production_method in load_def_multiple("production_methods", "Common Directory").items():
         for relevant_modifier in relevant_modifiers:
             if len(walk_tree(production_method, relevant_modifier)) > 0:
                 def_monument_methods[pm_name] = production_method
                 break
     
     def_monument_method_groups = dict()
-    for pmg_name, production_method_group in load_def_multiple("./common/production_method_groups").items():
+    for pmg_name, production_method_group in load_def_multiple("production_method_groups", "Common Directory").items():
         if any([pm in def_monument_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
             def_monument_method_groups[pmg_name] = production_method_group
 
     def_monuments = dict()
-    for building_name, building in load_def_multiple("./common/buildings").items():
+    for building_name, building in load_def_multiple("buildings", "Common Directory").items():
         for def_pmg in def_monument_methods:
             if def_pmg in building["production_method_groups"]:
                 def_monuments[building_name] = building
@@ -222,7 +221,7 @@ def check_prestige(address, **kwargs):
         warnings.warn("This mod modifies the MIN_SPOT_PRESTIGE_AWARD and may make the producing leader prestige calculation inaccurate", UserWarning)
     states = save_data["states"]["database"]
     num_to_goods = dict()
-    def_goods = load_def_multiple("./common/goods")
+    def_goods = load_def_multiple("goods", "Common Directory")
     for i, good in enumerate(def_goods.keys()):
         num_to_goods[i] = good
     
@@ -271,18 +270,14 @@ def check_prestige(address, **kwargs):
     df_countries_goods = [{"tag": k} | v for k, v in df_countries_goods.items()]
     df_goods_leaderboard = pd.DataFrame(df_countries_goods, columns=["id", "tag", "country"] + [num_to_goods[int(i)] for i in range(len(num_to_goods))])
     df_goods_leaderboard.to_csv(f"{address}/goods_produced.csv", sep=",")
-    # print(goods_leaderboard)
     goods_leaderboard = {k:sorted(dictionary.items(), key=lambda item: item[1], reverse=True)[:10] for k, dictionary in goods_leaderboard.items()}
-    # for k, v in goods_leaderboard.items():
-    #     print(k)
-    #     print(v)
 
     """
     Government wages affecting prestige and power projection
     """
     
     static_modifiers = dict()
-    for mod_name, static_modifier in load_def_multiple("./common/modifiers").items():
+    for mod_name, static_modifier in load_def_multiple("modifiers", "Common Directory").items():
         for relevant_modifier in relevant_modifiers:
             if relevant_modifier in static_modifier:
                 static_modifiers[mod_name] = static_modifier
@@ -395,7 +390,6 @@ def check_prestige(address, **kwargs):
                     national_modifiers[modifier][ig_trait] = float(def_ig_traits[ig_trait]["modifier"][modifier]) * influence
                     if modifier == "country_prestige_add":
                         raise ValueError(f"Unexpected interest group prestige add from {ig_trait} of {country_tag}")
-                    # pass
        
         """
         Technologies that affect prestige and military stats
@@ -517,7 +511,7 @@ def check_prestige(address, **kwargs):
     prestige_per_subject_army_pp = float(defines["PRESTIGE_FROM_SUBJECT_ARMY_POWER_PROJECTION"])
     prestige_per_subject_navy_pp = float(defines["PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION"])
 
-    def_subjects = [v["diplomatic_action"] for v in load_def_multiple("./common/subject_types").values()]
+    def_subjects = [v["diplomatic_action"] for v in load_def_multiple("subject_types", "Common Directory").values()]
     for _, pact in save_data["pacts"]["database"].items():
         if not isinstance(pact, dict):
             continue

@@ -27,8 +27,8 @@ def check_construction(address=None, **kwargs):
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
     players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
-    def_production_methods = load_def("./common/production_methods/13_construction.txt")
-    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version])
+    def_production_methods = load_def("production_methods/13_construction.txt", "Common Directory")
+    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version], "Common Directory")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
     columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]

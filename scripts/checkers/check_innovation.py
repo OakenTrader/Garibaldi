@@ -25,8 +25,8 @@ def check_innovation(address=None, **kwargs):
         building["pops_employed"][pop_id] = pop
     players = [countries[v["country"]]["definition"] for k, v in players.items() if countries[v["country"]] != "none"]
 
-    def_production_methods = load_def_multiple("./common/production_methods")
-    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version])
+    def_production_methods = load_def_multiple("production_methods", "Common Directory")
+    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version], "Common Directory")
     base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
 
     columns = ["id", "tag", "country", "innovation", "cap"]

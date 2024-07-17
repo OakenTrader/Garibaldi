@@ -21,9 +21,9 @@ def check_tech_tree(address):
             else:
                 techs[t] += 1
     
-    def_prod_tech = load_def("./common/technology/technologies/10_production.txt")
-    def_mil_tech = load_def("./common/technology/technologies/20_military.txt")
-    def_soc_tech = load_def("./common/technology/technologies/30_society.txt")
+    def_prod_tech = load_def("technology/technologies/10_production.txt", "Common Directory")
+    def_mil_tech = load_def("technology/technologies/20_military.txt", "Common Directory")
+    def_soc_tech = load_def("technology/technologies/30_society.txt", "Common Directory")
 
     # Determine which new tech is being researched
     output += "Techs in research\n"

@@ -26,7 +26,7 @@ def get_color(tag):
     """
     Get a color of tag and its format
     """
-    def_countries = load_def_multiple("./common/country_definitions")
+    def_countries = load_def_multiple("country_definitions", "Common Directory")
     try:
         color = def_countries[tag]["color"]
     except KeyError:
@@ -136,6 +136,6 @@ def plot_goods_produced(campaign_folder, limit=10):
     """
     Plot all goods produced in a campaign
     """
-    goods = load_def_multiple("./common/goods")
+    goods = load_def_multiple("goods", "Common Directory")
     for i, good in enumerate(goods.keys()):
         plot_stat(campaign_folder, good, checker=None, input_file="goods_produced.csv", reset=False, limit=limit, title=good, save_name=f"goods_produced_{i + 1}_{good}")

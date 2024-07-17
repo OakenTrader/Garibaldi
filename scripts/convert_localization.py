@@ -1,5 +1,8 @@
 import re
 from pathlib import Path
+from scripts.helpers.utility import *
+
+user_variables = jopen("./user_variables.json")
 
 def get_localization(address):
     """
@@ -24,7 +27,7 @@ def get_localization(address):
     return data
 
 def get_all_localization():
-    lcl_files = list(Path("./localization").rglob("*.yml"))
+    lcl_files = list(Path(user_variables["Localization Directory"]).rglob("*.yml"))
     dicts = []
     for f in lcl_files:
         names = get_localization(f)
