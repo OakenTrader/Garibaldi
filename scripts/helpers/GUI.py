@@ -45,10 +45,11 @@ class Garibaldi_gui(tk.Tk):
 
 
 class DictViewer(Garibaldi_gui):
-    def __init__(self):
+    def __init__(self, preprocessor=None):
         super().__init__()
         self.title("Settings Viewer App")
         self.geometry("600x400")
+        self.preprocessor = preprocessor
         self.create_settings_window()
 
     def get_size(self, obj):
@@ -115,6 +116,8 @@ class DictViewer(Garibaldi_gui):
 
         # Load the data and populate the treeview
         data = zopen(self.user_variables["Tree File Location"])
+        if self.preprocessor is not None:
+            data = self.preprocessor(data)
         self.populate_tree("", data)
 
     def populate_tree(self, parent, dictionary):
