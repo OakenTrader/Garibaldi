@@ -9,8 +9,6 @@ There are several sources of prestige, some fixed to a certain amount, some scal
 prestige_columns = ["tier prestige", "army projection", "navy projection", "GDP prestige",
             "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "monuments prestige", "events prestige", "modifiers"]
 
-compat_dict = jopen("scripts/checkers/compat_dict.json")
-
 def check_prestige(address, **kwargs):
     localization = get_all_localization()
     save_date = get_save_date(address, split=False)
@@ -34,7 +32,8 @@ def check_prestige(address, **kwargs):
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops"]
     save_data = load_save(import_save, address)
 
-    key_veterancy = compat_dict["veterancy"][version]
+    # key_veterancy = resolve_compatibility("veterancy", version)
+    key_veterancy = "current_veterancy_level"
 
     """
     Countries
@@ -429,12 +428,16 @@ def check_prestige(address, **kwargs):
                         unit_modifiers[battle_modifier]["base"] = float(def_unit_types[unit_type]["battle_modifier"][battle_modifier])
 
                     # Veterancy
-                    veterancy = def_veterancy[unit[key_veterancy]]
+                    try:
+                        veterancy = def_veterancy[unit[key_veterancy]]
+                    except KeyError:
+                        key_veterancy = "upgrades"
+                        veterancy = def_veterancy[unit[key_veterancy]]
                     if "unit_modifier" in veterancy:
                         for vet_modifier, value in veterancy["unit_modifier"].items():
                             if vet_modifier not in unit_modifiers:
                                 continue
-                            unit_modifiers[vet_modifier][f"Veterancy level {unit["upgrades"]}"] = float(value)
+                            unit_modifiers[vet_modifier][f"Veterancy level {unit[key_veterancy]}"] = float(value)
 
                     # print(unit_modifiers)
                     unit_offense = sum(unit_modifiers["unit_offense_add"].values())

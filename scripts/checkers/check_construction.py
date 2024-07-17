@@ -5,7 +5,6 @@ import warnings
 from scripts.convert_localization import get_all_localization
 from scripts.helpers.utility import *
 
-compat_dict = jopen("scripts/checkers/compat_dict.json")
 
 def check_construction(address=None, **kwargs):
     """
@@ -26,9 +25,11 @@ def check_construction(address=None, **kwargs):
         if "pops_employed" not in building:
             building["pops_employed"] = dict()
         building["pops_employed"][pop_id] = pop
+    
+    variables = resolve_compatibility_multiple(["dir_static_modifiers", "building_levels", "construction_cost"], version)
     players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
     def_production_methods = load_def("production_methods/13_construction.txt", "Common Directory")
-    def_static_modifiers = load_def(compat_dict["dir_static_modifiers"][version], "Common Directory")
+    def_static_modifiers = load_def(variables["dir_static_modifiers"], "Common Directory")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
     columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
@@ -43,10 +44,10 @@ def check_construction(address=None, **kwargs):
         construction_list = []
         csectors_country = {i: csectors[i] for i in csectors if csectors[i]["state"] in states}
         for csector_id, csector_c in csectors_country.items():
-            if csector_c[compat_dict["building_levels"][version]] == "0":
+            if csector_c[variables["building_levels"]] == "0":
                 continue
             construction_out = get_building_output(csector_c, "country_construction_add", def_production_methods)
-            if (construction_cost_term := compat_dict["construction_cost"][version]) in csector_c:
+            if (construction_cost_term := variables["construction_cost"]) in csector_c:
                 construction_cost = -float(csector_c[construction_cost_term])
             else:
                 warnings.warn(f"No construction cost for building {csector_c}, assumed zero cost instead")

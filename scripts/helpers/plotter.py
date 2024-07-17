@@ -79,7 +79,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and "campaign_data" not in folder:
             metadata = load_save(["meta_data"], save_folder, True)
-            year, month, day = metadata["meta_data"]["game_date"].split(".")
+            year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
             if input_file not in os.listdir(save_folder) or reset:
                 if checker is None:

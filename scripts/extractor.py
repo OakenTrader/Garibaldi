@@ -44,10 +44,15 @@ class Extractor:
         in_focus = False
         with open(address, "r", encoding='utf-8-sig') as file:
             lines = []
-            if address in VARIABLES["problematic_definition_files"][version]:
+            problematic_lines = None
+            for f in VARIABLES["problematic_definition_files"][version]:
+                if f in address:
+                    problematic_lines = VARIABLES["problematic_definition_files"][version][f]
+                    break
+            if problematic_lines is not None:
                 for i, line in enumerate(list(file)):
                     line = line.split("#")[0].strip()
-                    if line and i + 1 not in VARIABLES["problematic_definition_files"][version][address]:
+                    if line and i + 1 not in problematic_lines:
                         lines.append(line)
             else:
                 for line in list(file):

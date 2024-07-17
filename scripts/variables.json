@@ -5,5 +5,10 @@
         "1.5": {"mobilization_options/00_mobilization_option.txt":[602, 603]},
         "1.6": {"mobilization_options/00_mobilization_option.txt":[602, 603]},
         "1.7": {"mobilization_options/00_mobilization_option.txt":[602, 603]}
+    },
+    "default_directories": {
+        "Common Directory":"./common",
+        "Events Directory":"./events",
+        "Localization Directory":"./localization"
     }
 }

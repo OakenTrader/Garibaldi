@@ -258,8 +258,29 @@ def get_country_name(country:dict, localization:dict):
 
 def get_version(address):
     meta_data = load_save(["meta_data"], address)["meta_data"]
-    version = meta_data["version"].split(".")
-    version = ".".join(version[:2])
+    version = meta_data["version"]
     return version
 
-     
+compat_dict = jopen("./scripts/checkers/compat_dict.json")
+
+def resolve_compatibility(variable, version):
+    compat_key = compat_dict[variable]
+    if version in compat_key:
+        return compat_key[version]
+    elif (v2 := ".".join(version.split(".")[:-1])) in compat_key:
+        return compat_key[v2]
+    else:
+        while True:
+            v2 = v2.split(".")
+            v2[-1] = str(int(v2[-1]) - 1)
+            if int(v2[-1]) < 1:
+                raise ValueError("Compatibility resolve failed")
+            v2 = ".".join(v2)
+            if v2 in compat_key:
+                return compat_key[v2]
+
+def resolve_compatibility_multiple(variables, version):
+    out_variables = {variable:resolve_compatibility(variable, version) for variable in variables}
+    print(version)
+    print(out_variables)
+    return out_variables

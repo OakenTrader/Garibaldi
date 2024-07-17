@@ -1,5 +1,5 @@
 {
-    "latest_version":"1.7",
+    "latest_version":"1.7.5",
     "building_levels":{
         "1.5":"level",
         "1.6":"level",
@@ -11,14 +11,15 @@
         "1.7":"government_dividends"
     },
     "dir_static_modifiers":{
-        "1.5":"./common/modifiers/00_static_modifiers.txt",
-        "1.6":"./common/modifiers/00_static_modifiers.txt",
-        "1.7":"./common/static_modifiers/00_code_static_modifiers.txt"
+        "1.5":"modifiers/00_static_modifiers.txt",
+        "1.6":"modifiers/00_static_modifiers.txt",
+        "1.7":"static_modifiers/00_code_static_modifiers.txt"
     }
     ,
     "veterancy":{
         "1.5":"current_veterancy_level",
         "1.6":"current_veterancy_level",
-        "1.7":"upgrades"
+        "1.7":"upgrades",
+        "1.7.5":"current_veterancy_level"
     }
 }
