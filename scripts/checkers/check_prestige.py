@@ -1,5 +1,6 @@
 import pandas as pd
 import os, warnings
+from scripts.checkers.checkers_functions import companies_manager, get_building_output, get_country_name, get_version
 from scripts.helpers.utility import *
 from scripts.convert_localization import get_all_localization
 
@@ -109,24 +110,7 @@ def check_prestige(address, **kwargs):
     """
     Companies
     """
-    def_companies = dict()
-    companies = load_def_multiple("company_types", "Common Directory")
-    for name, company_name in companies.items():
-        if any([x in relevant_modifiers for x in company_name["prosperity_modifier"]]):
-            def_companies.update({name:company_name["prosperity_modifier"]})
-
-    companies = save_data["companies"]["database"]
-    for name, company_name in companies.items():
-        if "prosperity" not in company_name or not float(company_name["prosperity"]) >= 100:
-            continue
-        country = company_name["country"]
-        if retrieve_from_tree(countries, [country, "definition"]) is None:
-            continue
-        if (company := retrieve_from_tree(def_companies, [company_name["company_type"]])) is None:
-            continue
-        if "companies" not in countries[country]:
-            countries[country]["companies"] = dict()
-        countries[country]["companies"][company_name["company_type"]] = company_name
+    companies_manager(save_data, countries, relevant_modifiers)
 
     """
     Politics
