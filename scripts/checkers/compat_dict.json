@@ -1,25 +1,33 @@
 {
     "latest_version":"1.7.5",
     "building_levels":{
+        "1.1":"level",
         "1.5":"level",
         "1.6":"level",
         "1.7":"levels"
     },
     "construction_cost":{
+        "1.1":"dividends",
         "1.5":"dividends",
         "1.6":"dividends",
         "1.7":"government_dividends"
     },
     "dir_static_modifiers":{
+        "1.1":"modifiers/00_static_modifiers.txt",
         "1.5":"modifiers/00_static_modifiers.txt",
         "1.6":"modifiers/00_static_modifiers.txt",
         "1.7":"static_modifiers/00_code_static_modifiers.txt"
     }
     ,
     "veterancy":{
+        "1.1":"current_veterancy_level",
         "1.5":"current_veterancy_level",
         "1.6":"current_veterancy_level",
         "1.7":"upgrades",
         "1.7.5":"current_veterancy_level"
+    },
+    "power_blocs":{
+        "1.1":null,
+        "1.7":"power_bloc_manager"
     }
 }
