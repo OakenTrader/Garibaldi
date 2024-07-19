@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from scripts.helpers.utility import *
 from scripts.helpers.save_watch import *
-import sys, json, os
+import sys, json, os, threading
 
 class Garibaldi_gui(tk.Tk):
     def __init__(self):
@@ -168,32 +168,54 @@ class SaveWatcher(Garibaldi_gui):
     def save_watch_settings(self):
         ttk.Label(self, text="Copy every").grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.freq_settings = ttk.Entry(self, width=50)
-        self.freq_settings.grid(row=0, column=1, padx=10, pady=10)
+        self.freq_settings.grid(row=0, column=1, padx=10, pady=10, columnspan=2)
         self.freq_settings.insert(0, "1")
-        ttk.Label(self, text="autosave(s)").grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        ttk.Label(self, text="autosave(s)").grid(row=0, column=3, padx=10, pady=10, sticky='w')
         
         ttk.Label(self, text="Autosave Location").grid(row=1, column=0, padx=10, pady=10, sticky='w')
         autosave_entry = ttk.Entry(self, width=50)
-        autosave_entry.grid(row=1, column=1, padx=10, pady=10)
+        autosave_entry.grid(row=1, column=1, padx=10, pady=10, columnspan=2)
         autosave_entry.insert(0, self.user_variables["Autosave Location"])
         autosave_entry.config(state="readonly")
         browse_button_1 = ttk.Button(self, text="Browse", command=lambda: self.browse_file(autosave_entry, "Autosave Location"))
-        browse_button_1.grid(row=1, column=2, padx=2, pady=10)
+        browse_button_1.grid(row=1, column=3, padx=2, pady=10)
 
         ttk.Label(self, text="Campaign Folder").grid(row=2, column=0, padx=10, pady=10, sticky='w')
         folder_entry = ttk.Entry(self, width=50)
-        folder_entry.grid(row=2, column=1, padx=10, pady=10)
+        folder_entry.grid(row=2, column=1, padx=10, pady=10, columnspan=2)
         folder_entry.insert(0, "")
         folder_entry.config(state="readonly")
         browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(folder_entry, "Campaign Folder", "./saves"))
-        browse_button_2.grid(row=2, column=2, padx=2, pady=10)
+        browse_button_2.grid(row=2, column=3, padx=2, pady=10)
 
-        ok_button = ttk.Button(self, text="Ok", command=lambda: self.on_ok())
-        ok_button.grid(row=3, column=1, padx=2, pady=10)
-    
+        self.ok_button = ttk.Button(self, text="Run", command=lambda: self.on_ok())
+        self.ok_button.grid(row=3, column=1, padx=2, pady=10)
+
+        self.cancel_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
+        self.cancel_button.grid(row=3, column=2, padx=2, pady=10)
+        self.cancel_button.config(state=tk.DISABLED)
+
+        self.tinkerable = [self.ok_button, self.freq_settings, browse_button_1, browse_button_2]
+
     def on_ok(self):
         try:
             n_saves = int(self.freq_settings.get())
         except:
             messagebox.showerror("Error", "Invalid input!")
-        watch_save(self.user_variables["Autosave Location"], self.user_variables["Campaign Folder"], n_saves)
+            return
+        self.ok_button.config(state=tk.DISABLED)
+        self.cancel_button.config(state=tk.NORMAL)
+        for element in self.tinkerable:
+            element.config(state=tk.DISABLED)
+        self.stop_event = threading.Event()
+        self.stop_event.clear()
+        self.watch_thread = threading.Thread(target=watch_save, args=(self.user_variables["Autosave Location"], self.user_variables["Campaign Folder"], self.stop_event, n_saves))
+        self.watch_thread.start()
+    
+    def on_stop(self):
+        self.stop_event.set()
+        self.watch_thread.join()
+        self.ok_button.config(state=tk.NORMAL)
+        self.cancel_button.config(state=tk.DISABLED)
+        for element in self.tinkerable:
+            element.config(state=tk.NORMAL)
