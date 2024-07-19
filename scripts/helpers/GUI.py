@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from scripts.helpers.utility import *
+from scripts.helpers.save_watch import *
 import sys, json, os
 
 class Garibaldi_gui(tk.Tk):
@@ -9,8 +10,9 @@ class Garibaldi_gui(tk.Tk):
         self.user_variables = jopen("./user_variables.json")
         self.variables = jopen("./scripts/variables.json")
     
-    def browse_folder(self, entry_widget, settings_key):
-        initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
+    def browse_folder(self, entry_widget, settings_key, initialdir=None, save_settings=True):
+        if initialdir is None:
+            initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
         folder_path = filedialog.askdirectory(initialdir=initialdir)
         if folder_path:
             entry_widget.config(state='normal')  # Enable the entry to modify it
@@ -18,10 +20,12 @@ class Garibaldi_gui(tk.Tk):
             entry_widget.insert(0, folder_path)
             entry_widget.config(state='readonly')  # Set the entry back to read-only
             self.user_variables[settings_key] = folder_path
-            self.save_settings()
+            if save_settings:
+                self.save_settings()
     
-    def browse_file(self, entry_widget, settings_key):
-        initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
+    def browse_file(self, entry_widget, settings_key, initialdir=None, save_settings=True):
+        if initialdir is None:
+            initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
         file_path = filedialog.askopenfilename(initialdir=initialdir)
         if file_path:
             entry_widget.config(state='normal')  # Enable the entry to modify it
@@ -29,7 +33,8 @@ class Garibaldi_gui(tk.Tk):
             entry_widget.insert(0, file_path)
             entry_widget.config(state='readonly')  # Set the entry back to read-only
             self.user_variables[settings_key] = file_path
-            self.save_settings()
+            if save_settings:
+                self.save_settings()
 
     def restore_defaults(self, entry_widget, settings_key):
         entry_widget.config(state='normal')  # Enable the entry to modify it
@@ -138,8 +143,6 @@ class Configure_windows(Garibaldi_gui):
     def __init__(self) -> None:
         super().__init__()
         self.title("Configure settings")
-        self.conf_dir = './user_variables.json'
-        self.settings = jopen(self.conf_dir)
         self.n_entries = 0
         for key in ["Common Directory", "Events Directory", "Localization Directory"]:
             self.add_directory_settings(key)
@@ -148,10 +151,49 @@ class Configure_windows(Garibaldi_gui):
         ttk.Label(self, text=target).grid(row=self.n_entries, column=0, padx=10, pady=10, sticky='e')
         settings_entry = ttk.Entry(self, width=50)
         settings_entry.grid(row=self.n_entries, column=1, padx=10, pady=10)
-        settings_entry.insert(0, self.settings[target])
+        settings_entry.insert(0, self.user_variables[target])
         settings_entry.config(state="readonly")
         browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, target))
         browse_button.grid(row=self.n_entries, column=2, padx=2, pady=10)
         reset_button = ttk.Button(self, text="Restore Defaults", command=lambda: self.restore_defaults(settings_entry, target))
         reset_button.grid(row=self.n_entries, column=3, padx=2, pady=10)
         self.n_entries += 1
+
+class SaveWatcher(Garibaldi_gui):
+    def __init__(self):
+        super().__init__()
+        self.title("Save Watcher")
+        self.save_watch_settings()
+    
+    def save_watch_settings(self):
+        ttk.Label(self, text="Copy every").grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.freq_settings = ttk.Entry(self, width=50)
+        self.freq_settings.grid(row=0, column=1, padx=10, pady=10)
+        self.freq_settings.insert(0, "1")
+        ttk.Label(self, text="autosave(s)").grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        
+        ttk.Label(self, text="Autosave Location").grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        autosave_entry = ttk.Entry(self, width=50)
+        autosave_entry.grid(row=1, column=1, padx=10, pady=10)
+        autosave_entry.insert(0, self.user_variables["Autosave Location"])
+        autosave_entry.config(state="readonly")
+        browse_button_1 = ttk.Button(self, text="Browse", command=lambda: self.browse_file(autosave_entry, "Autosave Location"))
+        browse_button_1.grid(row=1, column=2, padx=2, pady=10)
+
+        ttk.Label(self, text="Campaign Folder").grid(row=2, column=0, padx=10, pady=10, sticky='w')
+        folder_entry = ttk.Entry(self, width=50)
+        folder_entry.grid(row=2, column=1, padx=10, pady=10)
+        folder_entry.insert(0, "")
+        folder_entry.config(state="readonly")
+        browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(folder_entry, "Campaign Folder", "./saves"))
+        browse_button_2.grid(row=2, column=2, padx=2, pady=10)
+
+        ok_button = ttk.Button(self, text="Ok", command=lambda: self.on_ok())
+        ok_button.grid(row=3, column=1, padx=2, pady=10)
+    
+    def on_ok(self):
+        try:
+            n_saves = int(self.freq_settings.get())
+        except:
+            messagebox.showerror("Error", "Invalid input!")
+        watch_save(self.user_variables["Autosave Location"], self.user_variables["Campaign Folder"], n_saves)
