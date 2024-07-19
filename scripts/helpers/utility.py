@@ -100,6 +100,7 @@ def load_save(topics:list, address:str, save=False):
     Load a subset of information from a save file or pre-extracted data files
 
     Returns a dictionary of data according to the specified topic
+    Elements of topics that aren't strings are ignored.
 
     save: May optionally save a loaded result from the Extractor
     """
@@ -118,6 +119,8 @@ def load_save(topics:list, address:str, save=False):
             topics.pop(topics.index(topic))
         elif topic in miscellaneous:
             data_output[topic] = miscellaneous[topic]
+            topics.pop(topics.index(topic))
+        elif not isinstance(topic, str): # results of resolve compatibility of unimplemented variables
             topics.pop(topics.index(topic))
     if len(topics) > 0:
         if "full.gz" in os.listdir(f"{address}/extracted_save"):
