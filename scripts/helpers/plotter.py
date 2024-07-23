@@ -54,7 +54,7 @@ def get_color(tag):
     colors = np.concatenate([colors, [1]])
     return np.array(colors)
 
-def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=10, players=True, title=None, show=False, save_name=None):
+def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=10, players=True, title=None, show=False, save_name=None, start_date=0):
     """
     Plot a variable over the campaign
     
@@ -66,6 +66,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     limit: Int (Limit to first N places in the last save)
     players: Whether to include all players in the plot
     save_name = the file name of the plot image
+    start_date = The starting year in which save files are included in the plot
     """
     if title is None:
         title = mode
@@ -78,9 +79,14 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     for folder in os.listdir(f"saves/{campaign_folder}"):
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and "campaign_data" not in folder:
-            metadata = load_save(["meta_data"], save_folder, True)
-            year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
+            try:
+                year, month, day = folder.split("_")[-3:]
+            except ValueError:
+                metadata = load_save(["meta_data"], save_folder, True)
+                year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
+            if year_number < start_date:
+                continue
             if input_file not in os.listdir(save_folder) or reset:
                 if checker is None:
                     raise ValueError("No checker provided.")
