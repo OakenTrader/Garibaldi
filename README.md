@@ -4,13 +4,22 @@ My take on creating Victoria 3 File Parser. Based on observed patterns, the extr
 
 From the extracted content, I have made analyzer scripts to obtain specific variables like the tech tree and construction of relevant nations. More to come. 
 
-Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/rakaly/librakaly) is not integrated yet.
+## Features:
+- Extract save files and retrieve/plot information of
+    - Construction and average construction cost per point
+    - Total and capped Innovation
+    - Infamy
+    - Prestige
+    - Number of researched technologies and technologies each nation have missed
+- Watch the autosave file and copy it to a designated folder whenever it's changed
+- View content of a save file (after extraction)
 
-Paradox script files are required by the analyzers and **will not be provided** in the repository.
+Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/rakaly/librakaly) integrated in this program is available only in Linux platform (I don't know how to get the melter in Windows).
 
-Also in addition, the convert_localization.py generate a Python dictionary from localization files, again based on patterns of entries I want to get from the files.
+Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
-Works for games in version 1.5.13 and 1.6.2
+Works for games in version 1.5.13, 1.6.2, 1.7 and hopefully whatever in between.
+(Variables name in save files change with version and I'm not totally sure I've handled all such changes so please open an issue whenever there is an error.)
 
 The script is intended (atleast in the future) to be compatible with as many mods as possible and so
 we try not to hardcode any variable into the script, relying all data from the provided definition files
