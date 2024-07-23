@@ -11,6 +11,9 @@ prestige_columns = ["tier prestige", "army projection", "navy projection", "GDP 
             "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "monuments prestige", "events prestige", "modifiers"]
 
 def check_prestige(address, **kwargs):
+    """
+    Retrieve prestige and its modifiers for each country in each category.
+    """
     localization = get_all_localization()
     save_date = get_save_date(address, split=False)
     version = get_version(address)

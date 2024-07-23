@@ -1,3 +1,7 @@
+"""
+Functions that manage data plotting.
+"""
+
 import os, warnings
 from scripts.helpers.utility import *
 import matplotlib.pyplot as plt
@@ -24,7 +28,7 @@ import pandas as pd
 
 def get_color(tag):
     """
-    Get a color of tag and its format
+    Get a color of a tag (three letters defining a country) and its format
     """
     def_countries = load_def_multiple("country_definitions", "Common Directory")
     try:

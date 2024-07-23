@@ -1,3 +1,6 @@
+"""
+Whatever functions written to help the program.
+"""
 import sys, os, shutil, fnmatch, pickle, gzip, glob, json
 from scripts.extractor import Extractor
 import time, functools
@@ -14,10 +17,16 @@ def t_execute(func):
     return return_func
 
 def zopen(address:str):
+    """
+    Opens a gzip file.
+    """
     with gzip.open(address, 'rb') as f:
         return pickle.load(f)
 
 def jopen(address:str):
+    """
+    Opens a json file.
+    """
     with open(address, "r") as file:
         return json.load(file)
 
@@ -53,7 +62,7 @@ def retrieve_from_tree(tree:dict, directory:list, null=None):
     Retrieve a value from a nested dictionary (tree) using a list of keys (directory).
 
     Returns:
-        The value found at the specified directory path, or None if any key in the path does not exist in the tree.
+        The value found at the specified directory path, or value specified in 'null' (default None) if any key in the path does not exist in the tree.
 
     Example:
         tree = {'a': {'b': {'c': 'value'}}}
@@ -157,6 +166,9 @@ def make_save_dirs(campaign_folder):
             shutil.move(source, dest)
 
 def rename_folder_to_date(campaign_folder):
+    """
+    Rename every save folders in a campaign folder into format campaign_folder_year_month_day 
+    """
     campaign_folder = f"saves/{campaign_folder}"
     for folder in os.listdir(campaign_folder):
         if "campaign_data" in folder or "." in folder:
@@ -167,6 +179,9 @@ def rename_folder_to_date(campaign_folder):
         os.rename(save_folder, f"{campaign_folder}/{new_name}")
 
 def get_save_date(save_folder, split=True):
+    """
+    Get the date of a save file in a string format (i.e. 1836.1.1.18) if split=False or list of strings (i.e. [1836, 1, 1]) if split=True
+    """
     metadata = load_save(["meta_data"], save_folder)
     save_date = metadata["meta_data"]["game_date"]
     if split:
@@ -214,15 +229,5 @@ def walk_tree(tree:dict, target, path:list=[]):
         if isinstance(value, dict):
             leaves += walk_tree(value, target, root + [key])
     return leaves
-
-    
-    
-    if "pops_employed" in building:
-        for key, pop in building["pops_employed"].items():
-            employees += int(pop["workforce"] )
-
-    if "pops_employed" in building:
-        for key, pop in building["pops_employed"].items():
-            employees += int(pop["workforce"] )
 
 

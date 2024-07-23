@@ -3,6 +3,9 @@ import scripts.convert_localization as convert_localization
 from scripts.helpers.utility import *
 
 def check_tech_tree(address):
+    """
+    Retrieve some information about each nation's technology. i.e. number of researched techs and missing techs which are researched elsewhere
+    """
     localization = convert_localization.get_all_localization()
     topics = ["country_manager", "technology", "player_manager"]
     year, month, day = get_save_date(address)

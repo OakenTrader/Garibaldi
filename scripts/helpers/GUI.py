@@ -1,3 +1,6 @@
+"""
+Handles all existing GUI of Garibaldi
+"""
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from scripts.helpers.utility import *
@@ -71,7 +74,9 @@ class Garibaldi_gui:
 
 
 class Main_Menu(tk.Tk, Garibaldi_gui):
-    
+    """
+    Main menu for Garibaldi
+    """
     def __init__(self):
         super().__init__()
         Garibaldi_gui.__init__(self)
@@ -100,7 +105,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
 
 class SaveExtractor(tk.Toplevel, Garibaldi_gui):
     """
-    Extract save files in a campaign folder
+    Handles Save extractor menu
     """
     def __init__(self, master):
         super().__init__(master)
@@ -157,6 +162,9 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
 
 
 class SaveWatcher(tk.Toplevel, Garibaldi_gui):
+    """
+    Handles Save watcher menu
+    """
     def __init__(self, master):
         super().__init__(master)
         Garibaldi_gui.__init__(self)
@@ -236,6 +244,9 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
 
 
 class DictViewer(tk.Toplevel, Garibaldi_gui):
+    """
+    Handles Save Viewer menu and tree view
+    """
     def __init__(self, master, preprocessor=None):
         super().__init__(master)
         Garibaldi_gui.__init__(self)
@@ -325,6 +336,9 @@ class DictViewer(tk.Toplevel, Garibaldi_gui):
             
 
 class Configure_windows(tk.Toplevel, Garibaldi_gui):
+    """
+    Handles configuration menu
+    """
     def __init__(self, master) -> None:
         super().__init__(master)
         Garibaldi_gui.__init__(self)

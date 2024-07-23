@@ -1,3 +1,6 @@
+"""
+Handles obtaining localization of the game's variables
+"""
 import re
 from pathlib import Path
 from scripts.helpers.utility import *
@@ -8,7 +11,7 @@ def get_localization(address):
     """
     Obtains the localization text from the files.
     
-    Returns a Python Dictionary
+    Returns a Python Dictionary mapping a variable name to its localization
     """
     data = dict()
     with open(address, "r", encoding="utf8") as file:
@@ -27,6 +30,9 @@ def get_localization(address):
     return data
 
 def get_all_localization():
+    """
+    Returns every single localization definition in the game for a language.
+    """
     lcl_files = list(Path(user_variables["Localization Directory"]).rglob("*.yml"))
     dicts = []
     for f in lcl_files:

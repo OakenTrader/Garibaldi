@@ -1,6 +1,8 @@
-from scripts.helpers.utility import jopen, load_def_multiple, load_save, retrieve_from_tree
+"""
+Functions related to game variables that are used commonly by the checker functions.
+"""
+from scripts.helpers.utility import *
 compat_dict = jopen("./scripts/checkers/compat_dict.json")
-
 
 def resolve_compatibility(variable, version):
     compat_key = compat_dict[variable]

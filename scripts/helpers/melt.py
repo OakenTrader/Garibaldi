@@ -1,3 +1,6 @@
+""""
+Interface to Rakaly save melter. Currently only available for programs running on Linux platform because I can't figure out how to compile the melter for Windows platform.
+"""
 import glob, subprocess, platform
 
 def melt(address, out):
@@ -19,6 +22,9 @@ def melt(address, out):
 
 
 def melt_multiple(num, pattern):
+    """
+    Used to melt multiple files with a matching pattern at once.
+    """
     files = glob.glob(pattern)
     out_files = []
     for i, file in enumerate(files):

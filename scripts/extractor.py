@@ -1,3 +1,6 @@
+"""
+Save files extraction logic.
+"""
 import re, gzip, pickle, os, json
 
 with open("./scripts/variables.json", "r") as file:

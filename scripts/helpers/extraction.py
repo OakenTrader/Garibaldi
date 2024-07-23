@@ -1,3 +1,6 @@
+"""
+File containing the save extraction functions
+"""
 from scripts.extractor import Extractor
 from scripts.helpers.melt import melt
 from scripts.helpers.utility import *
@@ -12,6 +15,9 @@ from glob import glob
 
 # Fully extract save file
 def extract_save_file(save_file):
+    """
+    Handles extraction of a single save file.
+    """
     try:
         t0 = time.time()
         data = Extractor(f"{save_file}/save.txt")
