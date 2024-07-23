@@ -107,13 +107,50 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
     
     def extractor_config(self):
         ttk.Label(self, text="Extract saves in a campaign folder").grid(row=0, column=0, padx=10, pady=10)
-        ttk.Label(self, text="Campaign Folder").grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        
+        self.del_var = tk.IntVar(self, value=0)
+        ttk.Label(self, text="Delete the save file after extraction?").grid(row=0, column=0, padx=10, pady=10)
+        yes_radio = ttk.Radiobutton(self, text="Yes", variable=self.del_var, value=1)
+        yes_radio.grid(row=0, column=1, padx=0, pady=5, sticky='w')
+        no_radio = ttk.Radiobutton(self, text="No", variable=self.del_var, value=0)
+        no_radio.grid(row=0, column=2, padx=0, pady=5, sticky='w')
+
+        ttk.Label(self, text="Campaign Folder").grid(row=1, column=0, padx=10, pady=10)
         settings_entry = ttk.Entry(self, width=50)
         settings_entry.insert(0, self.user_variables["Campaign Folder"])
         settings_entry.config(state="readonly")
-        settings_entry.grid(row=3, column=1, columnspan=10, padx=0, pady=10, sticky='w')
-        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, "Campaign Folder"))
-        browse_button.grid(row=3, column=11, padx=0, pady=10, sticky='w')
+        settings_entry.grid(row=1, column=1, columnspan=3, padx=5, pady=10, sticky='w')
+        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, "Campaign Folder", only_folder_name=True))
+        browse_button.grid(row=1, column=4, padx=5, pady=10, sticky='w')
+
+        self.ok_button = ttk.Button(self, text="Start", command=lambda: self.start_extraction())
+        self.ok_button.grid(row=2, column=1, padx=5, pady=10)
+        self.stop_button = ttk.Button(self, text="Stop", command=lambda: self.start_extraction())
+        self.stop_button.grid(row=2, column=3, padx=5, pady=10)
+        self.stop_button.config(state=tk.DISABLED)
+
+        self.tinkerable = [yes_radio, no_radio, browse_button, self.ok_button]
+    
+    def start_extraction(self):
+        if self.del_var == 1:
+            proceed = messagebox.askyesno("Save files will be deleted after successfully extracted, would you like to procees?")
+            if not proceed:
+                return
+        del_var = bool(self.del_var)
+        self.stop_button.config(state=tk.NORMAL)
+        for element in self.tinkerable:
+            element.config(state=tk.DISABLED)
+        self.stop_event = threading.Event()
+        self.stop_event.clear()
+        self.watch_thread = threading.Thread(target=extract_all_files, args=(self.user_variables["Campaign Folder"], self.stop_event, del_var))
+        self.watch_thread.start()
+    
+    def stop_extraction(self):
+        self.stop_event.set()
+        self.watch_thread.join()
+        self.stop_button.config(state=tk.DISABLED)
+        for element in self.tinkerable:
+            element.config(state=tk.NORMAL)
 
 
 class SaveWatcher(tk.Toplevel, Garibaldi_gui):
