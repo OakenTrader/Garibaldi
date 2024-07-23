@@ -1,6 +1,6 @@
 import pandas as pd
 import os, warnings
-from scripts.checkers.checkers_functions import companies_manager, get_building_output, get_country_name, get_version
+from scripts.checkers.checkers_functions import *
 from scripts.helpers.utility import *
 from scripts.convert_localization import get_all_localization
 
@@ -498,18 +498,7 @@ def check_prestige(address, **kwargs):
     prestige_per_subject_army_pp = float(defines["PRESTIGE_FROM_SUBJECT_ARMY_POWER_PROJECTION"])
     prestige_per_subject_navy_pp = float(defines["PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION"])
 
-    def_subjects = [v["diplomatic_action"] for v in load_def_multiple("subject_types", "Common Directory").values()]
-    for _, pact in save_data["pacts"]["database"].items():
-        if not isinstance(pact, dict):
-            continue
-        if pact["action"] not in def_subjects:
-            continue
-        targets = (pact["targets"]["first"], pact["targets"]["second"])
-        country1 = countries[targets[0]]
-        country2 = targets[1]
-        if "subjects" not in country1:
-            country1["subjects"] = []
-        country1["subjects"].append(country2)
+    subject_manager(save_data, countries)
     
     for country_id, country in countries.items():
         if not isinstance(country, dict):
