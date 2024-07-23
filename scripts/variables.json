@@ -9,6 +9,8 @@
     "default_directories": {
         "Common Directory":"./common",
         "Events Directory":"./events",
-        "Localization Directory":"./localization"
+        "Localization Directory":"./localization",
+        "Autosave Location":"",
+        "Campaign Folder": "./saves/autosaves"
     }
 }

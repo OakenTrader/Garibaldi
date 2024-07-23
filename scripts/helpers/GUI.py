@@ -17,9 +17,18 @@ class Garibaldi_gui:
         self.user_variables = jopen("./user_variables.json")
         self.variables = jopen("./scripts/variables.json")
     
-    def browse_folder(self, entry_widget, settings_key, initialdir=None, save_settings=True, only_folder_name=False):
+    def get_var(self, key):
+        if key not in self.user_variables:
+            self.set_var(key, self.variables["default_directories"][key])
+        return self.user_variables[key]
+    
+    def set_var(self, key, value):
+        self.user_variables[key] = value
+        self.save_settings()
+
+    def browse_folder(self, entry_widget, settings_key, initialdir=None, only_folder_name=False):
         if initialdir is None:
-            initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
+            initialdir = "/".join(self.get_var(settings_key).split("/")[:-1])
         folder_path = filedialog.askdirectory(initialdir=initialdir)
         if folder_path:
             if only_folder_name:
@@ -28,30 +37,26 @@ class Garibaldi_gui:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, folder_path)
             entry_widget.config(state='readonly')  # Set the entry back to read-only
-            self.user_variables[settings_key] = folder_path
-            if save_settings:
-                self.save_settings()
+            self.set_var(settings_key,folder_path)
     
-    def browse_file(self, entry_widget, settings_key, initialdir=None, save_settings=True):
+    def browse_file(self, entry_widget, settings_key, initialdir=None):
         if initialdir is None:
-            initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
+            initialdir = "/".join(self.get_var(settings_key).split("/")[:-1])
         file_path = filedialog.askopenfilename(initialdir=initialdir)
         if file_path:
             entry_widget.config(state='normal')  # Enable the entry to modify it
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, file_path)
             entry_widget.config(state='readonly')  # Set the entry back to read-only
-            self.user_variables[settings_key] = file_path
-            if save_settings:
-                self.save_settings()
+            self.set_var(settings_key, file_path)
+
 
     def restore_defaults(self, entry_widget, settings_key):
         entry_widget.config(state='normal')  # Enable the entry to modify it
         entry_widget.delete(0, tk.END)
         entry_widget.insert(0, self.variables["default_directories"][settings_key])
         entry_widget.config(state='readonly')  # Set the entry back to read-only
-        self.user_variables[settings_key] = self.variables["default_directories"][settings_key]
-        self.save_settings()
+        self.set_var(settings_key, self.variables["default_directories"][settings_key])
 
     def save_settings(self):
         with open("./user_variables.json", 'w') as file:
@@ -125,7 +130,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
 
         ttk.Label(self, text="Campaign Folder").grid(row=1, column=0, padx=10, pady=10)
         settings_entry = ttk.Entry(self, width=50)
-        settings_entry.insert(0, self.user_variables["Campaign Folder"])
+        settings_entry.insert(0, self.get_var("Campaign Folder"))
         settings_entry.config(state="readonly")
         settings_entry.grid(row=1, column=1, columnspan=3, padx=5, pady=10, sticky='w')
         browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, "Campaign Folder", only_folder_name=True))
@@ -150,7 +155,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
             element.config(state=tk.DISABLED)
         self.stop_event = threading.Event()
         self.stop_event.clear()
-        self.watch_thread = threading.Thread(target=extract_all_files, args=(self.user_variables["Campaign Folder"], self.stop_event, del_var))
+        self.watch_thread = threading.Thread(target=extract_all_files, args=(self.get_var("Campaign Folder"), self.stop_event, del_var))
         self.watch_thread.start()
     
     def stop_extraction(self):
@@ -182,8 +187,7 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
             widget.delete(0, tk.END)
             widget.insert(0, f"./saves/{campaign_folder}")
             widget.config(state="readonly")
-            self.user_variables["Campaign Folder"] = f"./saves/{campaign_folder}"
-            self.save_settings()
+            self.set_var("Campaign Folder", f"./saves/{campaign_folder}")
         
         ttk.Label(self, text="Watch the autosave file and copy it to the target campaign folder when modified").grid(row=0, column=0, padx=10, pady=20, sticky='w', columnspan=3)
         ttk.Label(self, text="Copy every").grid(row=1, column=0, padx=10, pady=10, sticky='w')
@@ -195,7 +199,7 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
         ttk.Label(self, text="Autosave Location").grid(row=2, column=0, padx=10, pady=10, sticky='w')
         autosave_entry = ttk.Entry(self, width=65)
         autosave_entry.grid(row=2, column=1, padx=10, pady=10, columnspan=2)
-        autosave_entry.insert(0, self.user_variables["Autosave Location"])
+        autosave_entry.insert(0, self.get_var("Autosave Location"))
         autosave_entry.config(state="readonly")
         browse_button_1 = ttk.Button(self, text="Browse", command=lambda: self.browse_file(autosave_entry, "Autosave Location"))
         browse_button_1.grid(row=2, column=3, padx=2, pady=10)
@@ -231,7 +235,7 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
             element.config(state=tk.DISABLED)
         self.stop_event = threading.Event()
         self.stop_event.clear()
-        self.watch_thread = threading.Thread(target=watch_save, args=(self.user_variables["Autosave Location"], self.folder_entry.get(), self.stop_event, n_saves))
+        self.watch_thread = threading.Thread(target=watch_save, args=(self.get_var("Autosave Location"), self.folder_entry.get(), self.stop_event, n_saves))
         self.watch_thread.start()
     
     def on_stop(self):
@@ -274,7 +278,7 @@ class DictViewer(tk.Toplevel, Garibaldi_gui):
 
         ttk.Label(self, text="File location").grid(row=3, column=0, padx=10, pady=10, sticky='w')
         settings_entry = ttk.Entry(self, width=50)
-        settings_entry.insert(0, self.user_variables["Tree File Location"])
+        settings_entry.insert(0, self.get_var("Tree File Location"))
         settings_entry.config(state="readonly")
         settings_entry.grid(row=3, column=1, columnspan=10, padx=0, pady=10, sticky='w')
         browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_file(settings_entry, "Tree File Location"))
@@ -284,7 +288,7 @@ class DictViewer(tk.Toplevel, Garibaldi_gui):
         ok_button.grid(row=4, column=0, padx=10, pady=10)
 
     def on_ok(self):
-        if not os.path.isfile(self.user_variables["Tree File Location"]):
+        if not os.path.isfile(self.get_var("Tree File Location")):
             messagebox.showerror("Invalid Directory", "The selected directory is not valid. Please choose a valid directory.")
         else:
             self.show_size = self.size_var.get() == 1
@@ -315,7 +319,7 @@ class DictViewer(tk.Toplevel, Garibaldi_gui):
         self.tree.configure(xscrollcommand=hsb.set)
 
         # Load the data and populate the treeview
-        data = zopen(self.user_variables["Tree File Location"])
+        data = zopen(self.get_var("Tree File Location"))
         if self.preprocessor is not None:
             data = self.preprocessor(data)
         self.populate_tree("", data)
@@ -351,7 +355,7 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
         ttk.Label(self, text=target).grid(row=self.n_entries, column=0, padx=10, pady=10, sticky='e')
         settings_entry = ttk.Entry(self, width=50)
         settings_entry.grid(row=self.n_entries, column=1, padx=10, pady=10)
-        settings_entry.insert(0, self.user_variables[target])
+        settings_entry.insert(0, self.get_var(target))
         settings_entry.config(state="readonly")
         browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, target))
         browse_button.grid(row=self.n_entries, column=2, padx=2, pady=10)
