@@ -7,7 +7,10 @@ def watch_save(target_file, destination_folder, stop_event, freq=1):
     Watch the autosave file and copy it to a designated folder whenever it is modified.
     """
     # Get the initial modification time of the target file
-    last_modified_time = os.path.getmtime(target_file)
+    try:
+        last_modified_time = os.path.getmtime(target_file)
+    except FileNotFoundError:
+        last_modified_time = None
     check = 0
     print("Save watcher watching")
     while not stop_event.is_set():
