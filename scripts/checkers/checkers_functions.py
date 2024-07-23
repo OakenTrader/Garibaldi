@@ -49,6 +49,73 @@ def companies_manager(save_data, countries, relevant_modifiers):
             countries[country]["companies"] = dict()
         countries[country]["companies"][company_name["company_type"]] = company
 
+def subject_manager(save_data, countries):
+    """
+    Get all subjects of each country and the country it is subject to
+    """
+    def_subjects = [v["diplomatic_action"] for v in load_def_multiple("subject_types", "Common Directory").values()]
+    for _, pact in save_data["pacts"]["database"].items():
+        if not isinstance(pact, dict):
+            continue
+        if pact["action"] not in def_subjects:
+            continue
+        targets = (pact["targets"]["first"], pact["targets"]["second"])
+        country1 = countries[targets[0]]
+        country2 = countries[targets[1]]
+        if "subjects" not in country1:
+            country1["subjects"] = []
+        country1["subjects"].append(targets[1])
+        if "subject_to" not in country2:
+            country2["subject_to"] = []
+        country2["subject_to"].append(targets[0])
+        if "power_bloc_as_core" in country1:
+            country2["power_bloc_as_core"] = country1["power_bloc_as_core"]
+            for subject in retrieve_from_tree(country2, "subjects", []):
+                countries[subject]["power_bloc_as_core"] = country1["power_bloc_as_core"]
+                """
+                FIXME Not sure if we can get all countries in their power blocs, i.e in some deep subject networks (subject of subject of subject)
+                """
+
+def bloc_manager(save_data, relevant_modifiers):
+    """
+    Retrieve power blocs and/with relevant principles
+    """
+    def_principles = load_def("power_bloc_principles/00_power_bloc_principles.txt")
+    principles = dict()
+    for principle_key, principle in def_principles.items():
+        for relevant_modifier in relevant_modifiers:
+            if relevant_modifier in retrieve_from_tree(principle, "institution_modifier", []):
+                pass
+            elif relevant_modifier in retrieve_from_tree(principle, "member_modifier", []):
+                pass
+            elif relevant_modifier in retrieve_from_tree(principle, "participant_modifier", []):
+                pass
+            elif relevant_modifier in retrieve_from_tree(principle, "leader_modifier", []):
+                pass
+            else:
+                continue
+            principles[principle_key] = principle
+            break
+    power_blocs = save_data["power_bloc_manager"]["database"]
+    blocs = dict()
+    for bloc_number, power_bloc in power_blocs.items():
+        if not isinstance(power_bloc, dict):
+            continue
+        for principle in power_bloc["principles"]["value"]:
+            if principle in principles:
+                blocs[bloc_number] = power_bloc
+    return principles, blocs
+
+def institution_manager(save_data, countries, relevant_institutions):
+    all_institutions = save_data["institutions"]["database"]
+    for _, institution in all_institutions.items():
+        if not isinstance(institution, dict):
+            continue
+        if institution["institution"] in relevant_institutions:
+            if "institutions" not in (country := countries[institution["country"]]):
+                country["institutions"] = dict()
+            country["institutions"][institution["institution"]] = institution["investment"]
+
 
 def get_country_name(country:dict, localization:dict):
     country_tag = country["definition"]
