@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from scripts.helpers.utility import *
 from scripts.helpers.save_watch import *
+from scripts.helpers.extraction import *
 import sys, json, os, threading
 
 class Garibaldi_gui:
@@ -13,11 +14,13 @@ class Garibaldi_gui:
         self.user_variables = jopen("./user_variables.json")
         self.variables = jopen("./scripts/variables.json")
     
-    def browse_folder(self, entry_widget, settings_key, initialdir=None, save_settings=True):
+    def browse_folder(self, entry_widget, settings_key, initialdir=None, save_settings=True, only_folder_name=False):
         if initialdir is None:
             initialdir = "/".join(self.user_variables[settings_key].split("/")[:-1])
         folder_path = filedialog.askdirectory(initialdir=initialdir)
         if folder_path:
+            if only_folder_name:
+                folder_path = folder_path.split("/")[-1]
             entry_widget.config(state='normal')  # Enable the entry to modify it
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, folder_path)
@@ -167,18 +170,22 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
             except FileExistsError:
                 pass
             window.destroy()
-            widget.config(state="normal", text=f"./saves/{campaign_folder}")
+            widget.config(state="normal")
+            widget.delete(0, tk.END)
+            widget.insert(0, f"./saves/{campaign_folder}")
             widget.config(state="readonly")
-
+            self.user_variables["Campaign Folder"] = f"./saves/{campaign_folder}"
+            self.save_settings()
+        
         ttk.Label(self, text="Watch the autosave file and copy it to the target campaign folder when modified").grid(row=0, column=0, padx=10, pady=20, sticky='w', columnspan=3)
         ttk.Label(self, text="Copy every").grid(row=1, column=0, padx=10, pady=10, sticky='w')
-        self.freq_settings = ttk.Entry(self, width=50)
+        self.freq_settings = ttk.Entry(self, width=65)
         self.freq_settings.grid(row=1, column=1, padx=10, pady=10, columnspan=2)
         self.freq_settings.insert(0, "1")
         ttk.Label(self, text="autosave(s)").grid(row=1, column=3, padx=10, pady=10, sticky='w')
         
         ttk.Label(self, text="Autosave Location").grid(row=2, column=0, padx=10, pady=10, sticky='w')
-        autosave_entry = ttk.Entry(self, width=50)
+        autosave_entry = ttk.Entry(self, width=65)
         autosave_entry.grid(row=2, column=1, padx=10, pady=10, columnspan=2)
         autosave_entry.insert(0, self.user_variables["Autosave Location"])
         autosave_entry.config(state="readonly")
@@ -186,23 +193,23 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
         browse_button_1.grid(row=2, column=3, padx=2, pady=10)
 
         ttk.Label(self, text="Campaign Folder").grid(row=3, column=0, padx=10, pady=10, sticky='w')
-        folder_entry = ttk.Entry(self, width=50)
-        folder_entry.grid(row=3, column=1, padx=10, pady=10, columnspan=1)
-        folder_entry.insert(0, "")
-        folder_entry.config(state="readonly")
-        browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(folder_entry, "Campaign Folder", "./saves"))
+        self.folder_entry = ttk.Entry(self, width=50)
+        self.folder_entry.grid(row=3, column=1, padx=10, pady=10, columnspan=1)
+        self.folder_entry.insert(0, "./saves/autosaves")
+        self.folder_entry.config(state="readonly")
+        browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves"))
         browse_button_2.grid(row=3, column=2, padx=2, pady=10)
-        make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, create_new_folder, folder_entry, "Create new campaign folder"))
+        make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, create_new_folder, self.folder_entry, "Create new campaign folder"))
         make_folder_button.grid(row=3, column=3, padx=2, pady=10)
 
         self.ok_button = ttk.Button(self, text="Run", command=lambda: self.on_ok())
         self.ok_button.grid(row=4, column=1, padx=2, pady=10)
 
-        self.cancel_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
-        self.cancel_button.grid(row=4, column=2, padx=2, pady=10)
-        self.cancel_button.config(state=tk.DISABLED)
+        self.stop_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
+        self.stop_button.grid(row=4, column=2, padx=2, pady=10)
+        self.stop_button.config(state=tk.DISABLED)
 
-        self.tinkerable = [self.ok_button, self.freq_settings, browse_button_1, browse_button_2]
+        self.tinkerable = [self.ok_button, self.freq_settings, browse_button_1, browse_button_2, make_folder_button]
 
     def on_ok(self):
         try:
@@ -211,24 +218,21 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
             messagebox.showerror("Error", "Invalid input!")
             return
         self.ok_button.config(state=tk.DISABLED)
-        self.cancel_button.config(state=tk.NORMAL)
+        self.stop_button.config(state=tk.NORMAL)
         for element in self.tinkerable:
             element.config(state=tk.DISABLED)
         self.stop_event = threading.Event()
         self.stop_event.clear()
-        self.watch_thread = threading.Thread(target=watch_save, args=(self.user_variables["Autosave Location"], self.user_variables["Campaign Folder"], self.stop_event, n_saves))
+        self.watch_thread = threading.Thread(target=watch_save, args=(self.user_variables["Autosave Location"], self.folder_entry.get(), self.stop_event, n_saves))
         self.watch_thread.start()
     
     def on_stop(self):
         self.stop_event.set()
         self.watch_thread.join()
         self.ok_button.config(state=tk.NORMAL)
-        self.cancel_button.config(state=tk.DISABLED)
+        self.stop_button.config(state=tk.DISABLED)
         for element in self.tinkerable:
             element.config(state=tk.NORMAL)
-
-    def close_window(self):
-        self.destroy()
 
 
 class DictViewer(tk.Toplevel, Garibaldi_gui):
@@ -252,7 +256,6 @@ class DictViewer(tk.Toplevel, Garibaldi_gui):
         self.size_var = tk.IntVar(value=0)
         
         ttk.Label(self, text="Get the object size?").grid(row=0, column=0, padx=10, pady=10)
-
         yes_radio = ttk.Radiobutton(self, text="Yes", variable=self.size_var, value=1)
         yes_radio.grid(row=0, column=1, padx=0, pady=5, sticky='w')
         no_radio = ttk.Radiobutton(self, text="No", variable=self.size_var, value=0)
