@@ -1,12 +1,17 @@
 """"
 Interface to Rakaly save melter. Currently only available for programs running on Linux platform because I can't figure out how to compile the melter for Windows platform.
 """
-import glob, subprocess, platform
+import glob, subprocess, platform, os
 
 def melt(address, out):
     if platform.system() == "Linux":
-        command = f'./saves/melter save {address} > {out}'
-        envariables = {'LD_LIBRARY_PATH': "./saves/"}
+        command = f'./bin/rakaly_linux/melter save {address} > {out}'
+        envariables = {'LD_LIBRARY_PATH': "./bin/rakaly_linux/"}
+    elif platform.system() == "Windows":
+        envariables = os.environ.copy()
+        new_path = f"{os.path.abspath('./bin/rakaly_window/')};" + envariables["PATH"]
+        envariables["PATH"] = new_path
+        command = f'.\\bin\\rakaly_windows\\melter.exe save {address} {out}'
     else:
         raise NotImplementedError("Rakaly melter in other platforms is not available at the moment. The file is now moved inside the folder.")
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True, env=envariables)
