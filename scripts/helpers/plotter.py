@@ -142,6 +142,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     plt.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
     if show:
         plt.show()
+    plt.close()
     return fig
 
 def plot_goods_produced(campaign_folder, limit=10):
