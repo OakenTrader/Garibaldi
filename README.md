@@ -9,12 +9,12 @@ From the extracted content, I have made analyzer scripts to obtain specific vari
     - Construction and average construction cost per point
     - Total and capped Innovation
     - Infamy
-    - Prestige
+    - Prestige (consequently goods produced)
     - Number of researched technologies and technologies each nation have missed
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
-Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/rakaly/librakaly) integrated in this program is available only in Linux platform (I don't know how to get the melter in Windows).
+Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/rakaly/librakaly) integrated in this program is available in Windows and Linux platforms and is executed on extraction.
 
 Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
