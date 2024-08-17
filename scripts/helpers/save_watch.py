@@ -34,4 +34,7 @@ def watch_save(target_file, destination_folder, stop_event, freq=1):
                 check += 1
         except FileNotFoundError:
             continue
+        except Exception as e:
+            stop_event.set()
+            raise RuntimeError(f"Error at SaveWatcher: {e}")
     print("Finished watching.")
