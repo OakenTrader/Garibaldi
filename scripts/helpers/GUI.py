@@ -14,8 +14,13 @@ class Garibaldi_gui:
     """
     def __init__(self):
         super().__init__()
-        self.user_variables = jopen("./user_variables.json")
         self.variables = jopen("./scripts/variables.json")
+        try:
+            self.user_variables = jopen("./user_variables.json")
+        except:
+            self.user_variables = self.variables["default_directories"].copy()
+            self.save_settings()
+        self.tinkerable = None
     
     def get_var(self, key):
         if key not in self.user_variables:
