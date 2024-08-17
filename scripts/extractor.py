@@ -38,8 +38,9 @@ class Extractor:
     extractor = Extractor("path/to/victoria3_data.txt", focus="population", pline=True)
     extractor.write("saves/campaign/save", ["population"])
     """
-    def __init__(self, address, is_save=False, focuses=None, pline=False, version="1.7") -> None:
+    def __init__(self, address, is_save=False, focuses=None, pline=False, stop_event=None, version="1.7") -> None:
         self.data = dict()
+        self.check_stop = (lambda : None) if stop_event is None else stop_event.is_set
         bracket_counter = 0
         scope = [self.data]
         current_key = None
@@ -73,9 +74,13 @@ class Extractor:
             else:
                 text = file.read()
             text = spacing_ex.sub(" ", text)
-
+        if self.check_stop():
+            raise InterruptedError("Stop event set")
         
+
         for sstr in re.split(r"\s?([{}])\s?", text):
+            if self.check_stop():
+                raise InterruptedError("Stop event set")
             if focuses is not None:
                 for focus in focuses:
                     if focus in sstr and bracket_counter == 0:
@@ -195,6 +200,8 @@ class Extractor:
             pass
         miscellaneous = dict()
         for k, v in data_output.items():
+            if self.check_stop():
+                raise InterruptedError("Stop event set")
             if k not in VARIABLES["large_topics"]:
                 miscellaneous[k] = v
                 continue
@@ -221,6 +228,8 @@ class Extractor:
         Modifies the dictionary 'scope' in-place, removing double quotes from all string values, including those 
         within nested dictionaries and lists.
         """
+        if self.check_stop():
+            raise InterruptedError("Stop event set")
         if scope is None:
             scope = self.data
         for key in scope:
