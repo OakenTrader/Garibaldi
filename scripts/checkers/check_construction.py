@@ -28,7 +28,7 @@ def check_construction(address=None, **kwargs):
         building["pops_employed"][pop_id] = pop
     
     variables = resolve_compatibility_multiple(["dir_static_modifiers", "building_levels", "construction_cost"], version)
-    players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries[v["country"]], ["definition"]) is not None]
+    players = [countries[v["country"]]["definition"] for k, v in players.items() if retrieve_from_tree(countries, [v["country"], "definition"]) is not None]
     def_production_methods = load_def("production_methods/13_construction.txt", "Common Directory")
     def_static_modifiers = load_def(variables["dir_static_modifiers"], "Common Directory")
     base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])

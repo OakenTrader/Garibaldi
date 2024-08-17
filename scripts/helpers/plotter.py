@@ -80,9 +80,11 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     if input_file is None:
         input_file = f"{mode}.csv"
     last_save = None
+    if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
+        os.mkdir(f"saves/{campaign_folder}/campaign_data")
     for folder in os.listdir(f"saves/{campaign_folder}"):
         save_folder = f"saves/{campaign_folder}/{folder}"
-        if os.path.isdir(save_folder) and "campaign_data" not in folder:
+        if os.path.isdir(save_folder) and not is_reserved_folder(folder):
             try:
                 year, month, day = folder.split("_")[-3:]
             except ValueError:
@@ -140,6 +142,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     plt.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
     if show:
         plt.show()
+    plt.close()
     return fig
 
 def plot_goods_produced(campaign_folder, limit=10):

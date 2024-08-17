@@ -3,5 +3,6 @@
     "Events Directory": "./events",
     "Localization Directory": "./localization",
     "Tree File Location": "",
-    "Campaign Folder": "./saves/autosaves"
+    "Campaign Folder": "",
+    "Autosave Location": ""
 }

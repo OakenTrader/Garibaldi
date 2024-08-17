@@ -50,6 +50,8 @@ def check_tech_tree(address):
         if "research_technology" not in technologies[tech_id]:
             continue
         country_id = technologies[tech_id]["country"]
+        if not isinstance(countries[country_id],dict):
+            continue
         researching_tech = technologies[tech_id]["research_technology"]
         country_tag = countries[country_id]["definition"]
         country_name = get_country_name(countries[country_id], localization)

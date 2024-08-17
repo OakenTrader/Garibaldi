@@ -1,7 +1,7 @@
 """
 Whatever functions written to help the program.
 """
-import sys, os, shutil, fnmatch, pickle, gzip, glob, json
+import sys, os, shutil, fnmatch, pickle, gzip, glob, json, re
 from scripts.extractor import Extractor
 import time, functools
 
@@ -165,18 +165,17 @@ def make_save_dirs(campaign_folder):
                 pass
             shutil.move(source, dest)
 
-def rename_folder_to_date(campaign_folder):
+def rename_folder_to_date(folder):
     """
-    Rename every save folders in a campaign folder into format campaign_folder_year_month_day 
+    Rename a save folder in a campaign folder into format campaign_folder_year_month_day 
     """
-    campaign_folder = f"saves/{campaign_folder}"
-    for folder in os.listdir(campaign_folder):
-        if "campaign_data" in folder or "." in folder:
-            continue
-        save_folder = f"{campaign_folder}/{folder}"
-        year, month, day = get_save_date(save_folder)
-        new_name = f"{campaign_folder.split('/')[-1]}_{year}_{month}_{day}"
-        os.rename(save_folder, f"{campaign_folder}/{new_name}")
+    campaign_folder = re.split(r"[\\/]", folder.strip("/\\"))[-2]
+    year, month, day = get_save_date(folder)
+    new_name = f"{campaign_folder}_{year}_{month}_{day}"
+    try:
+        os.rename(folder, f"./saves/{campaign_folder}/{new_name}")
+    except PermissionError as e:
+        raise PermissionError("Error when renaming folder:", e)
 
 def get_save_date(save_folder, split=True):
     """
@@ -230,4 +229,5 @@ def walk_tree(tree:dict, target, path:list=[]):
             leaves += walk_tree(value, target, root + [key])
     return leaves
 
-
+def is_reserved_folder(folder):
+    return re.split(r"[\\/]", folder.strip("\\/"))[-1] in ["campaign_data", "archive"]
