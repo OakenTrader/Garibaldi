@@ -1,3 +1,4 @@
 from scripts.helpers.GUI import *
 
-a = Main_Menu()
+if __name__ == "__main__":
+    a = Main_Menu()
