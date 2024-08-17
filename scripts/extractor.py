@@ -20,13 +20,19 @@ class Extractor:
     not be kept in a single variable.
     - DNA variables in the savefile contain equal signs which the script struggles to keep together.
     This should not affect other parts of the result.
+    - Boolean scopes which perform logical operations like "One/all of the following must be true" not properly captured yet. 
+    Implicit Boolean scope indicators (like possible = { A > 1 B ?= 2} and OR = {}) are not yet implemented
 
     Parameters:
     address (str): The file path of the text file to be parsed.
-    focus (str, optional): A specific section of the file to focus on, if any. If specified, parsing will 
+    is_save (bool, optional): Specify whether this is a save file or not which may reduce time by omitting operations required
+                            in extracting definition files (like removing comments)
+    focuses (str, optional): A specific section of the file to focus on, if any. If specified, parsing will 
                            only occur within the scope where this substring is found at the root level. Default is None.
     pline (bool, optional): If True, print each line of the file as it's processed. This is useful for debugging. 
                             Default is False.
+    stop_event (threading.Event, optional): threading Event used to interrupt the process from the outside. Default is None
+    version (string, optional): Version of the game of this file.
 
     Attributes:
     data (dict): The structured data extracted from the file, organized as a nested dictionary.
@@ -35,7 +41,8 @@ class Extractor:
     write(output, sections=None, separate=False): Write the data tree into a zipped pickle.
 
     Examples:
-    extractor = Extractor("path/to/victoria3_data.txt", focus="population", pline=True)
+    extractor = Extractor("path/to/victoria3_data.txt", is_save=True, focus="population", pline=True)
+    extractor.unquote()
     extractor.write("saves/campaign/save", ["population"])
     """
     def __init__(self, address, is_save=False, focuses=None, pline=False, stop_event=None, version="1.7") -> None:
