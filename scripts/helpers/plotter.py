@@ -58,7 +58,7 @@ def get_color(tag):
     colors = np.concatenate([colors, [1]])
     return np.array(colors)
 
-def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=10, players=True, title=None, show=False, save_name=None, start_date=0):
+def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024):
     """
     Plot a variable over the campaign
     
@@ -91,7 +91,7 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
                 metadata = load_save(["meta_data"], save_folder, True)
                 year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
-            if year_number < start_date:
+            if year_number < start_date or year_number > end_date + 1:
                 continue
             if input_file not in os.listdir(save_folder) or reset:
                 if checker is None:
