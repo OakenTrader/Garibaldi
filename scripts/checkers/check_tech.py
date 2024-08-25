@@ -1,4 +1,4 @@
-from scripts.checkers.checkers_functions import get_country_name
+from scripts.checkers.checkers_functions import get_country_name, get_save_date
 import scripts.convert_localization as convert_localization
 from scripts.helpers.utility import *
 
@@ -29,7 +29,7 @@ def check_tech_tree(address):
     def_mil_tech = load_def("technology/technologies/20_military.txt", "Common Directory")
     def_soc_tech = load_def("technology/technologies/30_society.txt", "Common Directory")
 
-    # Determine which new tech is being researched
+    """Determine which new tech is being researched"""
     output += "Techs in research\n"
     researching_techs = dict()
     for key in technologies:
@@ -44,7 +44,7 @@ def check_tech_tree(address):
     frontier = [tech for tech in researching_techs if tech not in techs]
     output += f"{frontier}\n"
 
-    # Who is researching which
+    """Who is researching which"""
     notable_countries = players
     for tech_id in technologies:
         if "research_technology" not in technologies[tech_id]:
