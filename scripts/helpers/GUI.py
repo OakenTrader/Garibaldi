@@ -22,6 +22,8 @@ class Garibaldi_gui:
             self.user_variables = self.variables["default_directories"].copy()
             self.save_settings()
         self.tinkerable = None
+        self.disabled_tinkerable = False
+        self.is_browsing = False
     
     def get_var(self, key):
         """Gets a user variable. If unavailable, gets the default variable from variables.json"""
@@ -37,6 +39,10 @@ class Garibaldi_gui:
     def browse_folder(self, entry_widget, settings_key, initialdir=None, only_folder_name=False):
         """Browses a folder location then set the value in the provided entry_widget and settings key of the user variables.
         Intialdir may be provided to set the initial directory of the browser."""
+        if self.is_browsing:
+            return
+        else:
+            self.is_browsing = True
         if initialdir is None:
             initialdir = "/".join(self.get_var(settings_key).split("/")[:-1])
         folder_path = filedialog.askdirectory(initialdir=initialdir)
@@ -48,10 +54,15 @@ class Garibaldi_gui:
             entry_widget.insert(0, folder_path)
             entry_widget.config(state='readonly')  # Set the entry back to read-only
             self.set_var(settings_key,folder_path)
+        self.is_browsing = False
     
     def browse_file(self, entry_widget, settings_key, initialdir=None):
         """Browses a file location then set the value in the provided entry_widget and settings key of the user variables.
         Intialdir may be provided to set the initial directory of the browser."""
+        if self.is_browsing:
+            return
+        else:
+            self.is_browsing = True
         if initialdir is None:
             initialdir = "/".join(self.get_var(settings_key).split("/")[:-1])
         file_path = filedialog.askopenfilename(initialdir=initialdir)
@@ -61,6 +72,7 @@ class Garibaldi_gui:
             entry_widget.insert(0, file_path)
             entry_widget.config(state='readonly')  # Set the entry back to read-only
             self.set_var(settings_key, file_path)
+        self.is_browsing = False
 
 
     def restore_defaults(self, entry_widget, settings_key):
@@ -93,6 +105,19 @@ class Garibaldi_gui:
         button = tk.Button(window, text="Ok", command=lambda: on_click(entry.get(), target, window))
         button.grid(row=1, column=0, padx=50, pady=10)
     
+    def create_new_folder(self, campaign_folder, widget, window):
+        try:
+            os.mkdir(f"./saves/{campaign_folder}")
+        except FileExistsError:
+            messagebox.showerror("Error", "Folder already exists!")
+            return
+        window.destroy()
+        widget.config(state="normal")
+        widget.delete(0, tk.END)
+        widget.insert(0, f"./saves/{campaign_folder}")
+        widget.config(state="readonly")
+        self.set_var("Campaign Folder", f"./saves/{campaign_folder}")
+
     def make_grid(self, objects:list, pad_x, pad_y):
         """Formats objects in a window"""
         extra_row = 0
@@ -111,14 +136,18 @@ class Garibaldi_gui:
                 # max_rowspan = 
     
     def toggle_tinkerable(self):
-        """Toggle on/off the buttons"""
-        for element in self.tinkerable:
-            state = str(element.cget('state'))
-            if state == 'disabled':
-                element.config(state=tk.NORMAL)
-            elif state == 'normal':
+        "Disable/restore elements state"
+        if not self.disabled_tinkerable:
+            tinkerable_state = [(element, str(element.cget('state'))) for element in self.tinkerable]
+            for element in self.tinkerable:
                 element.config(state=tk.DISABLED)
-            
+            self.tinkerable = tinkerable_state
+        else:
+            for element, state in self.tinkerable:
+                element.config(state=state)
+            self.tinkerable = [element for element, state in self.tinkerable]
+        self.disabled_tinkerable = not self.disabled_tinkerable
+                
 
 
 class Main_Menu(tk.Tk, Garibaldi_gui):
@@ -133,7 +162,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
         self.stop_event.clear()
         self.main_menu_gui()
         self.mainloop()
-        self.stop_event.set()
+        self.stop_event.set() # Clear all existing threads when closing the program
     
     def main_menu_gui(self):
         """Generates the Main Menu"""
@@ -149,7 +178,12 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
         """Opens a new window and disables all main menu buttons"""
         self.toggle_tinkerable()
         new_window = function(self)
-        self.wait_window(new_window)
+        self.after(500, self.check_no_child, new_window)
+
+    def check_no_child(self, new_window):
+        if new_window.winfo_exists():
+            self.after(500, self.check_no_child, new_window)
+            return
         self.toggle_tinkerable()
     
 
@@ -158,6 +192,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
     """
     Handles Save extractor menu
     TODO Make an option to have multiple threads extracting at the same time
+    TODO Make a failure popup box
     """
     def __init__(self, master):
         super().__init__(master)
@@ -199,13 +234,12 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
     
     def on_start(self):
         """Starts extraction and toggles all buttons in the SaveExtractor menu"""
-        for element in self.tinkerable:
-            element.config(state=tk.DISABLED)
+        self.toggle_tinkerable()
         self.stop_event.clear()
         if self.del_var.get():
             proceed = messagebox.askyesno("Wait a sec", "Save files will be deleted after successfully extracted, would you like to proceed?")
             if not proceed:
-                self.on_stop()
+                self.toggle_tinkerable()
                 return
         self.stop_button.config(state=tk.NORMAL)
         self.watch_thread = threading.Thread(target=extract_all_files, args=(self.get_var("Campaign Folder"), self.stop_event, self.del_var.get()))
@@ -226,8 +260,10 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
         if self.stop_event.is_set():
             if self.watch_thread is not None:
                 self.watch_thread.join()
+            self.watch_thread = None
             self.toggle_tinkerable()
             self.stop_event.clear()
+            self.stop_button.config(state=tk.DISABLED)
         self.after(500, self.end_task)
 
 
@@ -369,21 +405,10 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
         self.save_watch_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
+        self.watch_thread = None
     
     def save_watch_settings(self):
         """Generates the SaveWatcher menu"""
-        def create_new_folder(campaign_folder, widget, window):
-            try:
-                os.mkdir(f"./saves/{campaign_folder}")
-            except FileExistsError:
-                messagebox.showerror("Error", "Folder already exists!")
-                return
-            window.destroy()
-            widget.config(state="normal")
-            widget.delete(0, tk.END)
-            widget.insert(0, f"./saves/{campaign_folder}")
-            widget.config(state="readonly")
-            self.set_var("Campaign Folder", f"./saves/{campaign_folder}")
         
         label1 = ttk.Label(self, text="Watch the autosave file and copy it to the target campaign folder when modified")
 
@@ -398,12 +423,12 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
         autosave_entry.config(state="readonly")
         browse_button_1 = ttk.Button(self, text="Browse", command=lambda: self.browse_file(autosave_entry, "Autosave Location"))
 
-        label5 = ttk.Label(self, text="Campaign Folder").grid(row=3, column=0, padx=10, pady=10, sticky='w')
+        label5 = ttk.Label(self, text="Campaign Folder")
         self.folder_entry = ttk.Entry(self, width=50)
         self.folder_entry.insert(0, "./saves/autosaves")
         self.folder_entry.config(state="readonly")
-        browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves"))
-        make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, create_new_folder, self.folder_entry, "Create new campaign folder"))
+        browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
+        make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
 
         self.ok_button = ttk.Button(self, text="Run", command=lambda: self.on_ok())
 
@@ -427,7 +452,6 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
         except:
             messagebox.showerror("Error", "Invalid input!")
             return
-        self.ok_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         for element in self.tinkerable:
             element.config(state=tk.DISABLED)
@@ -437,11 +461,11 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
     def on_stop(self):
         """Stops watching and toggles all buttons in the SaveWatcher menu"""
         self.stop_event.set()
-        self.watch_thread.join()
-        self.ok_button.config(state=tk.NORMAL)
+        if self.watch_thread is not None:
+            self.watch_thread.join()
+        self.watch_thread = None
         self.stop_button.config(state=tk.DISABLED)
-        for element in self.tinkerable:
-            element.config(state=tk.NORMAL)
+        self.toggle_tinkerable()
         self.stop_event.clear()
 
     def on_closing(self):
@@ -461,9 +485,8 @@ class DictViewer(tk.Toplevel, Garibaldi_gui):
         self.create_settings_window()
 
     def get_size(self, obj):
-        """Return the size of an object and all others objects constituting its tree"""
-        #TODO 
-        """More efficient handling by get_size lower level branches and store values for get_size of higher level branches"""
+        """Return the size of an object and all others objects constituting its tree
+        TODO More efficient handling by get_size lower level branches and store values for get_size of higher level branches"""
         if isinstance(obj, dict):
             return sum(self.get_size(v) for v in obj.values())
         elif isinstance(obj, list):
@@ -577,4 +600,5 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
 
 """
 TODO Implement cleaning process to clean up things if some processes unexpectedly failed e.g. leftover save.txt
+    - May not be necessary now
 """
