@@ -165,29 +165,6 @@ def make_save_dirs(campaign_folder):
                 pass
             shutil.move(source, dest)
 
-def rename_folder_to_date(folder):
-    """
-    Rename a save folder in a campaign folder into format campaign_folder_year_month_day 
-    """
-    campaign_folder = re.split(r"[\\/]", folder.strip("/\\"))[-2]
-    year, month, day = get_save_date(folder)
-    new_name = f"{campaign_folder}_{year}_{month}_{day}"
-    try:
-        os.rename(folder, f"./saves/{campaign_folder}/{new_name}")
-    except PermissionError as e:
-        raise PermissionError("Error when renaming folder:", e)
-
-def get_save_date(save_folder, split=True):
-    """
-    Get the date of a save file in a string format (i.e. 1836.1.1.18) if split=False or list of strings (i.e. [1836, 1, 1]) if split=True
-    """
-    metadata = load_save(["meta_data"], save_folder)
-    save_date = metadata["meta_data"]["game_date"]
-    if split:
-        year, month, day = save_date.split(".")[:3]
-        return year, month, day
-    return save_date
-
 def date_to_day(date:str):
     """
     Get the number of days passed since the start of the year to the current date
@@ -204,13 +181,17 @@ def get_duration(this_date, start_date, end_date=None):
     """
     Get duration since start date (if end_date isn't provided) and the total duration and the fraction of time since start_date
     Doesn't exactly follow the calendar format so subject to ~1% inaccuracy
+    This function operates date in list format [year, month, day], but can and will convert str date to that format.
     """
-    year1, month1, day1 = [int(i) for i in this_date.split(".")][:3]
-    year2, month2, day2 = [int(i) for i in start_date.split(".")][:3]
-    duration_from_start = (year1 - year2) + (date_to_day(this_date) - date_to_day(start_date)) / 365.2422
+    if isinstance(this_date, str):
+        this_date = [int(i) for i in this_date.split(".")][:3]
+    if isinstance(start_date, str):
+        start_date = [int(i) for i in start_date.split(".")][:3]
+    duration_from_start = (this_date[0] - start_date[0]) + (date_to_day(this_date) - date_to_day(start_date)) / 365.2422
     if end_date is not None:
-        year3, month3, day3 = [int(i) for i in end_date.split(".")][:3]
-        total_duration = (year3 - year2) + (date_to_day(end_date) - date_to_day(start_date)) / 365.2422
+        if isinstance(end_date, str):
+            end_date = [int(i) for i in end_date.split(".")][:3]
+        total_duration = (end_date[0] - start_date[0]) + (date_to_day(end_date) - date_to_day(start_date)) / 365.2422
         return duration_from_start, total_duration, duration_from_start / total_duration
     else:
         return duration_from_start
