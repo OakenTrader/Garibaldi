@@ -4,29 +4,6 @@ Functions related to game variables that are used commonly by the checker functi
 import os
 import re
 from scripts.helpers.utility import *
-compat_dict = jopen("./scripts/checkers/compat_dict.json")
-
-def resolve_compatibility(variable, version):
-    compat_key = compat_dict[variable]
-    if version in compat_key:
-        return compat_key[version]
-    elif (v2 := ".".join(version.split(".")[:-1])) in compat_key:
-        return compat_key[v2]
-    else:
-        while True:
-            v2 = v2.split(".")
-            v2[-1] = str(int(v2[-1]) - 1)
-            if int(v2[-1]) < 1:
-                raise ValueError("Compatibility resolve failed")
-            v2 = ".".join(v2)
-            if v2 in compat_key:
-                return compat_key[v2]
-
-
-def resolve_compatibility_multiple(variables, version):
-    out_variables = {variable:resolve_compatibility(variable, version) for variable in variables}
-    return out_variables
-
 
 def companies_manager(save_data, countries, relevant_modifiers):
     """

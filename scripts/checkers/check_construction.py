@@ -10,7 +10,6 @@ class CheckConstruction(Checker):
     Retrieve the construction, construction in use, construction cost and its average per construction point
     of player nations and nations with more construction than a minimum player's construction
     """
-    variables = ["dir_static_modifiers", "building_levels", "construction_cost"]
     requirements = ["building_manager", "country_manager", "pops"]
     output = {"construction.csv": ["construction", "avg_cost"]}
 
@@ -23,7 +22,6 @@ class CheckConstruction(Checker):
         save_date = cache["metadata"]["save_date"]
         players = cache["metadata"]["players"]
         address = cache["address"]
-        variables = cache["variables"]
 
         buildings = save_data["building_manager"]["database"]
         countries = save_data["country_manager"]["database"]
@@ -40,7 +38,7 @@ class CheckConstruction(Checker):
             building["pops_employed"][pop_id] = pop
         
         def_production_methods = load_def("production_methods/13_construction.txt", "Common Directory")
-        def_static_modifiers = load_def(variables["dir_static_modifiers"], "Common Directory")
+        def_static_modifiers = load_def("static_modifiers/00_code_static_modifiers.txt", "Common Directory")
         base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
         columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
@@ -53,10 +51,10 @@ class CheckConstruction(Checker):
             construction_list = []
             csectors_country = {i: csectors[i] for i in csectors if csectors[i]["state"] in states}
             for csector_id, csector_c in csectors_country.items():
-                if csector_c[variables["building_levels"]] == "0":
+                if csector_c["levels"] == "0":
                     continue
                 construction_out = get_building_output(csector_c, "country_construction_add", def_production_methods)
-                if (construction_cost_term := variables["construction_cost"]) in csector_c:
+                if (construction_cost_term := "government_dividends") in csector_c:
                     construction_cost = -float(csector_c[construction_cost_term])
                 else:
                     warnings.warn(f"No construction cost for building {csector_c}, assumed zero cost instead")

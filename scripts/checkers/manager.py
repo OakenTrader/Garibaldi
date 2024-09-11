@@ -23,16 +23,13 @@ class SaveManager:
         self.checks = checks
         self.localization = get_all_localization()
         requirements = self.check_metadata(False) # mandatory to obtain metadata
-        variables = set()
         for check in checks: # Combine all needed requirements
             if not check.check_needs(address, False): # TODO deal with resetting later
                 continue
-            variables.update(check.variables)
             requirements.update(check.requirements)
         self.save_data = load_save(list(requirements), address)
         self.metadata = self.get_metadata(address)
-        variables = resolve_compatibility_multiple(variables, self.metadata["version"])
-        self.cache = {"save_data":self.save_data, "metadata":self.metadata, "variables":variables, "localization":self.localization, "address":address}
+        self.cache = {"save_data":self.save_data, "metadata":self.metadata, "localization":self.localization, "address":address}
 
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 

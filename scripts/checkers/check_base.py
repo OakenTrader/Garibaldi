@@ -7,13 +7,11 @@ class Checker:
     Checker objects are viewed as independent from specific save file.
 
     Attributes:
-        - variables (list): List of labels for variables with different names on each version to be resolved
         - requirements (list): List of sub-trees in save_data needed in a checker
         - dependencies (list): List of Checkers that need to be executed before this one
         - output (dict): Dictionary mapping files produced by the checker mapping to lists of plottable variables. 
         Used to check if checking is necessary (whether or not these files exist) and to assign file for plotter to read
     """
-    variables = []
     requirements = []
     dependencies = []
     output = dict()
