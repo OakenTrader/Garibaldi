@@ -58,15 +58,13 @@ def get_color(tag):
     colors = np.concatenate([colors, [1]])
     return np.array(colors)
 
-def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False, limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024):
+def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024):
     """
     Plot a variable over the campaign
     
     campaign_folder: The address of the folder containing the campaign's saves
     mode: The variable you want to plot
-    checker: The checker function which to retrieve said variable if there is no existing output
     input_file: The address of the file you draw the data from (mode.csv by default)
-    reset: Whether or not to run the checker regardless of the output's existence, overwriting it
     title: Title of the plot
     limit: Int (Limit to first N places in the last save)
     players: Whether to include all players in the plot
@@ -78,12 +76,13 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
         title = mode
     if save_name is None:
         save_name = title
-    dfs = dict()
     if input_file is None:
         input_file = f"{mode}.csv"
-    last_save = None
     if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
         os.mkdir(f"saves/{campaign_folder}/campaign_data")
+
+    last_save = None
+    dfs = dict()
     was_player = set()
     current_year = 0
     for folder in os.listdir(f"saves/{campaign_folder}"):
@@ -97,12 +96,11 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
             if year_number < start_date or year_number > end_date + 1:
                 continue
-            if input_file not in os.listdir(save_folder) or reset:
-                if checker is None:
-                    raise ValueError("No checker provided.")
-                df_stat = t_execute(checker)(save_folder)
-                df_stat["id"] = df_stat["id"].astype(int)
+            if input_file not in os.listdir(save_folder):
+                print(f"No file provided at {year}, {month}, {day}")
+                continue
             else:
+                print("reading", f"{save_folder}/{input_file}")
                 df_stat = pd.read_csv(f"{save_folder}/{input_file}")
             if players:
                 data = load_save(["player_manager"], save_folder)
@@ -158,10 +156,10 @@ def plot_stat(campaign_folder, mode, checker=None, input_file=None, reset=False,
     plt.close()
     return fig
 
-def plot_goods_produced(campaign_folder, limit=10):
+def plot_goods_produced(campaign_folder, limit=10, show=False):
     """
     Plot all goods produced in a campaign
     """
     goods = load_def_multiple("goods", "Common Directory")
     for i, good in enumerate(goods.keys()):
-        plot_stat(campaign_folder, good, checker=None, input_file="goods_produced.csv", reset=False, limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}")
+        plot_stat(campaign_folder, good, checker=None, input_file="goods_produced.csv", reset=False, limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}", show=show)
