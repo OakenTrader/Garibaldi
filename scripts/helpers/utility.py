@@ -113,6 +113,7 @@ def load_save(topics:list, address:str, save=False):
 
     save: May optionally save a loaded result from the Extractor
     """
+    topics_original = topics.copy()
     topics = topics.copy()
     t0 = time.time()
     data_output = dict()
@@ -132,20 +133,8 @@ def load_save(topics:list, address:str, save=False):
         elif not isinstance(topic, str): # results of resolve compatibility of unimplemented variables
             topics.pop(topics.index(topic))
     if len(topics) > 0:
-        if "full.gz" in os.listdir(f"{address}/extracted_save"):
-            data = zopen(f"{address}/extracted_save/full.gz")
-        else:
-            try:
-                data = Extractor(f"{address}/save.txt", topics.copy())
-            except FileNotFoundError:
-                raise FileNotFoundError(f"Unable to locate {address}/save.txt while attempting to load {topics}")
-            data.unquote()
-            if save:
-                data.write(address, separate=True)
-            data = data.data
-        for topic in topics:
-            data_output[topic] = data[topic]
-    print(f"Finished loading in {time.time() - t0} seconds")
+        raise FileNotFoundError(f"Failed to load {topics} from {address}.")
+    print(f"Finished loading {topics_original} from {address} in {time.time() - t0} seconds")
     return data_output
 
 def make_save_dirs(campaign_folder):
