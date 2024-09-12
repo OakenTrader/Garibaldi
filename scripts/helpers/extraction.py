@@ -22,19 +22,22 @@ def extract_save_file(save_file, stop_event):
     except Exception as e:
         data = Extractor(f"{save_file}/save.txt", is_save=True, pline=True, stop_event=stop_event)
 
-def extract_all_files(campaign_folder, stop_event, delete=True, analyze=False):
+def extract_all_files(campaign_folder, stop_event, delete=True):
     """
     Melt and extract save files (all .v3 files in a campaign folder)
     If analyze is set to False the function watch for a melted .txt file and readily extract it when one appear.
     """
+    if not delete:
+        try:
+            os.mkdir(f"./saves/{campaign_folder}/archive")
+        except FileExistsError:
+            pass
     try:
-        if not delete:
-            try:
-                os.mkdir(f"./saves/{campaign_folder}/archive")
-            except FileExistsError:
-                pass
         while not stop_event.is_set():
             time.sleep(1)
+            files = glob(f"./saves/{campaign_folder}/*.v3")
+            number = len(files)
+            done = 0
             for file in glob(f"./saves/{campaign_folder}/*.v3"):
                 folder = file.replace(".v3", "")
                 try:
@@ -59,45 +62,39 @@ def extract_all_files(campaign_folder, stop_event, delete=True, analyze=False):
                     os.remove(file)
                 else:
                     shutil.move(file, f"./saves/{campaign_folder}/archive")
-            if analyze:
-                break
+                done += 1
+                print("Progress")
+                rename_folder_to_date(folder)
         
-        """Melt and extract .v3 in non-archive folders"""
-        for file in glob(f"./saves/{campaign_folder}/*/*.v3"):
-            if stop_event.is_set():
-                raise InterruptedError("Stop event set")
-            folder = './' + '/'.join(re.split(r"[/\\]", file)[1:-1])
-            if is_reserved_folder(folder):
-                continue
-            t_execute(melt)(file, f"{folder}/save.txt")
-            try:
-                extract_save_file(folder, stop_event)
-            except Exception as e:
-                raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
-            os.remove(f"{folder}/save.txt")
-            if delete:
-                os.remove(file)
-            else:
-                shutil.move(file, f"./saves/{campaign_folder}/archive")
-
-        # Pre extracted save texts
-        for folder in glob(f"./saves/{campaign_folder}/*/"):
-            if stop_event.is_set():
-                raise InterruptedError("Stop event set")
-            if is_reserved_folder(folder):
-                continue
-            if "save.txt" in os.listdir(folder):
-                extract_save_file(f"{folder}", stop_event)
+            """Melt and extract .v3 in non-archive folders"""
+            for file in glob(f"./saves/{campaign_folder}/*/*.v3"):
+                if stop_event.is_set():
+                    raise InterruptedError("Stop event set")
+                folder = './' + '/'.join(re.split(r"[/\\]", file)[1:-1])
+                if is_reserved_folder(folder):
+                    continue
+                t_execute(melt)(file, f"{folder}/save.txt")
+                try:
+                    extract_save_file(folder, stop_event)
+                except Exception as e:
+                    raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
+                os.remove(f"{folder}/save.txt")
                 if delete:
-                    os.remove(f"{folder}/save.txt")
+                    os.remove(file)
+                else:
+                    shutil.move(file, f"./saves/{campaign_folder}/archive")
 
-        # Rename folders
-        for folder in glob(f"./saves/{campaign_folder}/*/"):
-            if stop_event.is_set():
-                raise InterruptedError("Stop event set")
-            if is_reserved_folder(folder):
-                continue
-            rename_folder_to_date(folder)
+            # Pre extracted save texts
+            for folder in glob(f"./saves/{campaign_folder}/*/"):
+                if stop_event.is_set():
+                    raise InterruptedError("Stop event set")
+                if is_reserved_folder(folder):
+                    continue
+                if "save.txt" in os.listdir(folder):
+                    extract_save_file(f"{folder}", stop_event)
+                    if delete:
+                        os.remove(f"{folder}/save.txt")
+            
 
     except Exception as e:
         raise e
