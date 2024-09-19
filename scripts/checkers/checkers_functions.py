@@ -1,32 +1,9 @@
 """
 Functions related to game variables that are used commonly by the checker functions.
 """
+import os
+import re
 from scripts.helpers.utility import *
-compat_dict = jopen("./scripts/checkers/compat_dict.json")
-
-def resolve_compatibility(variable, version):
-    compat_key = compat_dict[variable]
-    if version in compat_key:
-        return compat_key[version]
-    elif (v2 := ".".join(version.split(".")[:-1])) in compat_key:
-        return compat_key[v2]
-    else:
-        while True:
-            v2 = v2.split(".")
-            v2[-1] = str(int(v2[-1]) - 1)
-            if int(v2[-1]) < 1:
-                raise ValueError("Compatibility resolve failed")
-            v2 = ".".join(v2)
-            if v2 in compat_key:
-                return compat_key[v2]
-
-
-def resolve_compatibility_multiple(variables, version):
-    out_variables = {variable:resolve_compatibility(variable, version) for variable in variables}
-    print(version)
-    print(out_variables)
-    return out_variables
-
 
 def companies_manager(save_data, countries, relevant_modifiers):
     """
@@ -136,6 +113,17 @@ def get_version(address):
     return version
 
 
+def get_save_date(address, split=True):
+    """
+    Get the date of a save file in a string format (i.e. 1836.1.1.18) if split=False or list of strings (i.e. [1836, 1, 1]) if split=True
+    """
+    metadata = load_save(["meta_data"], address)
+    save_date = metadata["meta_data"]["game_date"]
+    if split:
+        year, month, day = save_date.split(".")[:3]
+        return year, month, day
+    return save_date
+
 def get_building_output(building, target, def_production_methods):
     """
     Calculate a building's output of a variable with respected to production methods, employees and throughput
@@ -169,3 +157,16 @@ def get_building_output(building, target, def_production_methods):
     # print(output)
     output =  output * float(building["throughput"]) * employees
     return output
+
+
+def rename_folder_to_date(folder):
+    """
+    Rename a save folder in a campaign folder into format campaign_folder_year_month_day 
+    """
+    campaign_folder = re.split(r"[\\/]", folder.strip("/\\"))[-2]
+    year, month, day = get_save_date(folder)
+    new_name = f"{campaign_folder}_{year}_{month}_{day}"
+    try:
+        os.rename(folder, f"./saves/{campaign_folder}/{new_name}")
+    except PermissionError as e:
+        raise PermissionError("Error when renaming folder:", e)

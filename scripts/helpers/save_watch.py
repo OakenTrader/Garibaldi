@@ -27,7 +27,7 @@ def watch_save(target_file, destination_folder, stop_event, freq=1):
             if current_modified_time != last_modified_time:
                 dest_path = f"autosave_{int(time.time())}.v3"
                 if check % freq == 0:
-                    shutil.copy(target_file, f"{destination_folder}/{dest_path}")
+                    shutil.copy(target_file, f"./saves/{destination_folder}/{dest_path}")
                     print(f"Copied {target_file} to {destination_folder}/{dest_path}")
                 # Update the last modified time
                 last_modified_time = current_modified_time
