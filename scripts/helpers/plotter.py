@@ -2,7 +2,7 @@
 Functions that manage data plotting.
 """
 
-import os, warnings
+import os, warnings, time
 from scripts.helpers.utility import *
 import matplotlib.pyplot as plt
 from matplotlib import colors as mpl_colors
@@ -81,6 +81,7 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
         os.mkdir(f"saves/{campaign_folder}/campaign_data")
 
+    t0 = time.time()
     last_save = None
     dfs = dict()
     was_player = set()
@@ -89,8 +90,12 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
         save_folder = f"saves/{campaign_folder}/{folder}"
         if os.path.isdir(save_folder) and not is_reserved_folder(folder):
             try:
-                year, month, day = folder.split("_")[-3:]
-            except ValueError:
+                metadata = jopen(f"{save_folder}/metadata.json")
+            except FileNotFoundError:
+                metadata = None
+            try:
+                year, month, day = metadata["save_date"]
+            except KeyError:
                 metadata = load_save(["meta_data"], save_folder, True)
                 year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
             year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
@@ -100,12 +105,9 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
                 print(f"No file provided at {year}, {month}, {day}")
                 continue
             else:
-                print("reading", f"{save_folder}/{input_file}")
                 df_stat = pd.read_csv(f"{save_folder}/{input_file}")
             if players:
-                data = load_save(["player_manager"], save_folder)
-                players = data["player_manager"]["database"]
-                players = [int(v["country"]) for v in players.values()]
+                players = [v[0] for v in metadata["players"]]
                 df_players = df_stat[df_stat["id"].isin(players)]
                 was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
                 df_stat = df_stat[df_stat["id"].isin(players)]
@@ -151,6 +153,7 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     # plt.tight_layout()
     plt.subplots_adjust(right=0.75)
     plt.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
+    print(f"Finished plotting {mode} in {time.time()} - {t0} seconds")
     if show:
         plt.show()
     plt.close()
