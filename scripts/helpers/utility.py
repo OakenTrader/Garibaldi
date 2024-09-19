@@ -104,15 +104,15 @@ def load_def_multiple(folder, mode="Common Directory"):
     return defs
 
 
-def load_save(topics:list, address:str, save=False):
+def load_save(topics:list, address:str):
     """
     Load a subset of information from a save file or pre-extracted data files
 
     Returns a dictionary of data according to the specified topic
     Elements of topics that aren't strings are ignored.
-
-    save: May optionally save a loaded result from the Extractor
     """
+    if len(topics) == 0: #
+        return dict()
     topics_original = topics.copy()
     topics = topics.copy()
     t0 = time.time()
