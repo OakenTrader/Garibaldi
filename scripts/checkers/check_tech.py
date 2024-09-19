@@ -66,7 +66,7 @@ class CheckTech(Checker):
             country_tag = countries[country_id]["definition"]
             country_name = get_country_name(countries[country_id], localization)
 
-            if researching_tech in frontier or country_id in notable_countries:
+            if researching_tech in frontier or int(country_id) in notable_countries:
                 output += f"{tech_id} {country_tag} {country_name} : {researching_tech}\n"
                 his_tech = technologies[tech_id]["acquired_technologies"]["value"]
                 his_prod_tech = [tech for tech in his_tech if tech in def_prod_tech]
