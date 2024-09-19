@@ -42,7 +42,7 @@ class CheckConstruction(Checker):
         base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
         columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
-        df_construction = pd.DataFrame(columns=columns)
+        df_construction = []
         for country_id, country in countries.items():
             if country == "none" or "states" not in country:
                 continue
@@ -57,7 +57,7 @@ class CheckConstruction(Checker):
                 if (construction_cost_term := "government_dividends") in csector_c:
                     construction_cost = -float(csector_c[construction_cost_term])
                 else:
-                    warnings.warn(f"No construction cost for building {csector_c}, assumed zero cost instead")
+                    warnings.warn(f"No construction cost for building {csector_id}, assumed zero cost instead")
                     # raise ValueError("construction cost not available")
                     construction_cost = 0
                 construction_list.append([construction_out, construction_cost])
@@ -80,15 +80,16 @@ class CheckConstruction(Checker):
                 construction_list = np.stack(construction_list)
                 out_list, cost_list = construction_list[:, 0], construction_list[:, 1]
                 total_cost = np.sum(cost_list)
-                average_cost = total_cost / used_cons
+                average_cost = total_cost / (used_cons + 0.000001)
             else:
                 total_cost = 0
                 average_cost = 0
 
             country_name = get_country_name(country, localization)
             new_data = pd.DataFrame([[country_id, country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
-            df_construction = pd.concat([df_construction, new_data], ignore_index=True)
+            df_construction.append(new_data)
 
+        df_construction = pd.concat(df_construction, ignore_index=True)
         df_construction = df_construction.sort_values(by='construction', ascending=False)
         # Output countries that are players or have more construction than the players' least
         players_cons = df_construction[df_construction["tag"].isin(players)]

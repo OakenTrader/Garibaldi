@@ -46,7 +46,7 @@ class CheckInnovation(Checker):
         principles, blocs = bloc_manager(save_data, relevant_modifiers)
 
         columns = ["id", "tag", "country", "innovation", "cap"]
-        df_innov = pd.DataFrame(columns=columns)
+        df_innov = []
         for kc, country in countries.items():
             if any([country == "none", "states" not in country]):
                 continue
@@ -90,9 +90,10 @@ class CheckInnovation(Checker):
             country_name = get_country_name(country, localization)
 
             new_data = pd.DataFrame([[kc, country["definition"], country_name, innov, inno_cap]], columns=columns)
-            df_innov = pd.concat([df_innov, new_data], ignore_index=True)
+            df_innov.append(new_data)
             # print(kc, country["definition"], innov)
 
+        df_innov = pd.concat(df_innov, ignore_index=True)
         players_innov = df_innov[df_innov["tag"].isin(players)]
         non_players_innov = df_innov[~df_innov["tag"].isin(players)]
         min_players_innov = players_innov["innovation"].min() + 0.0001 # Prevent showing everyone if a player has 50 innovation
