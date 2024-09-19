@@ -1,13 +1,14 @@
 """
 Handles all existing GUI of Garibaldi
 """
+import multiprocessing.queues
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from scripts.helpers.utility import *
 from scripts.helpers.save_watch import *
 from scripts.helpers.extraction import *
 from scripts.checkers.manager import perform_checking
-import sys, json, os, threading
+import sys, json, os, glob, multiprocessing, queue
 
 class Garibaldi_gui:
     """
@@ -158,7 +159,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
         super().__init__()
         Garibaldi_gui.__init__(self)
         self.title("Garibaldi")
-        self.stop_event = threading.Event()
+        self.stop_event = multiprocessing.Event()
         self.stop_event.clear()
         self.main_menu_gui()
         self.mainloop()
@@ -202,22 +203,31 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
         self.watch_thread = None
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
+        self.finish_events = None
     
     def extractor_config(self):
         """Generates the SaveExtractor menu"""
-        label1 = ttk.Label(self, text="Extract saves in a campaign folder into Python dictionaries")
+        label_desc = ttk.Label(self, text="Extract saves in a campaign folder into Python dictionaries")
         
         self.del_var = tk.BooleanVar(self, value=False)
-        label2 = ttk.Label(self, text="Delete the save file after extraction?")
+        label_del = ttk.Label(self, text="Delete the save file after extraction?")
         yes_radio = ttk.Radiobutton(self, text="Yes", variable=self.del_var, value=True)
         no_radio = ttk.Radiobutton(self, text="No", variable=self.del_var, value=False)
 
-        label4 = ttk.Label(self, text="Campaign Folder")
-        settings_entry = ttk.Entry(self, width=50)
-        settings_entry.insert(0, self.get_var("Campaign Folder"))
-        settings_entry.config(state="readonly")
+        label_folder = ttk.Label(self, text="Campaign Folder")
+        entry_folder = ttk.Entry(self, width=50)
+        entry_folder.insert(0, self.get_var("Campaign Folder"))
+        entry_folder.config(state="readonly")
 
-        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, "Campaign Folder", only_folder_name=True, initialdir="./saves"))
+        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(entry_folder, "Campaign Folder", only_folder_name=True, initialdir="./saves"))
+
+        self.var_thread = tk.IntVar(self, value=1)
+        label_thread = ttk.Label(self, text="How many threads to perform extraction at once?")
+        radio_1thread = ttk.Radiobutton(self, text="1", variable=self.var_thread, value=1)
+        radio_2thread = ttk.Radiobutton(self, text="2", variable=self.var_thread, value=2)
+        radio_3thread = ttk.Radiobutton(self, text="3", variable=self.var_thread, value=3)
+        radio_4thread = ttk.Radiobutton(self, text="4", variable=self.var_thread, value=4)
+        label_risk = ttk.Label(self, text="(AT YOUR OWN RISK)")
 
         self.ok_button = ttk.Button(self, text="Start", command=lambda: self.on_start())
         self.stop_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
@@ -225,9 +235,10 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
 
         self.tinkerable = [yes_radio, no_radio, browse_button, self.ok_button]
         self.make_grid([
-            [label1],
-            [label2, yes_radio, no_radio],
-            [label4, (settings_entry, 3, 'w'), (browse_button, 1, 'w')],
+            [label_desc],
+            [label_del, yes_radio, no_radio],
+            [label_folder, (entry_folder, 3, 'w'), (browse_button, 1, 'w')],
+            [label_thread, radio_1thread, radio_2thread, radio_3thread, radio_4thread, label_risk],
             [self.ok_button, (None, 1), self.stop_button]
         ], 5, 10)
         self.after(100, self.end_task)
@@ -242,9 +253,34 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
                 self.toggle_tinkerable()
                 return
         self.stop_button.config(state=tk.NORMAL)
-        self.watch_thread = threading.Thread(target=extract_all_files, args=(self.get_var("Campaign Folder"), self.stop_event, self.del_var.get()))
-        self.watch_thread.start()
+        
+        campaign_folder = self.get_var("Campaign Folder")
+        folders = glob.glob(f"./saves/{campaign_folder}/*.v3") + glob.glob(f"./saves/{campaign_folder}/*/")
+        self.num_targets = len([f for f in folders if not is_reserved_folder(f)])
+        self.completed = 0
+        folders = [[folder for j, folder in enumerate(folders) if j % self.var_thread.get() == i] for i in range(self.var_thread.get())]
+        print(folders)
+        self.watch_thread = []
+        self.finish_events = [multiprocessing.Event() for _ in range(len(folders))]
+        self.queue = multiprocessing.Queue(self.var_thread.get())
+        for finish_event, folder_set in zip(self.finish_events, folders):
+            thread = multiprocessing.Process(target=extract_files, args=(campaign_folder, folder_set, self.stop_event, finish_event, self.queue, self.del_var.get()))
+            self.watch_thread.append(thread)
+            thread.start()
+        self.after(1000, self.check_progress)
+        """
+        FIXME The program doesn't crash but multiprocessing doesn't help utilizing the whole cpu
+        """
     
+    def check_progress(self):
+        try:
+            value = self.queue.get(block=False)
+            self.completed += value
+            print(f"Progress: {self.completed}/{self.num_targets}")
+        except queue.Empty:
+            pass
+        self.after(1000, self.check_progress)
+
     def on_stop(self):
         """Starts extraction and toggles all buttons in the SaveExtractor menu"""
         self.stop_event.set()
@@ -257,10 +293,12 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
         self.destroy()
     
     def end_task(self):
-        if self.stop_event.is_set():
+        if self.stop_event.is_set() or (self.finish_events is not None and all([event.is_set() for event in self.finish_events])):
             if self.watch_thread is not None:
-                self.watch_thread.join()
+                for thread in self.watch_thread:
+                    thread.join()
             self.watch_thread = None
+            self.finish_events = None
             self.toggle_tinkerable()
             self.stop_event.clear()
             self.stop_button.config(state=tk.DISABLED)
@@ -282,7 +320,7 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.save_analyze_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
-        self.finish_event = threading.Event()
+        self.finish_event = multiprocessing.Event()
         self.finish_event.clear()
     
     def save_analyze_settings(self):
@@ -453,9 +491,8 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
             messagebox.showerror("Error", "Invalid input!")
             return
         self.stop_button.config(state=tk.NORMAL)
-        for element in self.tinkerable:
-            element.config(state=tk.DISABLED)
-        self.watch_thread = threading.Thread(target=watch_save, args=(self.get_var("Autosave Location"), self.folder_entry.get(), self.stop_event, n_saves))
+        self.toggle_tinkerable()
+        self.watch_thread = multiprocessing.Process(target=watch_save, args=(self.get_var("Autosave Location"), self.folder_entry.get(), self.stop_event, n_saves))
         self.watch_thread.start()
     
     def on_stop(self):

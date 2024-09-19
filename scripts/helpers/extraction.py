@@ -22,10 +22,15 @@ def extract_save_file(save_file, stop_event):
     except Exception as e:
         data = Extractor(f"{save_file}/save.txt", is_save=True, pline=True, stop_event=stop_event)
 
-def extract_all_files(campaign_folder, stop_event, delete=True):
+def extract_files(campaign_folder, files, stop_event, finish_event, queue, delete=True):
     """
-    Melt and extract save files (all .v3 files in a campaign folder)
-    If analyze is set to False the function watch for a melted .txt file and readily extract it when one appear.
+    Melt and extract save files (all .v3 files in a campaign folder and pre-melted save texts)
+    Arguments:
+        - campaign_folder (str) : Name of the target folder in the save folder
+        - files (list[str]) : List of files path to extract
+        - stop_event (multiprocessing.Event) : To communicate termination of the process with the GUI
+        - finish_event (multiprocessing.Event) : To be set if the extraction is completed without exception
+        - queue (multiprocessing.Queue) : To communicate progress with the main thread
     """
     if not delete:
         try:
@@ -33,70 +38,48 @@ def extract_all_files(campaign_folder, stop_event, delete=True):
         except FileExistsError:
             pass
     try:
-        while not stop_event.is_set():
-            time.sleep(1)
-            files = glob(f"./saves/{campaign_folder}/*.v3")
-            number = len(files)
-            done = 0
-            for file in glob(f"./saves/{campaign_folder}/*.v3"):
-                folder = file.replace(".v3", "")
-                try:
-                    os.mkdir(folder)
-                except FileExistsError:
-                    continue
-                try:
-                    t_execute(melt)(file, f"{folder}/save.txt")
-                except NotImplementedError:
-                    shutil.move(file, folder)
-                    continue
-                except Exception as e:
-                    raise RuntimeError("Melting failed:", e)
-                if stop_event.is_set():
-                    raise InterruptedError("Stop event set")
-                try:
-                    extract_save_file(folder, stop_event)
-                except Exception as e:
-                    raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
-                os.remove(f"{folder}/save.txt")
-                if delete:
-                    os.remove(file)
-                else:
-                    shutil.move(file, f"./saves/{campaign_folder}/archive")
-                done += 1
-                print("Progress")
-                rename_folder_to_date(folder)
-        
-            """Melt and extract .v3 in non-archive folders"""
-            for file in glob(f"./saves/{campaign_folder}/*/*.v3"):
-                if stop_event.is_set():
-                    raise InterruptedError("Stop event set")
-                folder = './' + '/'.join(re.split(r"[/\\]", file)[1:-1])
-                if is_reserved_folder(folder):
-                    continue
-                t_execute(melt)(file, f"{folder}/save.txt")
-                try:
-                    extract_save_file(folder, stop_event)
-                except Exception as e:
-                    raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
-                os.remove(f"{folder}/save.txt")
-                if delete:
-                    os.remove(file)
-                else:
-                    shutil.move(file, f"./saves/{campaign_folder}/archive")
-
-            # Pre extracted save texts
-            for folder in glob(f"./saves/{campaign_folder}/*/"):
-                if stop_event.is_set():
-                    raise InterruptedError("Stop event set")
-                if is_reserved_folder(folder):
-                    continue
-                if "save.txt" in os.listdir(folder):
-                    extract_save_file(f"{folder}", stop_event)
+        for file in files:
+            if stop_event.is_set():
+                raise InterruptedError("Stop event set")
+            if is_reserved_folder(file):
+                continue
+            if ".v3" not in file: # check pre-extracted saves
+                if "save.txt" in os.listdir(file):
+                    extract_save_file(f"{file}", stop_event)
                     if delete:
-                        os.remove(f"{folder}/save.txt")
-            
+                        os.remove(f"{file}/save.txt")
+                continue
+            folder = file.replace(".v3", "")
 
+            try:
+                os.mkdir(folder)
+            except FileExistsError:
+                pass
+
+            try:
+                t_execute(melt)(file, f"{folder}/save.txt")
+            except NotImplementedError:
+                continue
+            except Exception as e:
+                raise RuntimeError("Melting failed:", e)
+            if stop_event.is_set():
+                raise InterruptedError("Stop event set")
+            
+            try:
+                extract_save_file(folder, stop_event)
+            except Exception as e:
+                raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
+            
+            os.remove(f"{folder}/save.txt")
+            if delete:
+                os.remove(file)
+            else:
+                shutil.move(file, f"./saves/{campaign_folder}/archive/")
+            rename_folder_to_date(folder)
+            queue.put(1)
     except Exception as e:
+        stop_event.set()
         raise e
     finally:
-        stop_event.set()
+        finish_event.set()
+
