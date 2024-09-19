@@ -18,8 +18,8 @@ Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/r
 
 Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
-Works for games in version 1.5.13, 1.6.2, 1.7 and hopefully whatever in between.
-(Variables name in save files change with version and I'm not totally sure I've handled all such changes so please open an issue whenever there is an error.)
+Works for games in version 1.7.6
+The program is not guaranteed to work in any other version (it will certainly break in earlier versions because Paradox changes variable names over time and I am too lazy to maintain backward compatibility)
 
 The script is intended (atleast in the future) to be compatible with as many mods as possible and so
 we try not to hardcode any variable into the script, relying all data from the provided definition files
