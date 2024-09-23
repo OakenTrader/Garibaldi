@@ -12,6 +12,7 @@
         "Localization Directory":"./localization",
         "Tree File Location":"",
         "Autosave Location":"",
-        "Campaign Folder": "./saves/autosaves"
+        "Campaign Folder": "./saves/autosaves",
+        "Mod Directory": ""
     }
 }

@@ -619,7 +619,7 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
         Garibaldi_gui.__init__(self)
         self.title("Configure settings")
         self.n_entries = 0
-        for key in ["Common Directory", "Events Directory", "Localization Directory"]:
+        for key in ["Common Directory", "Events Directory", "Localization Directory", "Mod Location"]:
             self.add_directory_settings(key)
     
     def add_directory_settings(self, target):
