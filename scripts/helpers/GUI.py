@@ -185,6 +185,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
         if new_window.winfo_exists():
             self.after(500, self.check_no_child, new_window)
             return
+        self.stop_event.clear()
         self.toggle_tinkerable()
     
 
@@ -316,7 +317,7 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
     def __init__(self, master):
         super().__init__(master)
         Garibaldi_gui.__init__(self)
-        self.title("Save Watcher")
+        self.title("Save Analyzer")
         self.save_analyze_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
