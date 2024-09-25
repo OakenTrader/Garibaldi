@@ -37,7 +37,7 @@ class CheckInnovation(Checker):
 
         relevant_modifiers = ["country_weekly_innovation_add", "country_weekly_innovation_mult", "country_weekly_innovation_max_add"]
         def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        def_static_modifiers = load_def("static_modifiers/00_code_static_modifiers.txt", "Common Directory")
+        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
         base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
         literacy_max_inno = float(def_static_modifiers["country_literacy_rate"]["country_weekly_innovation_max_add"])
         companies_manager(save_data, countries, relevant_modifiers)

@@ -89,18 +89,45 @@ def load_def(address, mode="Common Directory"):
     data = data.data
     return data
 
-def load_def_multiple(folder, mode="Common Directory"):
+def load_def_multiple(folder, mode="Common Directory", depth_add=0):
     """
-    Load a define (content) script
+    Load a define (content) script from the vanilla folder, and then its mod counterpart if exists.
+    depth_add (int): The maximum depth the content dict to have the subsequent files' dict's content
+    added inside instead of completely clearing the existing content
     """
     user_variables = jopen("./user_variables.json")
-    folder = user_variables[mode] + "/" + folder
+    def_folder = user_variables[mode] + "/" + folder
     defs = dict()
-    for address in glob.glob(f"{folder}/*.txt"):
+    for address in glob.glob(f"{def_folder}/*.txt"):
         data = Extractor(address)
         data.unquote()
         data = data.data
-        defs.update(data)
+        if depth_add == 0:
+            defs.update(data)
+        else:
+            for key, value in data.items():
+                if isinstance(value, dict) and key in defs:
+                    defs[key].update(value)
+                else:
+                    defs[key] = value
+
+    if user_variables["Mod Directory"] and os.path.isdir(user_variables["Mod Directory"] + "//common//" + folder):
+        """
+        FIXME Replace //common// with mode and properly implement depth_add
+        """
+        for address in glob.glob(user_variables["Mod Directory"] + "//common//" + folder + "//*.txt"):
+            data = Extractor(address)
+            data.unquote()
+            data = data.data
+            if depth_add == 0:
+                defs.update(data)
+            else:
+                for key, value in data.items():
+                    if isinstance(value, dict) and key in defs:
+                        defs[key].update(value)
+                    else:
+                        defs[key] = value
+
     return defs
 
 

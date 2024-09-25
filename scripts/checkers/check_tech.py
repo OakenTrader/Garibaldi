@@ -35,9 +35,10 @@ class CheckTech(Checker):
                 else:
                     techs[t] += 1
         
-        def_prod_tech = load_def("technology/technologies/10_production.txt", "Common Directory")
-        def_mil_tech = load_def("technology/technologies/20_military.txt", "Common Directory")
-        def_soc_tech = load_def("technology/technologies/30_society.txt", "Common Directory")
+        def_techs = load_def_multiple("technology/technologies", "Common Directory")
+        def_prod_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "production"}
+        def_mil_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "military"}
+        def_soc_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "society"}
 
         """Determine which new tech is being researched"""
         output += "Techs in research\n"

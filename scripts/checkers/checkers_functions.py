@@ -59,7 +59,7 @@ def bloc_manager(save_data, relevant_modifiers):
     """
     Retrieve power blocs and/with relevant principles
     """
-    def_principles = load_def("power_bloc_principles/00_power_bloc_principles.txt")
+    def_principles = load_def_multiple("power_bloc_principles")
     principles = dict()
     for principle_key, principle in def_principles.items():
         for relevant_modifier in relevant_modifiers:

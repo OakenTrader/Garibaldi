@@ -28,7 +28,7 @@ class CheckPrestige(Checker):
         save_date = cache["metadata"]["save_date"]
         address = cache["address"]
 
-        defines_file = load_def("defines/00_defines.txt", "Common Directory")
+        defines_file = load_def_multiple("defines", "Common Directory", depth_add=1)
         defines = dict()
         for key, defs in defines_file.items():
             if not isinstance(defs, dict):
@@ -52,9 +52,7 @@ class CheckPrestige(Checker):
         """
         countries = save_data["country_manager"]["database"]
         dynamic_countries = retrieve_from_tree(save_data, ["country_manager", "dynamic_country_definition_data"], null=[])
-        def_countries = dict()
-        for countries_file in os.listdir("./common/country_definitions"):
-            def_countries.update(load_def(f"country_definitions/{countries_file}", "Common Directory"))
+        def_countries = load_def_multiple(f"country_definitions", "Common Directory")
         
         """
         Tier
@@ -76,8 +74,8 @@ class CheckPrestige(Checker):
         Military
         """
         pp_divisor = float(defines["POWER_PROJECTION_DIVISOR"])
-        def_unit_types = load_def("combat_unit_types/00_combat_unit_types.txt", "Common Directory")
-        def_unit_type_groups = load_def("combat_unit_groups/00_combat_unit_groups.txt", "Common Directory")
+        def_unit_types = load_def_multiple("combat_unit_types", "Common Directory")
+        def_unit_type_groups = load_def_multiple("combat_unit_groups", "Common Directory")
         unit_types_specific_modifiers = [f"unit_{def_unit_type}_{modifier}" for def_unit_type in def_unit_types for modifier in ["offense_mult", "defense_mult", "offense_add", "defense_add"]]
         relevant_modifiers += unit_types_specific_modifiers
 
@@ -101,14 +99,14 @@ class CheckPrestige(Checker):
             countries[country]["mil_formations"][formation]["units"][key] = combat_unit
 
         # Get relevant mobilizations
-        mobilizations_def = load_def("mobilization_options/00_mobilization_option.txt", "Common Directory")
+        mobilizations_def = load_def_multiple("mobilization_options", "Common Directory")
         def_mobilizations = dict()
         for key, mobilization in mobilizations_def.items():
             if "unit_modifier" in mobilization:
                 if any([x in mobilization["unit_modifier"] for x in relevant_modifiers]):
                     def_mobilizations[key] = mobilization
 
-        veterancy_def = load_def("combat_unit_experience_levels/00_combat_unit_experience_levels.txt", "Common Directory")
+        veterancy_def = load_def_multiple("combat_unit_experience_levels", "Common Directory")
         def_veterancy = dict()
         for key, veterancy in veterancy_def.items():
             def_veterancy[veterancy["level"]] = veterancy

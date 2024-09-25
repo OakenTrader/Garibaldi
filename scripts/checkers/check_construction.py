@@ -37,8 +37,8 @@ class CheckConstruction(Checker):
                 building["pops_employed"] = dict()
             building["pops_employed"][pop_id] = pop
         
-        def_production_methods = load_def("production_methods/13_construction.txt", "Common Directory")
-        def_static_modifiers = load_def("static_modifiers/00_code_static_modifiers.txt", "Common Directory")
+        def_production_methods = load_def_multiple("production_methods", "Common Directory")
+        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
         base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
         columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
