@@ -370,6 +370,8 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list["innovation"] = add_checker("Innovation")
         self.check_list["capped_innovation"] = add_checker("Capped Innovation")
         self.check_list["infamy"] = add_checker("Infamy")
+        self.check_list["literacy"] = add_checker("Literacy")
+        self.check_list["population"] = add_checker("Population")
         self.check_list["total_prestige"] = add_checker("Prestige")
         self.check_list["tech_tree"] = add_checker("Technologies", showable=False)
         self.check_list["goods_produced"] = add_checker("Goods Produced")
