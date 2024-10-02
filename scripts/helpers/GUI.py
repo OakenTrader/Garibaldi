@@ -464,7 +464,7 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
 
         label5 = ttk.Label(self, text="Campaign Folder")
         self.folder_entry = ttk.Entry(self, width=50)
-        self.folder_entry.insert(0, "./saves/autosaves")
+        self.folder_entry.insert(0, self.get_var("Campaign Folder"))
         self.folder_entry.config(state="readonly")
         browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
         make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
