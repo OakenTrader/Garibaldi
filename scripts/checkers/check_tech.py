@@ -1,6 +1,7 @@
 from scripts.checkers.check_base import Checker
 from scripts.checkers.checkers_functions import get_country_name
 from scripts.helpers.utility import *
+import pandas as pd
 
 class CheckTech(Checker):
     """
@@ -57,13 +58,14 @@ class CheckTech(Checker):
 
         """Who is researching which"""
         notable_countries = [p[0] for p in players] # get country_id
-        for tech_id in technologies:
-            if "research_technology" not in technologies[tech_id]:
+        df_tech = []
+        for tech_id, tech_entry in technologies.items():
+            if not isinstance(tech_entry, dict):
                 continue
-            country_id = technologies[tech_id]["country"]
+            country_id = tech_entry["country"]
             if not isinstance(retrieve_from_tree(countries, [country_id]), dict):
                 continue
-            researching_tech = technologies[tech_id]["research_technology"]
+            researching_tech = retrieve_from_tree(tech_entry, ["research_technology"], null="None")
             country_tag = countries[country_id]["definition"]
             country_name = get_country_name(countries[country_id], localization)
 
@@ -77,9 +79,13 @@ class CheckTech(Checker):
                 his_missing_tech = [tech for tech in techs if tech not in his_tech]
                 output += "Missing tech\n"
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
+                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production techs":len(his_prod_tech), "military techs":len(his_mil_tech), "society techs":len(his_soc_tech), "total techs":len(his_tech)})
 
-        with open(f"{address}/tech_tree.txt", "w") as file:
-            year, month, day = save_date
-            file.write(f"{day}/{month}/{year}\n")
-            file.write(output)
-            print(f"Finished checking technology on {day}/{month}/{year}")
+        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production techs", "military techs", "society techs", "total techs"])
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+            df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False)
+            with open(f"{address}/tech_tree.txt", "w") as file:
+                year, month, day = save_date
+                file.write(f"{day}/{month}/{year}\n")
+                file.write(output)
+                print(f"Finished checking technology on {day}/{month}/{year}")

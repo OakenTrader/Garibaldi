@@ -106,7 +106,10 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
                     plot_stat(campaign_folder, prestige, input_file="prestige.csv", players=True, show=show)
                 plot_stat(campaign_folder, "total", input_file="prestige.csv", players=True, save_name="total_prestige.csv", show=show)
             elif check == "tech_tree":
-                continue
+                plot_stat(campaign_folder, "production techs", input_file="tech_tree.csv", show=show, players=True)
+                plot_stat(campaign_folder, "military techs", input_file="tech_tree.csv", show=show, players=True)
+                plot_stat(campaign_folder, "society techs", input_file="tech_tree.csv", show=show, players=True)
+                plot_stat(campaign_folder, "total techs", input_file="tech_tree.csv", show=show, players=True)
             elif check == "goods_produced":
                 plot_goods_produced(campaign_folder, 10, show=show)
             else:
