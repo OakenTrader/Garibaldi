@@ -4,6 +4,7 @@ from scripts.checkers.check_innovation import CheckInnovation
 from scripts.checkers.check_infamy import CheckInfamy
 from scripts.checkers.check_prestige import CheckPrestige, prestige_columns
 from scripts.checkers.check_tech import CheckTech
+from scripts.checkers.check_literacy import CheckLiteracy
 
 from scripts.helpers.plotter import plot_stat, plot_goods_produced
 from scripts.convert_localization import get_all_localization
@@ -59,6 +60,8 @@ class SaveManager:
             player_data = []
             for _, player in players.items():
                 player_id = player["country"]
+                if not isinstance(retrieve_from_tree(countries, player_id), dict):
+                    continue
                 player_tag = countries[player_id]["definition"]
                 player_country = get_country_name(countries[player_id], self.localization)
                 player_data.append([int(player_id), player_tag, player_country])
@@ -79,7 +82,7 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
     Interface between GUI and the checkers / plotters
     """
     check_map = dict()
-    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech]
+    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckLiteracy]
     for checker_class in all_checkers:
         for output, outvars in checker_class.output.items():
             for outvar in outvars:
