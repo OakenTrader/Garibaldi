@@ -181,11 +181,11 @@ def make_save_dirs(campaign_folder):
                 pass
             shutil.move(source, dest)
 
-def date_to_day(date:str):
+def date_to_day(date:list):
     """
     Get the number of days passed since the start of the year to the current date
     """
-    year, month, day = date.split(".")[:3]
+    year, month, day = date[:3]
     year, month, day = int(year), int(month), int(day)
     def_month = {1:0, 2:31, 3:59, 4:90, 5:120, 6:151, 7:181, 8:212, 9:243, 10:273, 11:304, 12:334}
     if year % 4 == 0 and not year % 100 == 0:
@@ -200,13 +200,16 @@ def get_duration(this_date, start_date, end_date=None):
     This function operates date in list format [year, month, day], but can and will convert str date to that format.
     """
     if isinstance(this_date, str):
-        this_date = [int(i) for i in this_date.split(".")][:3]
+        this_date = [i for i in this_date.split(".")][:3]
+    this_date = [int(i) for i in this_date]
     if isinstance(start_date, str):
-        start_date = [int(i) for i in start_date.split(".")][:3]
+        start_date = [i for i in start_date.split(".")][:3]
+    start_date = [int(i) for i in start_date]
     duration_from_start = (this_date[0] - start_date[0]) + (date_to_day(this_date) - date_to_day(start_date)) / 365.2422
     if end_date is not None:
         if isinstance(end_date, str):
-            end_date = [int(i) for i in end_date.split(".")][:3]
+            end_date = [i for i in end_date.split(".")][:3]
+        end_date = [int(i) for i in end_date]
         total_duration = (end_date[0] - start_date[0]) + (date_to_day(end_date) - date_to_day(start_date)) / 365.2422
         return duration_from_start, total_duration, duration_from_start / total_duration
     else:

@@ -40,7 +40,7 @@ class CheckPrestige(Checker):
 
         relevant_modifiers = ["country_prestige_add", "country_prestige_mult",
                             "country_prestige_from_army_power_projection_mult", "country_prestige_from_navy_power_projection_mult"]
-        def_modifiers = {k:v for k, v in load_def_multiple("modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
+        def_modifiers = {k:v for k, v in load_def_multiple("static_modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
 
         save_data = load_save(self.requirements, address)
 
@@ -179,26 +179,26 @@ class CheckPrestige(Checker):
 
 
         """
-        Defining Monuments
+        Defining relevant buildings
         """
 
-        def_monument_methods = dict()
+        def_production_methods = dict()
         for pm_name, production_method in load_def_multiple("production_methods", "Common Directory").items():
             for relevant_modifier in relevant_modifiers:
                 if len(walk_tree(production_method, relevant_modifier)) > 0:
-                    def_monument_methods[pm_name] = production_method
+                    def_production_methods[pm_name] = production_method
                     break
         
-        def_monument_method_groups = dict()
+        def_production_method_groups = dict()
         for pmg_name, production_method_group in load_def_multiple("production_method_groups", "Common Directory").items():
-            if any([pm in def_monument_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
-                def_monument_method_groups[pmg_name] = production_method_group
+            if any([pm in def_production_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
+                def_production_method_groups[pmg_name] = production_method_group
 
-        def_monuments = dict()
+        def_buildings = dict()
         for building_name, building in load_def_multiple("buildings", "Common Directory").items():
-            for def_pmg in def_monument_methods:
+            for def_pmg in def_production_methods:
                 if def_pmg in building["production_method_groups"]:
-                    def_monuments[building_name] = building
+                    def_buildings[building_name] = building
                     break
 
         """
@@ -240,7 +240,7 @@ class CheckPrestige(Checker):
                 continue
             country = states[building["state"]]["country"]
             country_tag = countries[country]["definition"]
-            if any([pm in def_monument_methods for pm in retrieve_from_tree(building, ["production_methods", "value"], null=[])]):
+            if any([False] + [pm in def_production_methods for pm in retrieve_from_tree(building, ["production_methods", "value"], null=[])]):
                 if "monuments" not in countries[country]:
                     countries[country]["monuments"] = dict()
                 countries[country]["monuments"][building_id] = building
@@ -320,7 +320,7 @@ class CheckPrestige(Checker):
                     end_date = retrieve_from_tree(modifier, "end_date")
                     multiplier = retrieve_from_tree(modifier, "multiplier", null=1)
                     modifier = def_modifiers[modifier_name]
-                    if decay == "yes":
+                    if decay in ["yes", "linear"]:
                         # print(modifier_name)
                         decay = (1 - get_duration(save_date, start_date, end_date)[-1])
                     for mod, value in modifier.items():
@@ -487,7 +487,9 @@ class CheckPrestige(Checker):
             """
             for monument_id, monument in retrieve_from_tree(country, "monuments", null=dict()).items():
                 for relevant_modifier in relevant_modifiers:
-                    output = get_building_output(monument, relevant_modifier, def_monument_methods)
+                    if relevant_modifier not in def_production_methods:
+                        continue
+                    output = get_building_output(monument, relevant_modifier, def_production_methods)
                     if output == 0:
                         continue
                     national_modifiers[relevant_modifier][buildings[monument_id]["building"]] = output
