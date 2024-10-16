@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import warnings
 from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import get_building_output, get_country_name
+from scripts.checkers.checkers_functions import get_building_output, get_country_name, national_modifiers_manager
 from scripts.helpers.utility import *
 
 class CheckConstruction(Checker):
@@ -23,6 +23,7 @@ class CheckConstruction(Checker):
         players = cache["metadata"]["players"]
         address = cache["address"]
 
+        relevant_modifiers = ["country_construction_add"]
         buildings = save_data["building_manager"]["database"]
         countries = save_data["country_manager"]["database"]
         pops = save_data["pops"]["database"]
@@ -38,7 +39,7 @@ class CheckConstruction(Checker):
             building["pops_employed"][pop_id] = pop
         
         def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
+        def_static_modifiers = {k:v for k,v in load_def_multiple("static_modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
         base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
         columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]
@@ -84,6 +85,9 @@ class CheckConstruction(Checker):
             else:
                 total_cost = 0
                 average_cost = 0
+            
+            national_modifiers = national_modifiers_manager(country, save_date, def_static_modifiers, relevant_modifiers)
+            construction += sum([float(v) for v in national_modifiers["country_construction_add"].values()])
 
             country_name = get_country_name(country, localization)
             new_data = pd.DataFrame([[country_id, country["definition"], country_name, construction, used_cons, average_cost, total_cost]], columns=columns)
