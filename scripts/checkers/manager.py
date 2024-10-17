@@ -58,13 +58,17 @@ class SaveManager:
             players = data["player_manager"]["database"]
             countries = data["country_manager"]["database"]
             player_data = []
+            countries_id = []
             for _, player in players.items():
                 player_id = player["country"]
                 if not isinstance(retrieve_from_tree(countries, player_id), dict):
                     continue
+                if player_id in countries_id:
+                    continue
                 player_tag = countries[player_id]["definition"]
                 player_country = get_country_name(countries[player_id], self.localization)
                 player_data.append([int(player_id), player_tag, player_country])
+                countries_id.append(player_id)
             metadata["players"] = player_data
             with open(f"{address}/metadata.json", "w") as file:
                 json.dump(metadata, file, indent=4)
