@@ -2,8 +2,9 @@
     "Common Directory": "./common",
     "Events Directory": "./events",
     "Localization Directory": "./localization",
-    "Mod Location":"",
+    "Localization Language": "english",
+    "Mod Directory":"",
     "Tree File Location": "",
-    "Campaign Folder": "",
+    "Campaign Folder": "autosaves",
     "Autosave Location": ""
 }
