@@ -6,7 +6,7 @@ import pandas as pd
 class CheckLiteracy(Checker):
     
     requirements = ["pops", "states", "country_manager"]
-    output = {"literacy.csv":["literacy", "population"]}
+    output = {"literacy.csv":["literacy", "population", "incorporated population"]}
 
     def __init__(self):
         super().__init__()
@@ -24,8 +24,6 @@ class CheckLiteracy(Checker):
         for pop_key, pop in pops.items():
             if not isinstance(pop, dict):
                 continue
-            if float(retrieve_from_tree(state := states[pop["location"]], ["incorporation"], null=0)) < 1:
-                continue
             workers, dependents, literates, literacy = 0, 0, 0, 0
             if "workforce" in pop:
                 workers = int(pop["workforce"])
@@ -34,34 +32,43 @@ class CheckLiteracy(Checker):
             if "num_literate" in pop:
                 literates = int(pop["num_literate"])
             total = workers + dependents
-            literacy = literates / (workers + 0.0000001) # TODO Might use this to visualize distribution of literacy
-            if "pop_literacy" not in state:
-                state["pop_literacy"] = []
-            state["pop_literacy"].append((total, workers, literates, literacy)) # Total pop, literacy rate
+            literacy = literates / max(workers, 0.0000001) # TODO Might use this to visualize distribution of literacy
+            state = states[pop["location"]]
+            if "demographics" not in state:
+                state["demographics"] = []
+            demographics = {"population":total, "workforce":workers, "dependents":dependents, "literates":literates, "literacy":literacy}
+            state["demographics"].append(demographics) # Total pop, literacy rate
         
         for key, state in states.items():
-            if retrieve_from_tree(state, ["pop_literacy"]) is None:
+            if retrieve_from_tree(state, ["demographics"]) is None:
                 continue
             if "country" not in state:
                 state["country"] = state["zero_token_259"] # FIXME Rectify this after updating melter
             country = countries[state["country"]]
-            if "pop_literacy" not in country:
-                country["pop_literacy"] = []
-            country["pop_literacy"] += state["pop_literacy"]
+            if "demographics" not in country:
+                country["demographics"] = []
+            incorporation = float(retrieve_from_tree(state, ["incorporation"], null=0))
+            country["demographics"].append([incorporation, state["demographics"]])
 
         df_literacy = []
         for country_id, country in countries.items():
-            if not isinstance(country, dict) or "pop_literacy" not in country:
+            if not isinstance(country, dict) or "demographics" not in country:
                 continue
             total_population, total_workers, total_literates = 0, 0, 0
-            for pl in country["pop_literacy"]:
-                total_population += pl[0]
-                total_workers += pl[1]
-                total_literates += pl[2]
-            literacy = total_literates / (total_workers + 0.0000001)
+            incorporated_population, incorporated_workers, incorporated_literates = 0, 0, 0
+            for state in country["demographics"]:
+                incorporation, pops = state
+                total_population += sum([pop["population"] for pop in pops])
+                total_workers += sum([pop["workforce"] for pop in pops])
+                total_literates += sum([pop["literates"] for pop in pops])
+                if incorporation >= 1:
+                    incorporated_population += sum([pop["population"] for pop in pops])
+                    incorporated_workers += sum([pop["workforce"] for pop in pops])
+                    incorporated_literates += sum([pop["literates"] for pop in pops])
+            literacy = incorporated_literates / max(incorporated_workers, 0.0000001)
             country_tag = country["definition"]
             country_name = get_country_name(country, localization)
-            df_country = {"id":country_id, "tag":country_tag, "country":country_name, "population":total_population, "literacy":literacy}
+            df_country = {"id":country_id, "tag":country_tag, "country":country_name, "population":total_population, "literacy":literacy, "incorporated population":incorporated_population}
             df_literacy.append(df_country)
         
         df_literacy = pd.DataFrame(df_literacy, columns=["id", "tag", "country", "population", "literacy"])
