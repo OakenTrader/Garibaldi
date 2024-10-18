@@ -31,15 +31,18 @@ def get_color(tag):
     Get a color of a tag (three letters defining a country) and its format
     """
     def_countries = load_def_multiple("country_definitions", "Common Directory")
+    named_colors = load_def_multiple("named_colors", depth_add=1)["colors"]
     try:
         color = def_countries[tag]["color"]
+        if isinstance(color, str) and color in named_colors:
+            color = named_colors[color]
     except KeyError:
         color = {"field_type":"hsv360", "value":[np.random.randint(360), 100, 50]}
         warnings.warn(f"No color provided for {tag}, used hsv360 {color['value']}")
         # raise KeyError(f"No color provided for {tag}")
 
     color_type = color["field_type"]
-    if color_type == "list":
+    if color_type == "list" or color_type == "rgb":
         color_type = "rgb"
         if any([float(v) > 0 for v in color["value"]]):
             colors = [float(v) / 255 for v in color["value"]]
@@ -165,4 +168,4 @@ def plot_goods_produced(campaign_folder, limit=10, show=False):
     """
     goods = load_def_multiple("goods", "Common Directory")
     for i, good in enumerate(goods.keys()):
-        plot_stat(campaign_folder, good, checker=None, input_file="goods_produced.csv", reset=False, limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}", show=show)
+        plot_stat(campaign_folder, good, input_file="goods_produced.csv", limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}", show=show)
