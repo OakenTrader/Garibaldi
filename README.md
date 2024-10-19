@@ -1,8 +1,6 @@
-# Garibaldi: Victoria 3 File Parser and Analyzer
+# Garibaldi: Victoria 3 Save Analyzer
 
-My take on creating Victoria 3 File Parser. Based on observed patterns, the extractor.py is able to convert the save files and definition files (stuffs in common and events folders) into a Python Dictionary ready to be worked on to get information on the save file.
-
-From the extracted content, I have made analyzer scripts to obtain specific variables like the tech tree and construction of relevant nations. More to come. 
+Save game analyzer for Victoria 3 which retrieve information from autosaves across a campaign and plot them together.
 
 ## Features:
 - Extract save files and retrieve/plot information of
@@ -10,7 +8,8 @@ From the extracted content, I have made analyzer scripts to obtain specific vari
     - Total and capped Innovation
     - Infamy
     - Prestige (consequently goods produced)
-    - Number of researched technologies and technologies each nation have missed
+    - Technologies and table of technologies comparison
+    - Population and literacy
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
