@@ -373,7 +373,10 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list["literacy"] = add_checker("Literacy")
         self.check_list["population"] = add_checker("Population")
         self.check_list["total_prestige"] = add_checker("Prestige")
-        self.check_list["tech_tree"] = add_checker("Technologies", showable=False)
+        self.check_list["production_techs"] = add_checker("Production Techs")
+        self.check_list["military_techs"] = add_checker("Military Techs")
+        self.check_list["society_techs"] = add_checker("Society Techs")
+        self.check_list["total_techs"] = add_checker("Total Techs")
         self.check_list["goods_produced"] = add_checker("Goods Produced")
 
         warning_goods = ttk.Label(self, text="Note: We can only either not show or show ALL types of goods produced on interactive windows.")

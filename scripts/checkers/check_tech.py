@@ -9,7 +9,7 @@ class CheckTech(Checker):
     """
 
     requirements = ["country_manager", "technology"]
-    output = {"tech_tree.csv": ["tech_tree"], "tech_table.csv": ["tech_table"]}
+    output = {"tech_tree.csv": ["production_techs", "military_techs", "society_techs", "total_techs"], "tech_table.csv": []}
 
     def __init__(self):
         super().__init__()
@@ -87,7 +87,7 @@ class CheckTech(Checker):
                 missing_techs.update(set(his_missing_tech))
                 output += "Missing tech\n"
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
-                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production techs":num_prod_tech, "military techs":num_mil_tech, "society techs":num_soc_tech, "total techs":len(his_tech)})
+                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech)})
 
         df_missing_techs = []
         for country_id in player_countries:
@@ -103,7 +103,7 @@ class CheckTech(Checker):
         df_missing_techs = pd.DataFrame(df_missing_techs, columns=["id", "tag", "country"] + list(missing_techs))
         """TODO Make missing tech columns sorted according to category and eras"""
 
-        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production techs", "military techs", "society techs", "total techs"])
+        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs"])
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
             df_missing_techs.to_csv(f"{address}/tech_table.csv", sep=",", index=False, encoding="utf-8")
