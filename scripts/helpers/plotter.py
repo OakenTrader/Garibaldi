@@ -83,6 +83,9 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
         input_file = f"{mode}.csv"
     if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
         os.mkdir(f"saves/{campaign_folder}/campaign_data")
+    img_folder = input_file.replace(".csv", "")
+    if img_folder not in os.listdir(f"saves/{campaign_folder}/campaign_data"):
+        os.mkdir(f"saves/{campaign_folder}/campaign_data/{img_folder}")
 
     t0 = time.time()
     last_save = None
@@ -155,8 +158,8 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     ax.grid(True)
     # plt.tight_layout()
     plt.subplots_adjust(right=0.75)
-    plt.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
-    print(f"Finished plotting {mode} in {time.time()} - {t0} seconds")
+    plt.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    print(f"Finished plotting {mode} in {time.time() - t0} seconds")
     if show:
         plt.show()
     plt.close()
