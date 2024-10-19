@@ -37,9 +37,10 @@ class CheckInnovation(Checker):
 
         relevant_modifiers = ["country_weekly_innovation_add", "country_weekly_innovation_mult", "country_weekly_innovation_max_add"]
         def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        def_static_modifiers = load_def("static_modifiers/00_code_static_modifiers.txt", "Common Directory")
-        base_innovation = float(def_static_modifiers["base_values"]["country_weekly_innovation_add"])
-        literacy_max_inno = float(def_static_modifiers["country_literacy_rate"]["country_weekly_innovation_max_add"])
+        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
+        base_innovation = float(retrieve_from_tree(def_static_modifiers, ["base_values", "country_weekly_innovation_add"], null=0))
+        literacy_innovation = float(retrieve_from_tree(def_static_modifiers, ["country_literacy_rate", "country_weekly_innovation_add"], null=0))
+        literacy_max_inno = float(retrieve_from_tree(def_static_modifiers, ["country_literacy_rate", "country_weekly_innovation_max_add"], null=0))
         companies_manager(save_data, countries, relevant_modifiers)
         subject_manager(save_data, countries)
         institution_manager(save_data, countries, ["institution_schools"])
@@ -63,7 +64,7 @@ class CheckInnovation(Checker):
             inno_cap = base_innovation + literacy_max_inno * float(literacy)
 
             states = country["states"]["value"]
-            innov = base_innovation
+            innov = base_innovation + literacy_innovation * float(literacy)
             innov_mult = 1
             innov_list = []
             universities_country = {i: universities[i] for i in universities if universities[i]["state"] in states}
@@ -86,6 +87,10 @@ class CheckInnovation(Checker):
                         bloc_cap = float(retrieve_from_tree(principles, [principle, "institution_modifier", "country_weekly_innovation_max_add"], 0)) * float(retrieve_from_tree(country, ["institutions", "institution_schools"], 0))
                         inno_cap += bloc_cap
 
+            national_modifiers = national_modifiers_manager(country, save_date, def_static_modifiers, relevant_modifiers)
+            innov += sum([float(v) for v in national_modifiers["country_weekly_innovation_add"]])
+            inno_cap += sum([float(v) for v in national_modifiers["country_weekly_innovation_max_add"]])
+
             innov = innov * innov_mult
             country_name = get_country_name(country, localization)
 
@@ -104,7 +109,7 @@ class CheckInnovation(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_innov.to_csv(f"{address}/innovation.csv", sep=",", index=False)
-            with open(f"{address}/innovation.txt", "w") as file:
+            with open(f"{address}/innovation.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")
                 file.write(df_innov.to_string())
         print(f"Finished checking innovation on {day}/{month}/{year}")

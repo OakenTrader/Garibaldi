@@ -33,7 +33,7 @@ def get_all_localization():
     """
     Returns every single localization definition in the game for a language.
     """
-    lcl_files = list(Path(user_variables["Localization Directory"]).rglob("*.yml"))
+    lcl_files = list(Path(user_variables["Localization Directory"] + f"//{user_variables['Localization Language']}").rglob("*.yml"))
     dicts = []
     for f in lcl_files:
         names = get_localization(f)

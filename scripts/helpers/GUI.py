@@ -185,6 +185,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
         if new_window.winfo_exists():
             self.after(500, self.check_no_child, new_window)
             return
+        self.stop_event.clear()
         self.toggle_tinkerable()
     
 
@@ -316,7 +317,7 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
     def __init__(self, master):
         super().__init__(master)
         Garibaldi_gui.__init__(self)
-        self.title("Save Watcher")
+        self.title("Save Analyzer")
         self.save_analyze_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
@@ -369,8 +370,13 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list["innovation"] = add_checker("Innovation")
         self.check_list["capped_innovation"] = add_checker("Capped Innovation")
         self.check_list["infamy"] = add_checker("Infamy")
+        self.check_list["literacy"] = add_checker("Literacy")
+        self.check_list["population"] = add_checker("Population")
         self.check_list["total_prestige"] = add_checker("Prestige")
-        self.check_list["tech_tree"] = add_checker("Technologies", showable=False)
+        self.check_list["production_techs"] = add_checker("Production Techs")
+        self.check_list["military_techs"] = add_checker("Military Techs")
+        self.check_list["society_techs"] = add_checker("Society Techs")
+        self.check_list["total_techs"] = add_checker("Total Techs")
         self.check_list["goods_produced"] = add_checker("Goods Produced")
 
         warning_goods = ttk.Label(self, text="Note: We can only either not show or show ALL types of goods produced on interactive windows.")
@@ -463,7 +469,7 @@ class SaveWatcher(tk.Toplevel, Garibaldi_gui):
 
         label5 = ttk.Label(self, text="Campaign Folder")
         self.folder_entry = ttk.Entry(self, width=50)
-        self.folder_entry.insert(0, "./saves/autosaves")
+        self.folder_entry.insert(0, self.get_var("Campaign Folder"))
         self.folder_entry.config(state="readonly")
         browse_button_2 = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
         make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
@@ -619,7 +625,7 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
         Garibaldi_gui.__init__(self)
         self.title("Configure settings")
         self.n_entries = 0
-        for key in ["Common Directory", "Events Directory", "Localization Directory"]:
+        for key in ["Common Directory", "Events Directory", "Localization Directory", "Mod Directory"]:
             self.add_directory_settings(key)
     
     def add_directory_settings(self, target):

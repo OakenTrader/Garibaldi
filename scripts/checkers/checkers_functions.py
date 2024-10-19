@@ -59,7 +59,7 @@ def bloc_manager(save_data, relevant_modifiers):
     """
     Retrieve power blocs and/with relevant principles
     """
-    def_principles = load_def("power_bloc_principles/00_power_bloc_principles.txt")
+    def_principles = load_def_multiple("power_bloc_principles")
     principles = dict()
     for principle_key, principle in def_principles.items():
         for relevant_modifier in relevant_modifiers:
@@ -95,6 +95,27 @@ def institution_manager(save_data, countries, relevant_institutions):
                 country["institutions"] = dict()
             country["institutions"][institution["institution"]] = institution["investment"]
 
+def national_modifiers_manager(country, save_date, def_modifiers, relevant_modifiers):
+    """
+    Timed and untimed modifiers registered on national level
+    """
+    out_modifiers = {key:dict() for key in relevant_modifiers}
+    timed_modifiers = retrieve_from_tree(country, ["timed_modifiers"], null={"modifiers":dict()})
+    for _, modifier in timed_modifiers["modifiers"].items():
+        modifier_name = modifier["modifier"]
+        if modifier_name not in def_modifiers:
+            continue
+        decay = retrieve_from_tree(modifier, "decay", null=1)
+        start_date = retrieve_from_tree(modifier, "start_date")
+        end_date = retrieve_from_tree(modifier, "end_date")
+        multiplier = retrieve_from_tree(modifier, "multiplier", null=1)
+        modifier = def_modifiers[modifier_name]
+        if decay == "yes":
+            decay = (1 - get_duration(save_date, start_date, end_date)[-1])
+        for mod, value in modifier.items():
+            if mod in relevant_modifiers:
+                out_modifiers[mod][modifier_name] = float(value) * float(multiplier) * decay
+    return out_modifiers
 
 def get_country_name(country:dict, localization:dict):
     country_tag = country["definition"]

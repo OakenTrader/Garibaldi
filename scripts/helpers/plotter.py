@@ -31,15 +31,18 @@ def get_color(tag):
     Get a color of a tag (three letters defining a country) and its format
     """
     def_countries = load_def_multiple("country_definitions", "Common Directory")
+    named_colors = load_def_multiple("named_colors", depth_add=1)["colors"]
     try:
         color = def_countries[tag]["color"]
+        if isinstance(color, str) and color in named_colors:
+            color = named_colors[color]
     except KeyError:
         color = {"field_type":"hsv360", "value":[np.random.randint(360), 100, 50]}
         warnings.warn(f"No color provided for {tag}, used hsv360 {color['value']}")
         # raise KeyError(f"No color provided for {tag}")
 
     color_type = color["field_type"]
-    if color_type == "list":
+    if color_type == "list" or color_type == "rgb":
         color_type = "rgb"
         if any([float(v) > 0 for v in color["value"]]):
             colors = [float(v) / 255 for v in color["value"]]
@@ -80,6 +83,9 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
         input_file = f"{mode}.csv"
     if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
         os.mkdir(f"saves/{campaign_folder}/campaign_data")
+    img_folder = input_file.replace(".csv", "")
+    if img_folder not in os.listdir(f"saves/{campaign_folder}/campaign_data"):
+        os.mkdir(f"saves/{campaign_folder}/campaign_data/{img_folder}")
 
     t0 = time.time()
     last_save = None
@@ -152,8 +158,8 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     ax.grid(True)
     # plt.tight_layout()
     plt.subplots_adjust(right=0.75)
-    plt.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
-    print(f"Finished plotting {mode} in {time.time()} - {t0} seconds")
+    plt.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    print(f"Finished plotting {mode} in {time.time() - t0} seconds")
     if show:
         plt.show()
     plt.close()
@@ -165,4 +171,4 @@ def plot_goods_produced(campaign_folder, limit=10, show=False):
     """
     goods = load_def_multiple("goods", "Common Directory")
     for i, good in enumerate(goods.keys()):
-        plot_stat(campaign_folder, good, checker=None, input_file="goods_produced.csv", reset=False, limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}", show=show)
+        plot_stat(campaign_folder, good, input_file="goods_produced.csv", limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}", show=show)

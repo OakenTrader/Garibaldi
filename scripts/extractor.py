@@ -45,15 +45,14 @@ class Extractor:
     extractor.unquote()
     extractor.write("saves/campaign/save", ["population"])
     """
-    def __init__(self, address, is_save=False, focuses=None, pline=False, stop_event=None, version="1.7") -> None:
+    def __init__(self, address, is_save=False, focuses=None, pline=False, version="1.7") -> None:
         self.data = dict()
-        self.check_stop = (lambda : None) if stop_event is None else stop_event.is_set
-        bracket_counter = 0
         scope = [self.data]
         current_key = None
         scope_boolean = False
         in_focus = False
-        spacing_ex = re.compile(r"(#+.*\n|\s+)")
+        spacing_ex = re.compile(r"(#+.*\n|\s+|#+.*$)")
+        spacing_ex_save = re.compile(r"(\s+)")
         split_ex = re.compile(r'(?<!<|>|=)\s(?!<|>|=|\?)')
         if is_save:
             split_ex = re.compile(r'(?<!=)\s(?!=)')
@@ -61,8 +60,6 @@ class Extractor:
         else:
             split_ex = re.compile(r'(?<!<|>|=)\s(?!<|>|=|\?)')
             catch_ex = re.compile(r"^([^=><\?\s]*)\s?([><\?])?(=)?\s?(rgb|hsv360|hsv)?\s?(\S+)?$")
-        
-        match_count = [0,0,0,0,0,0,0,0]
 
         with open(address, "r", encoding='utf-8-sig') as file:
             if not is_save:
@@ -78,47 +75,28 @@ class Extractor:
                     text = " ".join(text)
                 else:
                     text = file.read()
+                text = spacing_ex.sub(" ", text)
             else:
                 text = file.read()
-            text = spacing_ex.sub(" ", text)
-        if self.check_stop():
-            raise InterruptedError("Stop event set")
+                text = spacing_ex_save.sub(" ", text)
         
-
         for sstr in re.split(r"\s?([{}])\s?", text):
-            if self.check_stop():
-                raise InterruptedError("Stop event set")
-            if focuses is not None:
-                for focus in focuses:
-                    if focus in sstr and bracket_counter == 0:
-                        in_focus = True
-                        focuses.pop(focuses.index(focus))
-                        break
-                if not in_focus:
-                    if "{" in sstr:
-                        bracket_counter += 1
-                    elif "}" in sstr:
-                        bracket_counter -= 1
-                    continue
-            if not sstr:
+            if not sstr.strip():
                 continue
             if pline:
                 print(repr(sstr))
             last_scope = scope[-1]
             if "{" in sstr:
-                bracket_counter += 1
                 if current_key is None: # Double opening brackets
                     current_key = f"index{len(last_scope)}"
                     last_scope[current_key] = dict()
                 scope.append(last_scope[current_key])
                 current_key = None
-                match_count[0] += 1
             elif '}' in sstr:
-                bracket_counter -= 1
                 scope = scope[:-1]
-                if bracket_counter == scope_boolean: # End of a Boolean Check
+                if len(scope) == scope_boolean: # End of a Boolean Check
                     scope_boolean = False
-                if bracket_counter == 0 and focuses is not None and in_focus:
+                if len(scope) == 0 and focuses is not None and in_focus:
                     if focuses == []:
                         break
                     else:
@@ -127,7 +105,6 @@ class Extractor:
                 if "field_type" not in last_scope:
                     last_scope.update({"field_type":"list"})
                 last_scope.update({"value":[field for field in split_ex.split(sstr) if len(field) > 0]})
-                match_count[1] += 1
             else: # Dictionary type fields with equations
                 parts = split_ex.split(sstr) # Split by whitespaces not adjacent to the (in)equality sign
                 for field in parts:
@@ -145,46 +122,31 @@ class Extractor:
                                     last_scope[key] = {"sign": "=", "value":value}
                                 else:
                                     last_scope[key] = value
-                                match_count[2] += 1
                             else: # boolean logic match
                                 if equality is not None: # >= <= ?=
                                     last_scope[key] = {"sign": boolean + equality, "value":value}
                                 else: # > <
                                     last_scope[key] = {"sign": boolean, "value":value}
-                                match_count[3] += 1
                         else:
                             if color is None:
                                 if boolean is None:
                                     if equality is None: # Lone entries without key is assigned a default key
                                         last_scope[f"index{len(last_scope)}"] = field
-                                        match_count[4] += 1
                                     else: # Incomplete equality match
                                         last_scope[key] = {}
                                         current_key = key
-                                        match_count[5] += 1
                                 else: # Incomplete boolean match
-                                    scope_boolean = bracket_counter
+                                    scope_boolean = len(scope)
                                     if equality is not None:
                                         last_scope[key] = {"sign":boolean + equality}
                                     else:
                                         last_scope[key] = {"sign":boolean}
                                     current_key = key
-                                    match_count[6] += 1
                             else: # Colorcode match
                                 last_scope[key] = {"field_type": color}
                                 current_key = key
-                                match_count[7] += 1
                     else:
                         raise NotImplementedError(f"Exceptional field: {field}")
-        if is_save:
-            print(f"Bracket pairs: {match_count[0]}")
-            print(f"lists count: {match_count[1]}")
-            print(f"Equality matches: {match_count[2]}")
-            print(f"Boolean matches: {match_count[3]}")
-            print(f"Lone entry matches: {match_count[4]}")
-            print(f"Incomplete equality matches: {match_count[5]}")
-            print(f"Incomplete boolean matches: {match_count[6]}")
-            print(f"Color matches: {match_count[7]}")
 
     def write(self, output, sections=None, separate=False):
         """
@@ -207,8 +169,6 @@ class Extractor:
             pass
         miscellaneous = dict()
         for k, v in data_output.items():
-            if self.check_stop():
-                raise InterruptedError("Stop event set")
             if k not in VARIABLES["large_topics"]:
                 miscellaneous[k] = v
                 continue
@@ -235,8 +195,6 @@ class Extractor:
         Modifies the dictionary 'scope' in-place, removing double quotes from all string values, including those 
         within nested dictionaries and lists.
         """
-        if self.check_stop():
-            raise InterruptedError("Stop event set")
         if scope is None:
             scope = self.data
         for key in scope:

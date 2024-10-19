@@ -4,6 +4,7 @@ from scripts.checkers.check_innovation import CheckInnovation
 from scripts.checkers.check_infamy import CheckInfamy
 from scripts.checkers.check_prestige import CheckPrestige, prestige_columns
 from scripts.checkers.check_tech import CheckTech
+from scripts.checkers.check_literacy import CheckLiteracy
 
 from scripts.helpers.plotter import plot_stat, plot_goods_produced
 from scripts.convert_localization import get_all_localization
@@ -57,11 +58,17 @@ class SaveManager:
             players = data["player_manager"]["database"]
             countries = data["country_manager"]["database"]
             player_data = []
+            countries_id = []
             for _, player in players.items():
                 player_id = player["country"]
+                if not isinstance(retrieve_from_tree(countries, player_id), dict):
+                    continue
+                if player_id in countries_id:
+                    continue
                 player_tag = countries[player_id]["definition"]
                 player_country = get_country_name(countries[player_id], self.localization)
                 player_data.append([int(player_id), player_tag, player_country])
+                countries_id.append(player_id)
             metadata["players"] = player_data
             with open(f"{address}/metadata.json", "w") as file:
                 json.dump(metadata, file, indent=4)
@@ -79,7 +86,7 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
     Interface between GUI and the checkers / plotters
     """
     check_map = dict()
-    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech]
+    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckLiteracy]
     for checker_class in all_checkers:
         for output, outvars in checker_class.output.items():
             for outvar in outvars:
@@ -94,7 +101,7 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
             save = SaveManager(folder, checkers)
             save.start_checking()
         """
-        Make exceptional cases for prestige (many subcategories), tech (no plot yet) and goods_produced (many goods)
+        Make exceptional cases for prestige (many subcategories) and goods_produced (many goods)
         """
         for check in checks:
             show = check in shows
@@ -102,8 +109,6 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
                 for prestige in prestige_columns:
                     plot_stat(campaign_folder, prestige, input_file="prestige.csv", players=True, show=show)
                 plot_stat(campaign_folder, "total", input_file="prestige.csv", players=True, save_name="total_prestige.csv", show=show)
-            elif check == "tech_tree":
-                continue
             elif check == "goods_produced":
                 plot_goods_produced(campaign_folder, 10, show=show)
             else:

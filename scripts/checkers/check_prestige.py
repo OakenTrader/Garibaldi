@@ -28,7 +28,7 @@ class CheckPrestige(Checker):
         save_date = cache["metadata"]["save_date"]
         address = cache["address"]
 
-        defines_file = load_def("defines/00_defines.txt", "Common Directory")
+        defines_file = load_def_multiple("defines", "Common Directory", depth_add=1)
         defines = dict()
         for key, defs in defines_file.items():
             if not isinstance(defs, dict):
@@ -40,7 +40,7 @@ class CheckPrestige(Checker):
 
         relevant_modifiers = ["country_prestige_add", "country_prestige_mult",
                             "country_prestige_from_army_power_projection_mult", "country_prestige_from_navy_power_projection_mult"]
-        def_modifiers = {k:v for k, v in load_def_multiple("modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
+        def_modifiers = {k:v for k, v in load_def_multiple("static_modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
 
         save_data = load_save(self.requirements, address)
 
@@ -52,9 +52,7 @@ class CheckPrestige(Checker):
         """
         countries = save_data["country_manager"]["database"]
         dynamic_countries = retrieve_from_tree(save_data, ["country_manager", "dynamic_country_definition_data"], null=[])
-        def_countries = dict()
-        for countries_file in os.listdir("./common/country_definitions"):
-            def_countries.update(load_def(f"country_definitions/{countries_file}", "Common Directory"))
+        def_countries = load_def_multiple(f"country_definitions", "Common Directory")
         
         """
         Tier
@@ -76,8 +74,8 @@ class CheckPrestige(Checker):
         Military
         """
         pp_divisor = float(defines["POWER_PROJECTION_DIVISOR"])
-        def_unit_types = load_def("combat_unit_types/00_combat_unit_types.txt", "Common Directory")
-        def_unit_type_groups = load_def("combat_unit_groups/00_combat_unit_groups.txt", "Common Directory")
+        def_unit_types = load_def_multiple("combat_unit_types", "Common Directory")
+        def_unit_type_groups = load_def_multiple("combat_unit_groups", "Common Directory")
         unit_types_specific_modifiers = [f"unit_{def_unit_type}_{modifier}" for def_unit_type in def_unit_types for modifier in ["offense_mult", "defense_mult", "offense_add", "defense_add"]]
         relevant_modifiers += unit_types_specific_modifiers
 
@@ -101,14 +99,14 @@ class CheckPrestige(Checker):
             countries[country]["mil_formations"][formation]["units"][key] = combat_unit
 
         # Get relevant mobilizations
-        mobilizations_def = load_def("mobilization_options/00_mobilization_option.txt", "Common Directory")
+        mobilizations_def = load_def_multiple("mobilization_options", "Common Directory")
         def_mobilizations = dict()
         for key, mobilization in mobilizations_def.items():
             if "unit_modifier" in mobilization:
                 if any([x in mobilization["unit_modifier"] for x in relevant_modifiers]):
                     def_mobilizations[key] = mobilization
 
-        veterancy_def = load_def("combat_unit_experience_levels/00_combat_unit_experience_levels.txt", "Common Directory")
+        veterancy_def = load_def_multiple("combat_unit_experience_levels", "Common Directory")
         def_veterancy = dict()
         for key, veterancy in veterancy_def.items():
             def_veterancy[veterancy["level"]] = veterancy
@@ -181,26 +179,26 @@ class CheckPrestige(Checker):
 
 
         """
-        Defining Monuments
+        Defining relevant buildings
         """
 
-        def_monument_methods = dict()
+        def_production_methods = dict()
         for pm_name, production_method in load_def_multiple("production_methods", "Common Directory").items():
             for relevant_modifier in relevant_modifiers:
                 if len(walk_tree(production_method, relevant_modifier)) > 0:
-                    def_monument_methods[pm_name] = production_method
+                    def_production_methods[pm_name] = production_method
                     break
         
-        def_monument_method_groups = dict()
+        def_production_method_groups = dict()
         for pmg_name, production_method_group in load_def_multiple("production_method_groups", "Common Directory").items():
-            if any([pm in def_monument_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
-                def_monument_method_groups[pmg_name] = production_method_group
+            if any([pm in def_production_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
+                def_production_method_groups[pmg_name] = production_method_group
 
-        def_monuments = dict()
+        def_buildings = dict()
         for building_name, building in load_def_multiple("buildings", "Common Directory").items():
-            for def_pmg in def_monument_methods:
+            for def_pmg in def_production_methods:
                 if def_pmg in building["production_method_groups"]:
-                    def_monuments[building_name] = building
+                    def_buildings[building_name] = building
                     break
 
         """
@@ -242,7 +240,7 @@ class CheckPrestige(Checker):
                 continue
             country = states[building["state"]]["country"]
             country_tag = countries[country]["definition"]
-            if any([pm in def_monument_methods for pm in retrieve_from_tree(building, ["production_methods", "value"], null=[])]):
+            if any([False] + [pm in def_production_methods for pm in retrieve_from_tree(building, ["production_methods", "value"], null=[])]):
                 if "monuments" not in countries[country]:
                     countries[country]["monuments"] = dict()
                 countries[country]["monuments"][building_id] = building
@@ -322,7 +320,7 @@ class CheckPrestige(Checker):
                     end_date = retrieve_from_tree(modifier, "end_date")
                     multiplier = retrieve_from_tree(modifier, "multiplier", null=1)
                     modifier = def_modifiers[modifier_name]
-                    if decay == "yes":
+                    if decay in ["yes", "linear"]:
                         # print(modifier_name)
                         decay = (1 - get_duration(save_date, start_date, end_date)[-1])
                     for mod, value in modifier.items():
@@ -489,7 +487,9 @@ class CheckPrestige(Checker):
             """
             for monument_id, monument in retrieve_from_tree(country, "monuments", null=dict()).items():
                 for relevant_modifier in relevant_modifiers:
-                    output = get_building_output(monument, relevant_modifier, def_monument_methods)
+                    if relevant_modifier not in def_production_methods:
+                        continue
+                    output = get_building_output(monument, relevant_modifier, def_production_methods)
                     if output == 0:
                         continue
                     national_modifiers[relevant_modifier][buildings[monument_id]["building"]] = output

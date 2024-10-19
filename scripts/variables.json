@@ -10,8 +10,11 @@
         "Common Directory":"./common",
         "Events Directory":"./events",
         "Localization Directory":"./localization",
+        "Localization Language":"english",
+        "Mod Directory": "",
         "Tree File Location":"",
         "Autosave Location":"",
-        "Campaign Folder": "./saves/autosaves"
+        "Campaign Folder": "autosaves"
+        
     }
 }
