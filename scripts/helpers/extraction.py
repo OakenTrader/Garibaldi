@@ -9,18 +9,18 @@ import time, shutil, re
 from glob import glob
 
 # Fully extract save file
-def extract_save_file(save_file, stop_event):
+def extract_save_file(save_file):
     """
     Handles extraction of a single save file.
     """
     try:
-        data = t_execute(Extractor)(f"{save_file}/save.txt", is_save=True, stop_event=stop_event)
+        data = t_execute(Extractor)(f"{save_file}/save.txt", is_save=True)
         t_execute(data.unquote)()
         t_execute(data.write)(save_file, separate=True)
     except InterruptedError as e:
         raise InterruptedError("Stop event set")
     except Exception as e:
-        data = Extractor(f"{save_file}/save.txt", is_save=True, pline=True, stop_event=stop_event)
+        data = Extractor(f"{save_file}/save.txt", is_save=True, pline=True)
 
 def extract_files(campaign_folder, files, stop_event, finish_event, queue, delete=True):
     """
@@ -45,7 +45,7 @@ def extract_files(campaign_folder, files, stop_event, finish_event, queue, delet
                 continue
             if ".v3" not in file: # check pre-extracted saves
                 if "save.txt" in os.listdir(file):
-                    extract_save_file(f"{file}", stop_event)
+                    extract_save_file(f"{file}")
                     if delete:
                         os.remove(f"{file}/save.txt")
                 continue
@@ -66,7 +66,7 @@ def extract_files(campaign_folder, files, stop_event, finish_event, queue, delet
                 raise InterruptedError("Stop event set")
             
             try:
-                extract_save_file(folder, stop_event)
+                extract_save_file(folder)
             except Exception as e:
                 raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
             

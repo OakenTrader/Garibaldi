@@ -31,7 +31,6 @@ class Extractor:
                            only occur within the scope where this substring is found at the root level. Default is None.
     pline (bool, optional): If True, print each line of the file as it's processed. This is useful for debugging. 
                             Default is False.
-    stop_event (threading.Event, optional): threading Event used to interrupt the process from the outside. Default is None
     version (string, optional): Version of the game of this file.
 
     Attributes:
