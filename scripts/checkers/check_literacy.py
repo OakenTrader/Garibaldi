@@ -43,7 +43,7 @@ class CheckLiteracy(Checker):
             if retrieve_from_tree(state, ["demographics"]) is None:
                 continue
             if "country" not in state:
-                state["country"] = state["zero_token_259"] # FIXME Rectify this after updating melter
+                continue # dead state
             country = countries[state["country"]]
             if "demographics" not in country:
                 country["demographics"] = []

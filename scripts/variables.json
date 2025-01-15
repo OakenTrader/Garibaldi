@@ -1,5 +1,5 @@
 {
-    "large_topics": ["country_manager", "pops", "interest_groups",
+    "large_topics": ["country_manager", "pops", "interest_groups", "building_ownership_manager",
     "building_manager", "states", "character_manager", "journal_entry_manager", "relations", "laws", "new_combat_unit_manager", "provinces"],
     "problematic_definition_files": {
         "1.5": {"mobilization_options/00_mobilization_option.txt":[602, 603]},

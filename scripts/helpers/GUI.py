@@ -115,9 +115,9 @@ class Garibaldi_gui:
         window.destroy()
         widget.config(state="normal")
         widget.delete(0, tk.END)
-        widget.insert(0, f"./saves/{campaign_folder}")
+        widget.insert(0, campaign_folder)
         widget.config(state="readonly")
-        self.set_var("Campaign Folder", f"./saves/{campaign_folder}")
+        self.set_var("Campaign Folder", campaign_folder)
 
     def make_grid(self, objects:list, pad_x, pad_y):
         """Formats objects in a window"""
@@ -193,7 +193,6 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
 class SaveExtractor(tk.Toplevel, Garibaldi_gui):
     """
     Handles Save extractor menu
-    TODO Make an option to have multiple threads extracting at the same time
     TODO Make a failure popup box
     """
     def __init__(self, master):
@@ -269,9 +268,6 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
             self.watch_thread.append(thread)
             thread.start()
         self.after(1000, self.check_progress)
-        """
-        FIXME The program doesn't crash but multiprocessing doesn't help utilizing the whole cpu
-        """
     
     def check_progress(self):
         try:
@@ -307,7 +303,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
 
 
 """
-TODO Make analyzing and plotting a separate task from extracting so that we use plots on the main thread
+TODO Put the interactive plots as an integrated element on GUI
 """
 
 class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):

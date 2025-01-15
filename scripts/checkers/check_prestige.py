@@ -93,6 +93,10 @@ class CheckPrestige(Checker):
             if "mil_formations" not in countries[country]:
                 countries[country]["mil_formations"] = dict()
             if formation not in countries[country]["mil_formations"]:
+                if formation not in formations:
+                    print(f"Formation {formation} doesn't exist!")
+                    print(combat_unit)
+                    continue
                 countries[country]["mil_formations"][formation] = formations[formation]
             if "units" not in countries[country]["mil_formations"][formation]:
                 countries[country]["mil_formations"][formation]["units"] = dict()
