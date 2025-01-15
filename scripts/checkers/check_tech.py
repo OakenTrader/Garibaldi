@@ -9,7 +9,7 @@ class CheckTech(Checker):
     """
 
     requirements = ["country_manager", "technology"]
-    output = {"tech_tree.csv": ["production_techs", "military_techs", "society_techs", "total_techs"], "tech_table.csv": []}
+    output = {"tech_tree.csv": ["production_techs", "military_techs", "society_techs", "total_techs"], "missing_techs.csv": []}
 
     def __init__(self):
         super().__init__()
@@ -37,6 +37,7 @@ class CheckTech(Checker):
                     techs[t] += 1
         
         def_techs = load_def_multiple("technology/technologies", "Common Directory")
+        def_techs_era = load_def_multiple("technology/eras", "Common Directory")
         def_prod_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "production"}
         def_mil_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "military"}
         def_soc_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "society"}
@@ -58,6 +59,7 @@ class CheckTech(Checker):
 
         """Who is researching which"""
         player_countries = [str(p[0]) for p in players] # get country_id
+        # player_countries = ["4", "1", "5", "9", "8", "23", "29", "199", "201", "183", "3", "30", "36", "94", "17", "144", "112", "409"] # Slot tags
         missing_techs = set()
         df_tech = []
         for tech_id, tech_entry in technologies.items():
@@ -73,6 +75,11 @@ class CheckTech(Checker):
             if researching_tech in frontier or country_id in player_countries:
                 output += f"{tech_id} {country_tag} {country_name} : {researching_tech}\n"
                 his_tech = technologies[tech_id]["acquired_technologies"]["value"]
+                tech_points = 0
+                for tech in his_tech:
+                    if "era" not in def_techs[tech]:
+                        continue
+                    tech_points += float(def_techs_era[def_techs[tech]["era"]]["technology_cost"])
                 his_prod_tech = [tech for tech in his_tech if tech in def_prod_tech]
                 his_mil_tech = [tech for tech in his_tech if tech in def_mil_tech]
                 his_soc_tech = [tech for tech in his_tech if tech in def_soc_tech]
@@ -87,26 +94,47 @@ class CheckTech(Checker):
                 missing_techs.update(set(his_missing_tech))
                 output += "Missing tech\n"
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
-                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech)})
+                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech), "tech_points":tech_points})
 
         df_missing_techs = []
-        for country_id in player_countries:
+        miss_mil_tech = []
+        miss_soc_tech = []
+        miss_prod_tech = []
+        for missing_tech in missing_techs: # Assign categories to techs
+            if missing_tech in def_mil_tech:
+                miss_mil_tech.append(missing_tech)
+            elif missing_tech in def_soc_tech:
+                miss_soc_tech.append(missing_tech)
+            elif missing_tech in def_prod_tech:
+                miss_prod_tech.append(missing_tech)
+        missing_techs_keys = miss_mil_tech + miss_soc_tech + miss_prod_tech
+
+        for country_id in player_countries: # Create a table for missing tech
             if not isinstance(country := retrieve_from_tree(countries, [country_id]), dict):
                 continue
             df_missing_tech = {"id":country_id, "tag":country["definition"], "country":get_country_name(country, localization)}
-            df_missing_tech.update({tech:False for tech in missing_techs})
-            missing_tech = countries[country_id]["Missing tech"]
-            for tech in missing_techs:
-                if tech in missing_tech:
-                    df_missing_tech[tech] = True
+            df_missing_tech.update({tech:False for tech in missing_techs_keys})
+            missing_tech = retrieve_from_tree(countries, [country_id, "Missing tech"], null=[])
+            df_missing_tech.update({tech:True for tech in missing_tech})
             df_missing_techs.append(df_missing_tech)
-        df_missing_techs = pd.DataFrame(df_missing_techs, columns=["id", "tag", "country"] + list(missing_techs))
-        """TODO Make missing tech columns sorted according to category and eras"""
+        
+        df_missing_techs = pd.DataFrame(df_missing_techs, columns=["id", "tag", "country"] + missing_techs_keys)
+        count_country = df_missing_techs.iloc[:, 3:].sum()
+        total_row = pd.DataFrame([['', '', 'Total', *count_country]], index=[0], columns=df_missing_techs.columns)
+        df_missing_techs = pd.concat([df_missing_techs, total_row], ignore_index=True)
 
-        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs"])
+        df_missing_techs["Total"] = df_missing_techs.iloc[:, 3:].sum(axis=1)
+        df_missing_techs["Total Military"] = df_missing_techs.iloc[:, 3:3+len(miss_mil_tech)].sum(axis=1)
+        df_missing_techs["Total Society"] = df_missing_techs.iloc[:, 3+len(miss_mil_tech):3+len(miss_mil_tech)+len(miss_soc_tech)].sum(axis=1)
+        df_missing_techs["Total Production"] = df_missing_techs.iloc[:, 3+len(miss_mil_tech)+len(miss_soc_tech):3+len(missing_techs_keys)].sum(axis=1)
+        df_missing_techs.sort_values(by=["Total"], ascending=True, inplace=True)
+        df_missing_techs = df_missing_techs.T
+
+        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs", "tech_points"])
+        df_tech.sort_values(by=["total_techs"], inplace=True)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
-            df_missing_techs.to_csv(f"{address}/tech_table.csv", sep=",", index=False, encoding="utf-8")
+            df_missing_techs.to_csv(f"{address}/missing_techs.csv", sep=",", encoding="utf-8")
             with open(f"{address}/tech_tree.txt", "w", encoding="utf-8") as file:
                 year, month, day = save_date
                 file.write(f"{day}/{month}/{year}\n")
