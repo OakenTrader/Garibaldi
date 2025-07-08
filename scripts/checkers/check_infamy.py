@@ -42,7 +42,7 @@ class CheckInfamy(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df.to_csv(f"{address}/infamy.csv", sep=",", index=False)
-            with open(f"{address}/infamy.txt", "w") as file:
+            with open(f"{address}/infamy.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")
                 file.write(df.to_string())
         print(f"Finished checking infamy on {day}/{month}/{year}")

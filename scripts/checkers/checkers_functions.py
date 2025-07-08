@@ -110,7 +110,7 @@ def national_modifiers_manager(country, save_date, def_modifiers, relevant_modif
         end_date = retrieve_from_tree(modifier, "end_date")
         multiplier = retrieve_from_tree(modifier, "multiplier", null=1)
         modifier = def_modifiers[modifier_name]
-        if decay == "yes":
+        if decay == "yes" or decay == "linear":
             decay = (1 - get_duration(save_date, start_date, end_date)[-1])
         for mod, value in modifier.items():
             if mod in relevant_modifiers:
