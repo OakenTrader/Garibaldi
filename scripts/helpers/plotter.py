@@ -5,6 +5,7 @@ Functions that manage data plotting.
 import os, warnings, time
 from scripts.helpers.utility import *
 import matplotlib.pyplot as plt
+from random import randint
 from matplotlib import colors as mpl_colors
 import numpy as np
 import pandas as pd
@@ -37,7 +38,7 @@ def get_color(tag):
         if isinstance(color, str) and color in named_colors:
             color = named_colors[color]
     except KeyError:
-        color = {"field_type":"hsv360", "value":[np.random.randint(360), 100, 50]}
+        color = {"field_type":"hsv360", "value":[randint(0, 359), 100, 50]}
         warnings.warn(f"No color provided for {tag}, used hsv360 {color['value']}")
         # raise KeyError(f"No color provided for {tag}")
 
@@ -49,7 +50,9 @@ def get_color(tag):
         else:
             colors = [float(v) for v in color["value"]]
     elif color_type == "hsv":
-        colors = mpl_colors.hsv_to_rgb([float(v) for v in color["value"]])
+        color_ = [float(v) for v in color["value"]]
+        colors = mpl_colors.hsv_to_rgb([color_[0]/360, color_[1]/100, color_[2]/100])
+        # colors = mpl_colors.hsv_to_rgb([float(v) for v in color["value"]])
     elif color_type == "hsv360":
         colors = [float(v) for v in color["value"]]
         colors = mpl_colors.hsv_to_rgb([colors[0]/360, colors[1]/100, colors[2]/100])
@@ -104,7 +107,7 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
             except KeyError:
                 metadata = load_save(["meta_data"], save_folder, True)
                 year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
-            year_number = int(year) + (int(month) - 1) / 12 + int(day) / 30 # Simplified formula
+            year_number = int(year) + (int(month) - 1) / 12 + int(day) / (365) # Simplified formula
             if year_number < start_date or year_number > end_date + 1:
                 continue
             if input_file not in os.listdir(save_folder):
@@ -144,7 +147,8 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
         plot_countries[name] = countries[name]
         was_player.discard(name)
     for name in was_player:
-        plot_countries[name] = countries[name]
+        if name in countries:
+            plot_countries[name] = countries[name]
     for name, country in plot_countries.items():
         country_color = get_color(name[0])
         if "Revolutionary" in name[1]:

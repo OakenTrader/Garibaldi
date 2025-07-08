@@ -5,8 +5,6 @@ import re
 from pathlib import Path
 from scripts.helpers.utility import *
 
-user_variables = jopen("./user_variables.json")
-
 def get_localization(address):
     """
     Obtains the localization text from the files.
@@ -33,6 +31,7 @@ def get_all_localization():
     """
     Returns every single localization definition in the game for a language.
     """
+    user_variables = jopen("./user_variables.json")
     lcl_files = list(Path(user_variables["Localization Directory"] + f"//{user_variables['Localization Language']}").rglob("*.yml"))
     dicts = []
     for f in lcl_files:
@@ -40,5 +39,12 @@ def get_all_localization():
         dicts.append(names)
     localization = dict()
     for d in dicts:
+        localization.update(d)
+    lcl_mod_files = list(Path(user_variables["Mod Directory"] + f"//localization//{user_variables['Localization Language']}").rglob("*.yml"))
+    dicts_mod = []
+    for f in lcl_mod_files:
+        names = get_localization(f)
+        dicts_mod.append(names)
+    for d in dicts_mod:
         localization.update(d)
     return localization

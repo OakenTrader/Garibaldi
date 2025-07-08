@@ -29,7 +29,10 @@ class CheckTech(Checker):
         for key in technologies:
             if technologies[key] == "none":
                 continue
-            researched = technologies[key]["acquired_technologies"]["value"]
+            # researched = technologies[key]["acquired_technologies"]["value"]
+            researched = retrieve_from_tree(technologies, [key, "acquired_technologies", "value"])
+            if researched is None:
+                continue
             for t in researched:
                 if t not in techs:
                     techs[t] = 1
@@ -94,7 +97,7 @@ class CheckTech(Checker):
                 missing_techs.update(set(his_missing_tech))
                 output += "Missing tech\n"
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
-                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech), "tech_points":tech_points})
+                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech), "tech_points":tech_points, "researching":researching_tech})
 
         df_missing_techs = []
         miss_mil_tech = []
@@ -130,8 +133,8 @@ class CheckTech(Checker):
         df_missing_techs.sort_values(by=["Total"], ascending=True, inplace=True)
         df_missing_techs = df_missing_techs.T
 
-        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs", "tech_points"])
-        df_tech.sort_values(by=["total_techs"], inplace=True)
+        df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs", "tech_points", "researching"])
+        df_tech.sort_values(by=["total_techs"], inplace=True, ascending=False)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
             df_missing_techs.to_csv(f"{address}/missing_techs.csv", sep=",", encoding="utf-8")

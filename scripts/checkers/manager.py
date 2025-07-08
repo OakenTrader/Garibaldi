@@ -4,7 +4,8 @@ from scripts.checkers.check_innovation import CheckInnovation
 from scripts.checkers.check_infamy import CheckInfamy
 from scripts.checkers.check_prestige import CheckPrestige, prestige_columns
 from scripts.checkers.check_tech import CheckTech
-from scripts.checkers.check_literacy import CheckLiteracy
+from scripts.checkers.check_demographics import CheckDemographics, demographics_columns
+from scripts.checkers.check_finance import CheckFinance, finance_columns
 
 from scripts.helpers.plotter import plot_stat, plot_goods_produced
 from scripts.convert_localization import get_all_localization
@@ -86,7 +87,7 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
     Interface between GUI and the checkers / plotters
     """
     check_map = dict()
-    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckLiteracy]
+    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckDemographics, CheckFinance]
     for checker_class in all_checkers:
         for output, outvars in checker_class.output.items():
             for outvar in outvars:
@@ -111,6 +112,12 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
                 plot_stat(campaign_folder, "total", input_file="prestige.csv", players=True, save_name="total_prestige.csv", show=show)
             elif check == "goods_produced":
                 plot_goods_produced(campaign_folder, 10, show=show)
+            elif check == "GDP":
+                for finance in finance_columns:
+                    plot_stat(campaign_folder, finance, input_file="finance.csv", players=True, show=show)
+            elif check == "literacy":
+                for demographic in demographics_columns:
+                    plot_stat(campaign_folder, demographic, input_file="demographics.csv", players=True, show=show)
             else:
                 check_class, outfile = check_map[check]
                 plot_stat(campaign_folder, check, input_file=outfile, show=show, players=True)

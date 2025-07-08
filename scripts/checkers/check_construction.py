@@ -104,7 +104,7 @@ class CheckConstruction(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_construction.to_csv(f"{address}/construction.csv", sep=",", index=False)
-            with open(f"{address}/construction.txt", "w") as file:
+            with open(f"{address}/construction.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")
                 file.write(df_construction.to_string())
         print(f"Finished checking construction on {day}/{month}/{year}")

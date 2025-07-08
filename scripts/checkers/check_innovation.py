@@ -88,8 +88,8 @@ class CheckInnovation(Checker):
                         inno_cap += bloc_cap
 
             national_modifiers = national_modifiers_manager(country, save_date, def_static_modifiers, relevant_modifiers)
-            innov += sum([float(v) for v in national_modifiers["country_weekly_innovation_add"]])
-            inno_cap += sum([float(v) for v in national_modifiers["country_weekly_innovation_max_add"]])
+            innov += sum([float(v) for v in national_modifiers["country_weekly_innovation_add"].values()])
+            inno_cap += sum([float(v) for v in national_modifiers["country_weekly_innovation_max_add"].values()])
 
             innov = innov * innov_mult
             country_name = get_country_name(country, localization)
