@@ -11,6 +11,8 @@ Save game analyzer for Victoria 3 which retrieve information from autosaves acro
     - Technologies and table of technologies comparison
     - Demographics
     - Finance
+    - Demographics
+    - Finance
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
@@ -26,6 +28,9 @@ we try not to hardcode any variable into the script, relying all data from the p
 
 ## Dependencies
 Pandas, Numpy, Matplotlib
+
+## How to install and use
+Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who are not familiar with Python for installation as well as usage instructions.
 
 ## How to install and use
 Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who are not familiar with Python for installation as well as usage instructions.
