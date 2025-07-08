@@ -363,11 +363,11 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list = dict()
         self.check_list["construction"] = add_checker("Construction")
         self.check_list["avg_cost"] = add_checker("Average Construction Cost")
+        self.check_list["GDP"] = add_checker("Finance")
         self.check_list["innovation"] = add_checker("Innovation")
         self.check_list["capped_innovation"] = add_checker("Capped Innovation")
         self.check_list["infamy"] = add_checker("Infamy")
-        self.check_list["literacy"] = add_checker("Literacy")
-        self.check_list["population"] = add_checker("Population")
+        self.check_list["literacy"] = add_checker("Demographics")
         self.check_list["total_prestige"] = add_checker("Prestige")
         self.check_list["production_techs"] = add_checker("Production Techs")
         self.check_list["military_techs"] = add_checker("Military Techs")
@@ -426,6 +426,7 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
     
     def end_task(self):
         """Checks if checking is done/terminated and restore the menu state"""
+        """If finish event is raised but not stop_event, we proceed to draw plotting"""
         if self.stop_event.is_set() and self.finish_event.is_set():
             self.finish_event.clear()
             self.toggle_tinkerable()
