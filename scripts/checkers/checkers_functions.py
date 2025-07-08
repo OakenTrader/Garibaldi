@@ -86,6 +86,7 @@ def bloc_manager(save_data, relevant_modifiers):
     return principles, blocs
 
 def institution_manager(save_data, countries, relevant_institutions):
+    """Get data of institutions and their levels with relevant modifiers"""
     all_institutions = save_data["institutions"]["database"]
     for _, institution in all_institutions.items():
         if not isinstance(institution, dict):
@@ -145,7 +146,7 @@ def get_save_date(address, split=True):
         return year, month, day
     return save_date
 
-def get_building_output(building, target, def_production_methods):
+def get_building_output(building, target, def_production_methods, modifier_type="country_modifiers"):
     """
     Calculate a building's output of a variable with respected to production methods, employees and throughput
     Employees must be added into a building from the outside in building["pops_employed"]
@@ -155,7 +156,7 @@ def get_building_output(building, target, def_production_methods):
     employees_pl = dict()
     for pm_name in building["production_methods"]["value"]:
         pm = def_production_methods[pm_name]
-        if (output_workforce := retrieve_from_tree(pm, ["country_modifiers", "workforce_scaled", target])) is not None:
+        if (output_workforce := retrieve_from_tree(pm, [modifier_type, "workforce_scaled", target])) is not None:
             output += float(output_workforce)
         if (employees_dict := retrieve_from_tree(pm, ["building_modifiers", "level_scaled"])) is not None:
             for key, addition in employees_dict.items():
