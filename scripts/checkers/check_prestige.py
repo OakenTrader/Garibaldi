@@ -88,7 +88,10 @@ class CheckPrestige(Checker):
         for key, combat_unit in combat_units.items():
             if not isinstance(combat_unit, dict):
                 continue
-            country = combat_unit["country"]
+            country = retrieve_from_tree(combat_unit, ["country"])
+            if country is None:
+                # print(f"Landless unit: {key}")
+                continue
             formation = combat_unit["formation"]
             if "mil_formations" not in countries[country]:
                 countries[country]["mil_formations"] = dict()
@@ -255,12 +258,12 @@ class CheckPrestige(Checker):
                 continue
             for k, v in output_goods.items():
                 if country not in goods_leaderboard[k]:
-                    goods_leaderboard[k][country] = float(v)
+                    goods_leaderboard[k][country] = float(v["value"])
                 else:
-                    goods_leaderboard[k][country] += float(v)
+                    goods_leaderboard[k][country] += float(v["value"])
                 if country_tag not in df_countries_goods:
                     df_countries_goods[country_tag] = {"id":country, "country":get_country_name(countries[country], localization)} | {num_to_goods[j]:0 for j in range(len(num_to_goods))}
-                df_countries_goods[country_tag][num_to_goods[int(k)]] += float(v)
+                df_countries_goods[country_tag][num_to_goods[int(k)]] += float(v["value"])
                 
 
 
@@ -471,7 +474,7 @@ class CheckPrestige(Checker):
             FIXME This is actually gdp of the last record (week/month idk), actually gdp at game time will have to be recalculated (daunting task)
             """
             if (country_gdp := retrieve_from_tree(country, ["gdp", "channels", "0", "values", "value"])) is None:
-                warnings.warn(f"No GDP record for {country_key}:{country_tag}")
+                # warnings.warn(f"No GDP record for {country_key}:{country_tag}")
                 country_gdp = [0]
             # print(f"{country_key} {country_tag}: {country_gdp[-1]}")
             national_prestige["GDP prestige"] = float(country_gdp[-1]) / gdp_divisor * prestige_per_gdp
@@ -486,7 +489,7 @@ class CheckPrestige(Checker):
             for goods_type, leaderboard in goods_leaderboard.items():
                 for rank, stat in enumerate(leaderboard[:min_spot_prestige_award]):
                     if country_key == stat[0]:
-                        national_prestige["production leader prestige"] += float(def_goods[num_to_goods[int(goods_type)]]["prestige_factor"]) * 2 ** (min_spot_prestige_award - rank - 1)
+                        national_prestige["production leader prestige"] += float(retrieve_from_tree(def_goods, [num_to_goods[int(goods_type)], "prestige_factor"], 0)) * 2 ** (min_spot_prestige_award - rank - 1)
                         break
 
             """
