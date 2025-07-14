@@ -11,8 +11,6 @@ Save game analyzer for Victoria 3 which retrieve information from autosaves acro
     - Technologies and table of technologies comparison
     - Demographics
     - Finance
-    - Demographics
-    - Finance
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
@@ -20,7 +18,7 @@ Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/r
 
 Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
-Works for games in version 1.8.7
+Works for games in version 1.9
 The program is not guaranteed to work in any other version (it will certainly break in earlier versions because Paradox changes variable names over time and I am too lazy to maintain backward compatibility)
 
 The script is intended (atleast in the future) to be compatible with as many mods as possible and so
@@ -31,3 +29,8 @@ Pandas, Numpy, Matplotlib
 
 ## How to install and use
 Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who are not familiar with Python for installation as well as usage instructions.
+
+Do not hesitate to open an issue for bug reports and suggestions!
+
+## Version 0.8.1
+- Updated to game version 1.9.x
