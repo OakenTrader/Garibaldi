@@ -33,4 +33,5 @@ Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who
 Do not hesitate to open an issue for bug reports and suggestions!
 
 ## Version 0.8.1
+Windows users download the rar file from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.8.1)
 - Updated to game version 1.9.x
