@@ -23,9 +23,9 @@ class CheckDemographics(Checker):
         pops = save_data["pops"]["database"]
         states = save_data["states"]["database"]
         countries = save_data["country_manager"]["database"]
-        buildings = save_data["building_manager"]["database"]
-        def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        institution_manager(save_data, countries, "")
+        # buildings = save_data["building_manager"]["database"]
+        # def_production_methods = load_def_multiple("production_methods", "Common Directory")
+        # institution_manager(save_data, countries, "")
 
         # for building_key, building in buildings.items():
         #     """Get pollution"""
