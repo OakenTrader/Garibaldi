@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import *
-from scripts.helpers.utility import *
+from src.checkers.check_base import Checker
+from src.checkers.checkers_functions import *
+from src.helpers.utility import *
 
 class CheckInnovation(Checker):
     """
@@ -52,7 +52,7 @@ class CheckInnovation(Checker):
             if any([country == "none", "states" not in country]):
                 continue
             try:
-                literacy = country["literacy"]["channels"]["0"]["values"]["value"][-1]
+                literacy = retrieve_from_tree(country, ["literacy", "channels", "0", "values", "value"], null=[0])[-1]
             except KeyError:
                 literacy = 0
                 """

@@ -1,4 +1,4 @@
-from scripts.helpers.GUI import *
+from src.helpers.GUI import *
 
 if __name__ == "__main__":
     a = Main_Menu()

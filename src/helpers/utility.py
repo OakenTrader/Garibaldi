@@ -2,7 +2,7 @@
 Whatever functions written to help the program.
 """
 import sys, os, shutil, fnmatch, pickle, gzip, glob, json, re
-from scripts.extractor import Extractor
+from src.extractor import Extractor
 import time, functools
 
 def t_execute(func):

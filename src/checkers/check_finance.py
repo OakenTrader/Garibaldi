@@ -1,6 +1,6 @@
-from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import get_country_name
-from scripts.helpers.utility import retrieve_from_tree, load_def
+from src.checkers.check_base import Checker
+from src.checkers.checkers_functions import get_country_name
+from src.helpers.utility import retrieve_from_tree, load_def
 import pandas as pd
 
 finance_columns = ["GDP", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"]

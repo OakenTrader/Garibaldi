@@ -1,10 +1,10 @@
 """
 File containing the save extraction functions
 """
-from scripts.checkers.checkers_functions import rename_folder_to_date
-from scripts.extractor import Extractor
-from scripts.helpers.melt import melt
-from scripts.helpers.utility import *
+from src.checkers.checkers_functions import rename_folder_to_date
+from src.extractor import Extractor
+from src.helpers.melt import melt
+from src.helpers.utility import *
 import time, shutil, re
 from glob import glob
 

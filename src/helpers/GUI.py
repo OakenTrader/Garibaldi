@@ -4,10 +4,10 @@ Handles all existing GUI of Garibaldi
 import multiprocessing.queues
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from scripts.helpers.utility import *
-from scripts.helpers.save_watch import *
-from scripts.helpers.extraction import *
-from scripts.checkers.manager import perform_checking
+from src.helpers.utility import *
+from src.helpers.save_watch import *
+from src.helpers.extraction import *
+from src.checkers.manager import perform_checking
 import sys, json, os, glob, multiprocessing, queue
 
 class Garibaldi_gui:
@@ -16,7 +16,7 @@ class Garibaldi_gui:
     """
     def __init__(self):
         super().__init__()
-        self.variables = jopen("./scripts/variables.json")
+        self.variables = jopen("./src/variables.json")
         try:
             self.user_variables = jopen("./user_variables.json")
         except:

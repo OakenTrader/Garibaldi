@@ -1,14 +1,14 @@
-from scripts.checkers.checkers_functions import *
-from scripts.checkers.check_construction import CheckConstruction
-from scripts.checkers.check_innovation import CheckInnovation
-from scripts.checkers.check_infamy import CheckInfamy
-from scripts.checkers.check_prestige import CheckPrestige, prestige_columns
-from scripts.checkers.check_tech import CheckTech
-from scripts.checkers.check_demographics import CheckDemographics, demographics_columns
-from scripts.checkers.check_finance import CheckFinance, finance_columns
+from src.checkers.checkers_functions import *
+from src.checkers.check_construction import CheckConstruction
+from src.checkers.check_innovation import CheckInnovation
+from src.checkers.check_infamy import CheckInfamy
+from src.checkers.check_prestige import CheckPrestige, prestige_columns
+from src.checkers.check_tech import CheckTech
+from src.checkers.check_demographics import CheckDemographics, demographics_columns
+from src.checkers.check_finance import CheckFinance, finance_columns
 
-from scripts.helpers.plotter import plot_stat, plot_goods_produced
-from scripts.convert_localization import get_all_localization
+from src.helpers.plotter import plot_stat, plot_goods_produced
+from src.helpers.convert_localization import get_all_localization
 import os, glob
 
 class SaveManager:

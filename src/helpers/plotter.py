@@ -3,7 +3,7 @@ Functions that manage data plotting.
 """
 
 import os, warnings, time
-from scripts.helpers.utility import *
+from src.helpers.utility import *
 import matplotlib.pyplot as plt
 from random import randint
 from matplotlib import colors as mpl_colors

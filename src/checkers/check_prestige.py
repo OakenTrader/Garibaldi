@@ -1,8 +1,8 @@
 import pandas as pd
 import os, warnings
-from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import *
-from scripts.helpers.utility import *
+from src.checkers.check_base import Checker
+from src.checkers.checkers_functions import *
+from src.helpers.utility import *
 
 """
 There are several sources of prestige, some fixed to a certain amount, some scaling by another metric. (Vickypedia)

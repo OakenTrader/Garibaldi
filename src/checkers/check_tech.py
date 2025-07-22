@@ -1,6 +1,6 @@
-from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import get_country_name
-from scripts.helpers.utility import *
+from src.checkers.check_base import Checker
+from src.checkers.checkers_functions import get_country_name
+from src.helpers.utility import *
 import pandas as pd
 
 class CheckTech(Checker):

@@ -3,7 +3,7 @@ Handles obtaining localization of the game's variables
 """
 import re
 from pathlib import Path
-from scripts.helpers.utility import *
+from src.helpers.utility import *
 
 def get_localization(address):
     """

@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 import warnings
-from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import get_building_output, get_country_name, national_modifiers_manager
-from scripts.helpers.utility import *
+from src.checkers.check_base import Checker
+from src.checkers.checkers_functions import get_building_output, get_country_name, national_modifiers_manager
+from src.helpers.utility import *
 
 class CheckConstruction(Checker):
     """

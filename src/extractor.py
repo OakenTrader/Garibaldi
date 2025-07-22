@@ -3,7 +3,7 @@ Save files extraction logic.
 """
 import re, gzip, pickle, os, json
 
-with open("./scripts/variables.json", "r") as file:
+with open("./src/variables.json", "r") as file:
     VARIABLES = json.load(file)
 
 class Extractor:
