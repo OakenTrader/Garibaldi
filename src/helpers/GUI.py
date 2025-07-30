@@ -37,7 +37,7 @@ class Garibaldi_gui:
         self.user_variables[key] = value
         self.save_settings()
 
-    def browse_folder(self, entry_widget, settings_key, initialdir=None, only_folder_name=False):
+    def browse_folder(self, entry_widget, settings_key, initialdir=None, only_folder_name=False, custom_command=None):
         """Browses a folder location then set the value in the provided entry_widget and settings key of the user variables.
         Intialdir may be provided to set the initial directory of the browser."""
         if self.is_browsing:
@@ -56,6 +56,8 @@ class Garibaldi_gui:
             entry_widget.config(state='readonly')  # Set the entry back to read-only
             self.set_var(settings_key,folder_path)
         self.is_browsing = False
+        if custom_command is not None:
+            custom_command()
     
     def browse_file(self, entry_widget, settings_key, initialdir=None):
         """Browses a file location then set the value in the provided entry_widget and settings key of the user variables.
@@ -158,7 +160,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
     def __init__(self):
         super().__init__()
         Garibaldi_gui.__init__(self)
-        self.title("Garibaldi")
+        self.title("Garibaldi v0.9.0")
         self.stop_event = multiprocessing.Event()
         self.stop_event.clear()
         self.main_menu_gui()
@@ -622,23 +624,88 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
         Garibaldi_gui.__init__(self)
         self.title("Configure settings")
         self.n_entries = 0
-        for key in ["Common Directory", "Events Directory", "Localization Directory", "Mod Directory"]:
-            self.add_directory_settings(key)
+        self.get_mod()
+        selected_mod_path = self.get_var("Selected Mod")
+        selected_mod_key = ""
+        print("selected mod path = ", selected_mod_path)
+        for k, v in self.mods_list.items():
+            print("v = ", v)
+            if os.path.abspath(v) == os.path.abspath(selected_mod_path):
+                selected_mod_key = k
+                break
+        self.selected_mod = tk.StringVar(value=selected_mod_key)
+        self.mod_combobox = ttk.Combobox(self, textvariable=self.selected_mod, values=list(self.mods_list.keys()), state=self.mod_combobox_state, width=47)
+
+        def on_mod_selected(event):
+            key = self.mod_combobox.get()
+            if key in self.mods_list:
+                self.set_var("Selected Mod", self.mods_list[key])
+
+        def refresh_mod_list():
+            # Refresh the mods_list and update combobox values
+            self.get_mod()
+            self.mod_combobox['values'] = list(self.mods_list.keys())
+            # Optionally, update the selected value if needed
+            selected_mod_path = self.get_var("Selected Mod")
+            for k, v in self.mods_list.items():
+                if v == selected_mod_path:
+                    self.selected_mod.set(k)
+                    break
+                else:
+                    self.selected_mod.set("")
+
+        for key in ["Common Directory", "Events Directory", "Localization Directory", "Mods Directory"]:
+            custom_command = None
+            if key == "Mods Directory":
+                custom_command = refresh_mod_list
+            self.add_directory_settings(key, custom_command=custom_command)
+
+        # Add a dropbar (Combobox) to choose a mod from mods_list
+        ttk.Label(self, text="Select Mod").grid(row=self.n_entries, column=0, padx=10, pady=10, sticky='e')
+
+        self.mod_combobox.bind("<<ComboboxSelected>>", on_mod_selected)
+        # Bind focus-in event to refresh the list when user clicks or tabs into the combobox
+        self.mod_combobox.grid(row=self.n_entries, column=1, padx=10, pady=10, columnspan=2, sticky='w')
+        self.n_entries += 1
     
-    def add_directory_settings(self, target):
+    def add_directory_settings(self, target, custom_command=None):
         """Generates Label/entry/button for each specified user variable"""
         ttk.Label(self, text=target).grid(row=self.n_entries, column=0, padx=10, pady=10, sticky='e')
         settings_entry = ttk.Entry(self, width=50)
         settings_entry.grid(row=self.n_entries, column=1, padx=10, pady=10)
         settings_entry.insert(0, self.get_var(target))
         settings_entry.config(state="readonly")
-        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, target))
+        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, target, custom_command=custom_command))
         browse_button.grid(row=self.n_entries, column=2, padx=2, pady=10)
         reset_button = ttk.Button(self, text="Restore Defaults", command=lambda: self.restore_defaults(settings_entry, target))
         reset_button.grid(row=self.n_entries, column=3, padx=2, pady=10)
         self.n_entries += 1
+    
+    def get_mod(self):
+        """Returns the selected mod from the combobox"""
+        self.mods_list = dict()
+        mod_dir = self.get_var("Mods Directory")
+        selected_mod = self.get_var("Selected Mod")
+        self.mod_combobox_state = "readonly"
+        if os.path.isdir(mod_dir):
+            for folder in os.listdir(mod_dir):
+                mod = folder
+                folder_dir = os.path.join(mod_dir, folder)
+                if os.path.isdir(folder_dir) and ".metadata" in os.listdir(folder_dir) and "metadata.json" in os.listdir(os.path.join(folder_dir, ".metadata")):
+                    with open(os.path.join(folder_dir, ".metadata", "metadata.json"), "r") as f:
+                        print(os.path.join(folder_dir, ".metadata", "metadata.json"))
+                        try:
+                            metadata = json.load(f)
+                            if "name" in metadata:
+                                mod = folder + " - " + metadata["name"]
+                        except json.JSONDecodeError:
+                            pass
+                self.mods_list[mod] = folder_dir
+        else:
+            self.mod_combobox_state = "disabled"
+        if selected_mod not in self.mods_list.values():
+            self.set_var("Selected Mod", "")
 
 """
-TODO Implement cleaning process to clean up things if some processes unexpectedly failed e.g. leftover save.txt
-    - May not be necessary now
+TODO We made a band-aid change to accomodate custom function to execute when browsing a folder.
 """

@@ -111,11 +111,11 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
                 else:
                     defs[key] = value
 
-    if user_variables["Mod Directory"] and os.path.isdir(user_variables["Mod Directory"] + "//common//" + folder):
+    if user_variables["Selected Mod"] and os.path.isdir(user_variables["Selected Mod"] + "//common//" + folder):
         """
         FIXME Replace //common// with mode and properly implement depth_add
         """
-        for address in glob.glob(user_variables["Mod Directory"] + "//common//" + folder + "//*.txt"):
+        for address in glob.glob(user_variables["Selected Mod"] + "//common//" + folder + "//*.txt"):
             data = Extractor(address)
             data.unquote()
             data = data.data

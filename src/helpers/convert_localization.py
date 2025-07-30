@@ -40,7 +40,7 @@ def get_all_localization():
     localization = dict()
     for d in dicts:
         localization.update(d)
-    lcl_mod_files = list(Path(user_variables["Mod Directory"] + f"//localization//{user_variables['Localization Language']}").rglob("*.yml"))
+    lcl_mod_files = list(Path(user_variables["Selected Mod"] + f"//localization//{user_variables['Localization Language']}").rglob("*.yml"))
     dicts_mod = []
     for f in lcl_mod_files:
         names = get_localization(f)

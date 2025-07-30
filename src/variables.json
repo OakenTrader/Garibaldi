@@ -6,10 +6,10 @@
         "Events Directory":"./events",
         "Localization Directory":"./localization",
         "Localization Language":"english",
-        "Mod Directory": "",
+        "Mods Directory": "",
         "Tree File Location":"",
         "Autosave Location":"",
-        "Campaign Folder": "autosaves"
-        
+        "Campaign Folder": "autosaves",
+        "Selected Mod": ""
     }
 }
