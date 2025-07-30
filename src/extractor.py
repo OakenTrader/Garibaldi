@@ -44,7 +44,7 @@ class Extractor:
     extractor.unquote()
     extractor.write("saves/campaign/save", ["population"])
     """
-    def __init__(self, address, is_save=False, focuses=None, pline=False, version="1.7") -> None:
+    def __init__(self, address, is_save=False, focuses=None, pline=False, version="1.9") -> None:
         self.data = dict()
         scope = [self.data]
         current_key = None
@@ -62,18 +62,19 @@ class Extractor:
 
         with open(address, "r", encoding='utf-8-sig') as file:
             if not is_save:
-                problematic_lines = None
-                for f in VARIABLES["problematic_definition_files"][version]:
-                    if f in address:
-                        problematic_lines = VARIABLES["problematic_definition_files"][version][f]
-                        break
-                if problematic_lines is not None:
-                    text = list(file)
-                    for i in range(len(problematic_lines), 0, -1):
-                        text.pop(problematic_lines[i - 1])
-                    text = " ".join(text)
-                else:
-                    text = file.read()
+                # problematic_lines = None
+                # for f in VARIABLES["problematic_definition_files"][version]:
+                #     if f in address:
+                #         problematic_lines = VARIABLES["problematic_definition_files"][version][f]
+                #         break
+                # if problematic_lines is not None:
+                #     text = list(file)
+                #     for i in range(len(problematic_lines), 0, -1):
+                #         text.pop(problematic_lines[i - 1])
+                #     text = " ".join(text)
+                # else:
+                #     text = file.read()
+                text = file.read()
                 text = spacing_ex.sub(" ", text)
             else:
                 text = file.read()
