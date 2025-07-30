@@ -20,15 +20,14 @@ class CheckConstruction(Checker):
         save_data = cache["save_data"]
         localization = cache["localization"]
         save_date = cache["metadata"]["save_date"]
-        players = cache["metadata"]["players"]
+        players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
 
         relevant_modifiers = ["country_construction_add"]
         buildings = save_data["building_manager"]["database"]
         countries = save_data["country_manager"]["database"]
         pops = save_data["pops"]["database"]
-        players = [v[1] for v in players]
-
+        
         csectors = {i: buildings[i] for i in buildings if type(buildings[i]) == dict and buildings[i]["building"] == "building_construction_sector"}
         for pop_id, pop in pops.items():
             if "workplace" not in pop or pop["workplace"] not in csectors:
@@ -95,14 +94,11 @@ class CheckConstruction(Checker):
 
         df_construction = pd.concat(df_construction, ignore_index=True)
         df_construction = df_construction.sort_values(by='construction', ascending=False)
-        # Output countries that are players or have more construction than the players' least
-        players_cons = df_construction[df_construction["tag"].isin(players)]
-        non_players_cons = df_construction[~df_construction["tag"].isin(players)]
-        min_players_cons = players_cons["construction"].min() + 0.0001 # Prevent showing everyone if a player has 10 construction
-        df_construction = pd.concat([players_cons, non_players_cons[non_players_cons["construction"] >= min_players_cons]])
-        df_construction = df_construction.sort_values(by='construction', ascending=False)
+
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
+            df_construction.to_csv(f"{address}/data/construction.csv", sep=",", index=False)
+            df_construction = df_construction[df_construction["id"].isin(players)]
             df_construction.to_csv(f"{address}/construction.csv", sep=",", index=False)
             with open(f"{address}/construction.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")

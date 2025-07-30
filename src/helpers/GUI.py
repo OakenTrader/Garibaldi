@@ -627,9 +627,7 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
         self.get_mod()
         selected_mod_path = self.get_var("Selected Mod")
         selected_mod_key = ""
-        print("selected mod path = ", selected_mod_path)
         for k, v in self.mods_list.items():
-            print("v = ", v)
             if os.path.abspath(v) == os.path.abspath(selected_mod_path):
                 selected_mod_key = k
                 break
@@ -693,7 +691,6 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
                 folder_dir = os.path.join(mod_dir, folder)
                 if os.path.isdir(folder_dir) and ".metadata" in os.listdir(folder_dir) and "metadata.json" in os.listdir(os.path.join(folder_dir, ".metadata")):
                     with open(os.path.join(folder_dir, ".metadata", "metadata.json"), "r") as f:
-                        print(os.path.join(folder_dir, ".metadata", "metadata.json"))
                         try:
                             metadata = json.load(f)
                             if "name" in metadata:

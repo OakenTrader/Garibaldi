@@ -26,6 +26,7 @@ class CheckPrestige(Checker):
         save_data = cache["save_data"]
         localization = cache["localization"]
         save_date = cache["metadata"]["save_date"]
+        players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
 
         defines_file = load_def_multiple("defines", "Common Directory", depth_add=1)
@@ -288,12 +289,9 @@ class CheckPrestige(Checker):
         """
 
         df_prestige = []
-        # focus = "RUS"
         for country_key, country in countries.items():
             if not isinstance(country, dict):
                 continue
-            # if country["definition"] not in players:
-            #     continue
             country_tag = country["definition"]
             national_prestige = {key:0 for key in prestige_columns}
             national_modifiers = dict()
@@ -449,24 +447,10 @@ class CheckPrestige(Checker):
                         unit_pp = float(unit["current_manpower"]) * (unit_offense * (1 + unit_offense_mult) + unit_defense * (1 + unit_defense_mult)) / 2 / pp_divisor
                         army_power_projection[unit_type_group] += unit_pp
 
-                        # if country_tag == focus:
-                        #     print(f"Unit {key2} Type {unit_type}")
-                        #     print(unit_offense)
-                        #     print(unit_offense_mult)
-                        #     print(unit_defense)
-                        #     print(unit_defense_mult)
-                        #     print({key:value for key,value in unit_modifiers.items() if len(value) > 0})
-
             # if sum(army_power_projection.values()) > 2000:
             country["power_projection"] = army_power_projection
             national_prestige["army projection"] = army_power_projection["army"] * pp_prestige_divisor_land * (1 + sum(retrieve_from_tree(national_modifiers, ["country_prestige_from_army_power_projection_mult"], null={}).values()))
             national_prestige["navy projection"] = army_power_projection["navy"] * pp_prestige_divisor_navy * (1 + sum(retrieve_from_tree(national_modifiers, ["country_prestige_from_navy_power_projection_mult"], null={}).values()))
-            # if country_tag in players:
-            #     print(country_tag)
-            #     # print(f"Army Projection: {army_power_projection["army"]}")
-            #     # print(f"Naval Projection: {army_power_projection["navy"]}")
-            #     print(f"Army Projection Prestige: {national_prestige["army projection"]}")
-            #     print(f"Naval Projection Prestige: {national_prestige["navy projection"]}")
 
 
             """
@@ -533,19 +517,6 @@ class CheckPrestige(Checker):
             total_prestige = sum([v for v in country["national_prestige"].values()])
             total_modifiers = sum([v for v in country["national_modifiers"]["country_prestige_mult"].values()])
             country["national_prestige"]["modifiers"] = total_modifiers
-            # if country["definition"] not in players:
-            #     continue
-            # for modifier, value in country["national_modifiers"].items():
-            #     if len(value) < 1:
-            #         continue
-            #     print(modifier)
-            #     print(value)
-            # print(f"{country["definition"]}'s prestige: {total_prestige}")
-            # print(f"Modifier: {total_modifiers}")
-            # print(f"Total: {total_prestige * (1 + total_modifiers)}")
-            # for prestige, value in country["national_prestige"].items():
-            #     print(prestige, value)
-            # print("---------------------------------")
             country_tag = country["definition"]
             country_name = get_country_name(country, localization)
             df_country = {"id":country_id, "tag":country_tag, "country":country_name, "total":total_prestige * (1 + total_modifiers)}
@@ -557,6 +528,8 @@ class CheckPrestige(Checker):
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
+            df_prestige.to_csv(f"{address}/data/prestige.csv", sep=",", index=False)
+            df_prestige = df_prestige[df_prestige["id"].isin(players)]
             df_prestige.to_csv(f"{address}/prestige.csv", sep=",", index=False)
             with open(f"{address}/prestige.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")

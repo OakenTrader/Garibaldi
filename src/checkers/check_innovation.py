@@ -18,7 +18,7 @@ class CheckInnovation(Checker):
         save_data = cache["save_data"]
         localization = cache["localization"]
         save_date = cache["metadata"]["save_date"]
-        players = cache["metadata"]["players"]
+        players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
 
         buildings = save_data["building_manager"]["database"]
@@ -33,7 +33,6 @@ class CheckInnovation(Checker):
             if "pops_employed" not in building:
                 building["pops_employed"] = dict()
             building["pops_employed"][pop_id] = pop
-        players = [v[1] for v in players]
 
         relevant_modifiers = ["country_weekly_innovation_add", "country_weekly_innovation_mult", "country_weekly_innovation_max_add"]
         def_production_methods = load_def_multiple("production_methods", "Common Directory")
@@ -99,15 +98,13 @@ class CheckInnovation(Checker):
             # print(kc, country["definition"], innov)
 
         df_innov = pd.concat(df_innov, ignore_index=True)
-        players_innov = df_innov[df_innov["tag"].isin(players)]
-        non_players_innov = df_innov[~df_innov["tag"].isin(players)]
-        min_players_innov = players_innov["innovation"].min() + 0.0001 # Prevent showing everyone if a player has 50 innovation
-        df_innov = pd.concat([players_innov, non_players_innov[non_players_innov["innovation"] >= min_players_innov]])
         df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["cap"])
         df_innov = df_innov.sort_values(by='capped_innovation', ascending=False)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
+            df_innov.to_csv(f"{address}/data/innovation.csv", sep=",", index=False)
+            df_innov = df_innov[df_innov["id"].isin(players)]
             df_innov.to_csv(f"{address}/innovation.csv", sep=",", index=False)
             with open(f"{address}/innovation.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")

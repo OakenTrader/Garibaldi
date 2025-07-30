@@ -17,7 +17,7 @@ class CheckInfamy(Checker):
         save_data = cache["save_data"]
         localization = cache["localization"]
         save_date = cache["metadata"]["save_date"]
-        players = cache["metadata"]["players"]
+        players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
         
         countries = save_data["country_manager"]["database"]
@@ -32,15 +32,14 @@ class CheckInfamy(Checker):
             else:
                 infamies[k] = (tag, country_name, 0)
 
-        vlist = []
-        for k, v in infamies.items():
-            if k in players or float(v[2]) > 0:
-                vlist.append([k, v[0] , v[1], float(v[2])])
+        vlist = [[k, v[0] , v[1], float(v[2])] for k, v in infamies.items()]
         
         df = pd.DataFrame(vlist, columns=["id", "tag", "country", "infamy"])
         df = df.sort_values(by='infamy', ascending=False)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
+            df.to_csv(f"{address}/data/infamy.csv", sep=",", index=False)
+            df = df[df["id"].isin(players)]
             df.to_csv(f"{address}/infamy.csv", sep=",", index=False)
             with open(f"{address}/infamy.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")

@@ -118,6 +118,8 @@ class CheckFinance(Checker):
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
+            df_finance.to_csv(f"{address}/data/finance.csv", sep=",", index=False)
+            df_finance = df_finance[df_finance["id"].isin(players)]
             df_finance.to_csv(f"{address}/finance.csv", sep=",", index=False)
             with open(f"{address}/finance.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")

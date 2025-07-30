@@ -18,7 +18,7 @@ class CheckTech(Checker):
         save_data = cache["save_data"]
         localization = cache["localization"]
         save_date = cache["metadata"]["save_date"]
-        players = cache["metadata"]["players"]
+        players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
 
         countries = save_data["country_manager"]["database"]
@@ -61,7 +61,6 @@ class CheckTech(Checker):
         output += f"{frontier}\n"
 
         """Who is researching which"""
-        player_countries = [str(p[0]) for p in players] # get country_id
         # player_countries = ["4", "1", "5", "9", "8", "23", "29", "199", "201", "183", "3", "30", "36", "94", "17", "144", "112", "409"] # Slot tags
         missing_techs = set()
         df_tech = []
@@ -75,29 +74,29 @@ class CheckTech(Checker):
             country_tag = countries[country_id]["definition"]
             country_name = get_country_name(countries[country_id], localization)
 
-            if researching_tech in frontier or country_id in player_countries:
+            his_tech = technologies[tech_id]["acquired_technologies"]["value"]
+            tech_points = 0
+            for tech in his_tech:
+                if "era" not in def_techs[tech]:
+                    continue
+                tech_points += float(def_techs_era[def_techs[tech]["era"]]["technology_cost"])
+            his_prod_tech = [tech for tech in his_tech if tech in def_prod_tech]
+            his_mil_tech = [tech for tech in his_tech if tech in def_mil_tech]
+            his_soc_tech = [tech for tech in his_tech if tech in def_soc_tech]
+            num_prod_tech = len(his_prod_tech)
+            num_mil_tech = len(his_mil_tech)
+            num_soc_tech = len(his_soc_tech)
+            if num_prod_tech + num_mil_tech + num_soc_tech < len(his_tech):
+                raise ValueError("Some techs not in definitions, likely due to missing mod specification")
+            his_missing_tech = [tech for tech in techs if tech not in his_tech]
+            countries[country_id]["Missing tech"] = his_missing_tech
+            missing_techs.update(set(his_missing_tech))
+            df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech), "tech_points":tech_points, "researching":researching_tech})
+            if researching_tech in frontier or country_id in players:
                 output += f"{tech_id} {country_tag} {country_name} : {researching_tech}\n"
-                his_tech = technologies[tech_id]["acquired_technologies"]["value"]
-                tech_points = 0
-                for tech in his_tech:
-                    if "era" not in def_techs[tech]:
-                        continue
-                    tech_points += float(def_techs_era[def_techs[tech]["era"]]["technology_cost"])
-                his_prod_tech = [tech for tech in his_tech if tech in def_prod_tech]
-                his_mil_tech = [tech for tech in his_tech if tech in def_mil_tech]
-                his_soc_tech = [tech for tech in his_tech if tech in def_soc_tech]
-                num_prod_tech = len(his_prod_tech)
-                num_mil_tech = len(his_mil_tech)
-                num_soc_tech = len(his_soc_tech)
-                if num_prod_tech + num_mil_tech + num_soc_tech < len(his_tech):
-                    raise ValueError("Some techs not in definitions, likely due to missing mod specification")
                 output += f"Number of tech: {len(his_tech)}, {[num_prod_tech, num_mil_tech, num_soc_tech]}\n"
-                his_missing_tech = [tech for tech in techs if tech not in his_tech]
-                countries[country_id]["Missing tech"] = his_missing_tech
-                missing_techs.update(set(his_missing_tech))
                 output += "Missing tech\n"
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
-                df_tech.append({"id": country_id, "tag": country_tag, "country": country_name, "production_techs":num_prod_tech, "military_techs":num_mil_tech, "society_techs":num_soc_tech, "total_techs":len(his_tech), "tech_points":tech_points, "researching":researching_tech})
 
         df_missing_techs = []
         miss_mil_tech = []
@@ -112,7 +111,7 @@ class CheckTech(Checker):
                 miss_prod_tech.append(missing_tech)
         missing_techs_keys = miss_mil_tech + miss_soc_tech + miss_prod_tech
 
-        for country_id in player_countries: # Create a table for missing tech
+        for country_id in players: # Create a table for missing tech
             if not isinstance(country := retrieve_from_tree(countries, [country_id]), dict):
                 continue
             df_missing_tech = {"id":country_id, "tag":country["definition"], "country":get_country_name(country, localization)}
@@ -136,6 +135,8 @@ class CheckTech(Checker):
         df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs", "tech_points", "researching"])
         df_tech.sort_values(by=["total_techs"], inplace=True, ascending=False)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+            df_tech.to_csv(f"{address}/data/tech_tree.csv", sep=",", index=False, encoding="utf-8")
+            df_tech = df_tech[df_tech["id"].isin(players)]
             df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
             df_missing_techs.to_csv(f"{address}/missing_techs.csv", sep=",", encoding="utf-8")
             with open(f"{address}/tech_tree.txt", "w", encoding="utf-8") as file:

@@ -93,7 +93,7 @@ class CheckDemographics(Checker):
             incorporation = float(retrieve_from_tree(state, ["incorporation"], null=0))
             country["demographics"].append([incorporation, state["demographics"]])
 
-        df_literacy = []
+        df_demographics = []
         for country_id, country in countries.items():
             if not isinstance(country, dict) or "demographics" not in country:
                 continue
@@ -143,19 +143,20 @@ class CheckDemographics(Checker):
                 "radicals percentage": radicals_percentage,
                 "loyalists percentage": loyalists_percentage,
             }
-            df_literacy.append(df_country)
+            df_demographics.append(df_country)
 
-        df_literacy = pd.DataFrame(df_literacy, columns=df_literacy[0].keys())
-        df_literacy.sort_values(by='literacy', ascending=False)
-        df_literacy = df_literacy[df_literacy["id"].isin(players)]
+        df_demographics = pd.DataFrame(df_demographics, columns=df_demographics[0].keys())
+        df_demographics = df_demographics.sort_values(by='population', ascending=False)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
-            df_literacy.to_csv(f"{address}/demographics.csv", sep=",", index=False)
+            df_demographics.to_csv(f"{address}/data/demographics.csv", sep=",", index=False)
+            df_demographics = df_demographics[df_demographics["id"].isin(players)]
+            df_demographics.to_csv(f"{address}/demographics.csv", sep=",", index=False)
             with open(f"{address}/demographics.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                df_literacy.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")
+                df_demographics.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")
         
         print(f"Finished checking demographics on {day}/{month}/{year}")
 
-        return df_literacy
+        return df_demographics

@@ -24,6 +24,7 @@ class SaveManager:
         self.cache["address"] = address
         self.checks = checks
         self.localization = get_all_localization()
+        os.makedirs(f"{address}/data", exist_ok=True)  # Create a data folder for outputs
         requirements = self.check_metadata(False) # mandatory to obtain metadata
         for check in checks: # Combine all needed requirements
             if not check.check_needs(address, False): # TODO deal with resetting later
