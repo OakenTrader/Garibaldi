@@ -18,6 +18,7 @@ class CheckPrestige(Checker):
                     "interest_groups", "military_formation_manager", "building_manager",
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops"]
     output = {"prestige.csv": ["total_prestige"] + prestige_columns, "goods_produced.csv": ["goods_produced"]}
+    dependencies = ["finance.csv"]
 
     def __init__(self):
         super().__init__()
@@ -28,6 +29,7 @@ class CheckPrestige(Checker):
         save_date = cache["metadata"]["save_date"]
         players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
+        df_finance = pd.read_csv(f"{address}/data/finance.csv", sep=",")[["id", "GDP"]]
 
         defines_file = load_def_multiple("defines", "Common Directory", depth_add=1)
         defines = dict()
@@ -453,15 +455,13 @@ class CheckPrestige(Checker):
             national_prestige["navy projection"] = army_power_projection["navy"] * pp_prestige_divisor_navy * (1 + sum(retrieve_from_tree(national_modifiers, ["country_prestige_from_navy_power_projection_mult"], null={}).values()))
 
 
-            """
-            The total GDP (and thus indirectly level of industrialization) of a country gives it prestige. (Vickypedia)
-            FIXME This is actually gdp of the last record (week/month idk), actually gdp at game time will have to be recalculated (daunting task)
-            """
-            if (country_gdp := retrieve_from_tree(country, ["gdp", "channels", "0", "values", "value"])) is None:
-                # warnings.warn(f"No GDP record for {country_key}:{country_tag}")
-                country_gdp = [0]
+            country_gdp_row = df_finance[df_finance["id"] == country_key]
+            if not country_gdp_row.empty:
+                country_gdp = country_gdp_row.iloc[0]["GDP"]
+            else:
+                country_gdp = 0
             # print(f"{country_key} {country_tag}: {country_gdp[-1]}")
-            national_prestige["GDP prestige"] = float(country_gdp[-1]) / gdp_divisor * prestige_per_gdp
+            national_prestige["GDP prestige"] = float(country_gdp) / gdp_divisor * prestige_per_gdp
             # print(country_tag, country_gdp)
 
             """

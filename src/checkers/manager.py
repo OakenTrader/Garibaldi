@@ -37,8 +37,15 @@ class SaveManager:
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 
     def start_checking(self):
-        for check in self.checks:
-            check.check(self.cache)
+        while self.checks:
+            remaining_checks = []
+            print(remaining_checks)
+            for check in self.checks:
+                done = check.check(self.cache)
+                if not done: # Due to dependencies
+                    remaining_checks.append(check)
+            print(remaining_checks)
+            self.checks = remaining_checks
 
     def check_metadata(self, reset=False):
         """Check if loading metadata from the save file is necessary. Returns the requirement set"""

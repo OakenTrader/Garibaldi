@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import *
 from src.helpers.utility import *
@@ -10,6 +11,7 @@ class CheckInnovation(Checker):
     """
     requirements = ["building_manager", "country_manager", "pops", "player_manager", "companies", "power_bloc_manager", "pacts", "institutions"]
     output = {"innovation.csv":["innovation", "capped_innovation"]}
+    dependencies = ["demographics.csv"]
     
     def __init__(self):
         super().__init__()
@@ -20,6 +22,7 @@ class CheckInnovation(Checker):
         save_date = cache["metadata"]["save_date"]
         players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
+        df_demographics = pd.read_csv(f"{address}/data/demographics.csv", sep=",")[["id", "literacy"]]
 
         buildings = save_data["building_manager"]["database"]
         countries = save_data["country_manager"]["database"]
@@ -50,15 +53,12 @@ class CheckInnovation(Checker):
         for kc, country in countries.items():
             if any([country == "none", "states" not in country]):
                 continue
-            try:
-                literacy = retrieve_from_tree(country, ["literacy", "channels", "0", "values", "value"], null=[0])[-1]
-            except KeyError:
+            literacy_row = df_demographics[df_demographics["id"] == kc]
+            if not literacy_row.empty:
+                literacy = literacy_row.iloc[0]["literacy"]
+            else:
                 literacy = 0
-                """
-                FIXME Some countries don't provide literacy graph and we need to extract it somehow else
-                Either interpolate it from nearby saves or calculate directly from pops info
-                """
-                # raise KeyError(country["literacy"])
+                warnings.warn(f"No literacy record for {kc}:{country['definition']}")
 
             inno_cap = base_innovation + literacy_max_inno * float(literacy)
 
