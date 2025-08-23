@@ -126,6 +126,8 @@ class ExtractorSave(Extractor):
         split_ex = re.compile(r'(?<!=)\s(?!=)')
         catch_ex = re.compile(r"^\s?([^=]*)\s?(=)?\s?(rgb|hsv360|hsv)?\s?(\S+)?") # Include less conditions for potentially faster computation
         
+        with open(address, "r", encoding='utf-8-sig') as file:
+            text = file.read()
         text = spacing_ex_save.sub(" ", text)
         file.close()
         
