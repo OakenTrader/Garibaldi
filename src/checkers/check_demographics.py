@@ -3,7 +3,7 @@ from src.checkers.checkers_functions import get_country_name, get_building_outpu
 from src.helpers.utility import retrieve_from_tree, load_def_multiple
 import pandas as pd
 
-demographics_columns = ["literacy", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage"]
+demographics_columns = ["literacy", "standard of living", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage"]
 
 class CheckDemographics(Checker):
     
@@ -119,6 +119,7 @@ class CheckDemographics(Checker):
             unemployed_percentage = total_unemployed / max(total_workers, 0.0000001)
             radicals_percentage = total_radicals / max(total_population, 0.0000001)
             loyalists_percentage = total_loyalists / max(total_population, 0.0000001)
+            standard_of_living = retrieve_from_tree(country, ["avgsoltrend", "channels", "0", "values", "value"], null=[0])[-1]
             country_tag = country["definition"]
             country_name = get_country_name(country, localization)
             df_country = {
@@ -127,6 +128,7 @@ class CheckDemographics(Checker):
                 "country": country_name,
                 "population": total_population,
                 "literacy": literacy,
+                "standard of living": standard_of_living,
                 "incorporated population": incorporated_population,
                 "incorporated workforce": incorporated_workers,
                 "incorporated literates": incorporated_literates,

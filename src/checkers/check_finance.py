@@ -2,8 +2,10 @@ from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import get_country_name
 from src.helpers.utility import retrieve_from_tree, load_def
 import pandas as pd
+import numpy as np
+import warnings
 
-finance_columns = ["GDP", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"]
+finance_columns = ["GDP", "GDP per capita", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"]
 
 class CheckFinance(Checker):
     """
@@ -30,6 +32,7 @@ class CheckFinance(Checker):
     
     requirements = ["pops", "country_manager", "building_manager", "states"]
     output = {"finance.csv":["GDP", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"],}
+    dependencies = ["demographics.csv"]
 
     def __init__(self):
         super().__init__()
@@ -44,6 +47,7 @@ class CheckFinance(Checker):
         countries = save_data["country_manager"]["database"]
         states = save_data["states"]["database"]
         buildings = save_data["building_manager"]["database"]
+        df_demographics = pd.read_csv(f"{address}/data/demographics.csv", sep=",")[["id", "population"]]
 
         df_finance = []
 
@@ -100,11 +104,19 @@ class CheckFinance(Checker):
             debt_percentage = principal/(credit + 0.00001)
             if principal > 0:
                 money = -principal
+            population_row = df_demographics[df_demographics["id"].astype(str) == str(country_key)]
+            if not population_row.empty:
+                population = population_row.iloc[0]["population"]
+            else:
+                population = np.inf
+                warnings.warn(f"No population record for {country_key}:{country['definition']}")
+            gdp_per_capita = gdp / np.maximum(population, 1)  # Avoid division by zero
             df_finance.append({
                 "id": country_key,
                 "tag": country["definition"],
                 "country": get_country_name(country, localization),
                 "GDP": gdp,
+                "GDP per capita": gdp_per_capita,
                 "money": money,
                 "money_percentage": money_percentage,
                 "credit": credit,
@@ -113,7 +125,7 @@ class CheckFinance(Checker):
                 "ownership_levels": country["ownership_levels"] if "ownership_levels" in country else 0
             })
 
-        df_finance = pd.DataFrame(df_finance, columns=["id", "tag", "country", "GDP", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"])
+        df_finance = pd.DataFrame(df_finance, columns=["id", "tag", "country", "GDP", "GDP per capita", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"])
         df_finance = df_finance.sort_values(by='GDP', ascending=False)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
