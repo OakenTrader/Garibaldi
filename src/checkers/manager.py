@@ -39,12 +39,10 @@ class SaveManager:
     def start_checking(self):
         while self.checks:
             remaining_checks = []
-            print(remaining_checks)
             for check in self.checks:
                 done = check.check(self.cache)
                 if not done: # Due to dependencies
                     remaining_checks.append(check)
-            print(remaining_checks)
             self.checks = remaining_checks
 
     def check_metadata(self, reset=False):

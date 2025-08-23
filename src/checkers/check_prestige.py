@@ -196,7 +196,8 @@ class CheckPrestige(Checker):
         """
 
         def_production_methods = dict()
-        for pm_name, production_method in load_def_multiple("production_methods", "Common Directory").items():
+        file_production_methods = load_def_multiple("production_methods", "Common Directory")
+        for pm_name, production_method in file_production_methods.items():
             for relevant_modifier in relevant_modifiers:
                 if len(walk_tree(production_method, relevant_modifier)) > 0:
                     def_production_methods[pm_name] = production_method

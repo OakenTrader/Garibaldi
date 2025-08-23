@@ -38,7 +38,8 @@ class CheckConstruction(Checker):
             building["pops_employed"][pop_id] = pop
         
         def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        def_static_modifiers = {k:v for k,v in load_def_multiple("static_modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
+        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
+        def_static_modifiers = {k:v for k,v in def_static_modifiers.items() if any([vi in relevant_modifiers for vi in v.keys()])}
         base_construction = float(def_static_modifiers["base_values"]["country_construction_add"])
 
         columns = ["id", "tag", "country", "construction", "used_cons", "avg_cost", "total_cost"]

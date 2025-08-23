@@ -10,7 +10,7 @@ class CheckInnovation(Checker):
     Retrieve Innovation and its cap of player nations and nations with > base innovation
     """
     requirements = ["building_manager", "country_manager", "pops", "player_manager", "companies", "power_bloc_manager", "pacts", "institutions"]
-    output = {"innovation.csv":["innovation", "capped_innovation"]}
+    output = {"innovation.csv":["innovation", "capped_innovation", "innovation_ratio"]}
     dependencies = ["demographics.csv"]
     
     def __init__(self):
@@ -48,12 +48,12 @@ class CheckInnovation(Checker):
         institution_manager(save_data, countries, ["institution_schools"])
         principles, blocs = bloc_manager(save_data, relevant_modifiers)
 
-        columns = ["id", "tag", "country", "innovation", "cap"]
+        columns = ["id", "tag", "country", "innovation", "innovation cap", "innovation ratio"]
         df_innov = []
         for kc, country in countries.items():
             if any([country == "none", "states" not in country]):
                 continue
-            literacy_row = df_demographics[df_demographics["id"] == kc]
+            literacy_row = df_demographics[df_demographics["id"].astype(str) == str(kc)]
             if not literacy_row.empty:
                 literacy = literacy_row.iloc[0]["literacy"]
             else:
@@ -91,14 +91,15 @@ class CheckInnovation(Checker):
             inno_cap += sum([float(v) for v in national_modifiers["country_weekly_innovation_max_add"].values()])
 
             innov = innov * innov_mult
+            inno_ratio = innov / inno_cap if inno_cap > 0 else 0
             country_name = get_country_name(country, localization)
 
-            new_data = pd.DataFrame([[kc, country["definition"], country_name, innov, inno_cap]], columns=columns)
+            new_data = pd.DataFrame([[kc, country["definition"], country_name, innov, inno_cap, inno_ratio]], columns=columns)
             df_innov.append(new_data)
             # print(kc, country["definition"], innov)
 
         df_innov = pd.concat(df_innov, ignore_index=True)
-        df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["cap"])
+        df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["innovation cap"])
         df_innov = df_innov.sort_values(by='capped_innovation', ascending=False)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
