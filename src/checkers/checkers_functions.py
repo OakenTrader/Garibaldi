@@ -192,3 +192,4 @@ def rename_folder_to_date(folder):
         os.rename(folder, f"./saves/{campaign_folder}/{new_name}")
     except PermissionError as e:
         raise PermissionError("Error when renaming folder:", e)
+    return new_name

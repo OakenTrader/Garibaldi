@@ -71,11 +71,13 @@ def extract_files(campaign_folder, files, stop_event, finish_event, queue, delet
                 raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
             
             os.remove(f"{folder}/save.txt")
+            new_name = rename_folder_to_date(folder)
             if delete:
                 os.remove(file)
             else:
-                shutil.move(file, f"./saves/{campaign_folder}/archive/")
-            rename_folder_to_date(folder)
+                new_name = f"./saves/{campaign_folder}/{new_name}.v3"
+                os.rename(file, new_name)
+                shutil.move(new_name, f"./saves/{campaign_folder}/archive/")
             queue.put(1)
     except Exception as e:
         stop_event.set()
