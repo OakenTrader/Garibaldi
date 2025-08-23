@@ -2,7 +2,7 @@
 Whatever functions written to help the program.
 """
 import sys, os, shutil, fnmatch, pickle, gzip, glob, json, re
-from src.extractor import Extractor
+from src.extractor import ExtractorCommon
 import time, functools
 
 def t_execute(func):
@@ -84,7 +84,7 @@ def load_def(address, mode="Common Directory"):
     """
     user_variables = jopen("./user_variables.json")
     address = user_variables[mode] + "/" + address
-    data = Extractor(address)
+    data = ExtractorCommon(address)
     data.unquote()
     data = data.data
     return data
@@ -99,7 +99,7 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
     def_folder = user_variables[mode] + "/" + folder
     defs = dict()
     for address in glob.glob(f"{def_folder}/*.txt"):
-        data = Extractor(address)
+        data = ExtractorCommon(address)
         data.unquote()
         data = data.data
         if depth_add == 0:
@@ -116,7 +116,7 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
         FIXME Replace //common// with mode and properly implement depth_add
         """
         for address in glob.glob(user_variables["Selected Mod"] + "//common//" + folder + "//*.txt"):
-            data = Extractor(address)
+            data = ExtractorCommon(address)
             data.unquote()
             data = data.data
             if depth_add == 0:

@@ -2,7 +2,7 @@
 File containing the save extraction functions
 """
 from src.checkers.checkers_functions import rename_folder_to_date
-from src.extractor import Extractor
+from src.extractor import ExtractorSave
 from src.helpers.melt import melt
 from src.helpers.utility import *
 import time, shutil, re
@@ -14,13 +14,13 @@ def extract_save_file(save_file):
     Handles extraction of a single save file.
     """
     try:
-        data = t_execute(Extractor)(f"{save_file}/save.txt", is_save=True)
+        data = t_execute(ExtractorSave)(f"{save_file}/save.txt")
         t_execute(data.unquote)()
         t_execute(data.write)(save_file, separate=True)
     except InterruptedError as e:
         raise InterruptedError("Stop event set")
     except Exception as e:
-        data = Extractor(f"{save_file}/save.txt", is_save=True, pline=True)
+        data = ExtractorSave(f"{save_file}/save.txt", pline=True)
 
 def extract_files(campaign_folder, files, stop_event, finish_event, queue, delete=True):
     """

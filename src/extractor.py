@@ -44,109 +44,8 @@ class Extractor:
     extractor.unquote()
     extractor.write("saves/campaign/save", ["population"])
     """
-    def __init__(self, address, is_save=False, focuses=None, pline=False, version="1.9") -> None:
+    def __init__(self) -> None:
         self.data = dict()
-        scope = [self.data]
-        current_key = None
-        scope_boolean = False
-        in_focus = False
-        spacing_ex = re.compile(r"(#+.*\n|\s+|#+.*$)")
-        spacing_ex_save = re.compile(r"(\s+)")
-        split_ex = re.compile(r'(?<!<|>|=)\s(?!<|>|=|\?)')
-        if is_save:
-            split_ex = re.compile(r'(?<!=)\s(?!=)')
-            catch_ex = re.compile(r"^\s?([^=]*)\s?(=)?\s?(rgb|hsv360|hsv)?\s?(\S+)?") # Include less conditions for potentially faster computation
-        else:
-            split_ex = re.compile(r'(?<!<|>|=)\s(?!<|>|=|\?)')
-            catch_ex = re.compile(r"^([^=><\?\s]*)\s?([><\?])?(=)?\s?(rgb|hsv360|hsv)?\s?(\S+)?$")
-
-        with open(address, "r", encoding='utf-8-sig') as file:
-            if not is_save:
-                # problematic_lines = None
-                # for f in VARIABLES["problematic_definition_files"][version]:
-                #     if f in address:
-                #         problematic_lines = VARIABLES["problematic_definition_files"][version][f]
-                #         break
-                # if problematic_lines is not None:
-                #     text = list(file)
-                #     for i in range(len(problematic_lines), 0, -1):
-                #         text.pop(problematic_lines[i - 1])
-                #     text = " ".join(text)
-                # else:
-                #     text = file.read()
-                text = file.read()
-                text = spacing_ex.sub(" ", text)
-            else:
-                text = file.read()
-                text = spacing_ex_save.sub(" ", text)
-        
-        for sstr in re.split(r"\s?([{}])\s?", text):
-            if not sstr.strip():
-                continue
-            if pline:
-                print(repr(sstr))
-            last_scope = scope[-1]
-            if "{" in sstr:
-                if current_key is None: # Double opening brackets
-                    current_key = f"index{len(last_scope)}"
-                    last_scope[current_key] = dict()
-                scope.append(last_scope[current_key])
-                current_key = None
-            elif '}' in sstr:
-                scope = scope[:-1]
-                if len(scope) == scope_boolean: # End of a Boolean Check
-                    scope_boolean = False
-                if len(scope) == 0 and focuses is not None and in_focus:
-                    if focuses == []:
-                        break
-                    else:
-                        in_focus = False
-            elif all([i not in sstr for i in [">", "=", "<"]]): # Simple list of values
-                if "field_type" not in last_scope:
-                    last_scope.update({"field_type":"list"})
-                last_scope.update({"value":[field for field in split_ex.split(sstr) if len(field) > 0]})
-            else: # Dictionary type fields with equations
-                parts = split_ex.split(sstr) # Split by whitespaces not adjacent to the (in)equality sign
-                for field in parts:
-                    if len(field) == 0:
-                        continue
-                    if match := catch_ex.match(field):
-                        if is_save:
-                            key, equality, color, value = match.groups()
-                            boolean = None
-                        else:
-                            key, boolean, equality, color, value = match.groups()
-                        if value is not None: 
-                            if boolean is None: # Simple Equality match
-                                if scope_boolean:
-                                    last_scope[key] = {"sign": "=", "value":value}
-                                else:
-                                    last_scope[key] = value
-                            else: # boolean logic match
-                                if equality is not None: # >= <= ?=
-                                    last_scope[key] = {"sign": boolean + equality, "value":value}
-                                else: # > <
-                                    last_scope[key] = {"sign": boolean, "value":value}
-                        else:
-                            if color is None:
-                                if boolean is None:
-                                    if equality is None: # Lone entries without key is assigned a default key
-                                        last_scope[f"index{len(last_scope)}"] = field
-                                    else: # Incomplete equality match
-                                        last_scope[key] = {}
-                                        current_key = key
-                                else: # Incomplete boolean match
-                                    scope_boolean = len(scope)
-                                    if equality is not None:
-                                        last_scope[key] = {"sign":boolean + equality}
-                                    else:
-                                        last_scope[key] = {"sign":boolean}
-                                    current_key = key
-                            else: # Colorcode match
-                                last_scope[key] = {"field_type": color}
-                                current_key = key
-                    else:
-                        raise NotImplementedError(f"Exceptional field: {field}")
 
     def write(self, output, sections=None, separate=False):
         """
@@ -207,3 +106,192 @@ class Extractor:
                     if isinstance(item, str):
                         scope[key][i] = item.replace("\"", "")
 
+class ExtractorSave(Extractor):
+    """
+    A subclass of Extractor specifically designed for extracting data from Victoria 3 save files.
+    
+    This class inherits from Extractor and is tailored to handle the unique structure and requirements of 
+    Victoria 3 save files, including specific parsing rules and data extraction methods.
+    
+    It utilizes the same methods as Extractor but is optimized for save file formats.
+    """
+    def __init__(self, address, focuses=None, pline=False, version="1.9"):
+        super().__init__()
+        scope = [self.data]
+        current_key = None
+        scope_boolean = False
+        in_focus = False
+
+        spacing_ex_save = re.compile(r"(\s+)")
+        split_ex = re.compile(r'(?<!=)\s(?!=)')
+        catch_ex = re.compile(r"^\s?([^=]*)\s?(=)?\s?(rgb|hsv360|hsv)?\s?(\S+)?") # Include less conditions for potentially faster computation
+        
+        text = spacing_ex_save.sub(" ", text)
+        file.close()
+        
+        for sstr in re.split(r"\s?([{}])\s?", text):
+            if not sstr.strip():
+                continue
+            if pline:
+                print(repr(sstr))
+            last_scope = scope[-1]
+            if "{" in sstr:
+                if current_key is None: # Double opening brackets
+                    current_key = f"index{len(last_scope)}"
+                    last_scope[current_key] = dict()
+                scope.append(last_scope[current_key])
+                current_key = None
+            elif '}' in sstr:
+                scope = scope[:-1]
+                if len(scope) == scope_boolean: # End of a Boolean Check
+                    scope_boolean = False
+                if len(scope) == 0 and focuses is not None and in_focus:
+                    if focuses == []:
+                        break
+                    else:
+                        in_focus = False
+            elif all([i not in sstr for i in [">", "=", "<"]]): # Simple list of values
+                if "field_type" not in last_scope:
+                    last_scope.update({"field_type":"list"})
+                last_scope.update({"value":[field for field in split_ex.split(sstr) if len(field) > 0]})
+            else: # Dictionary type fields with equations
+                parts = split_ex.split(sstr) # Split by whitespaces not adjacent to the (in)equality sign
+                for field in parts:
+                    if len(field) == 0:
+                        continue
+                    if match := catch_ex.match(field):
+                        key, equality, color, value = match.groups()
+                        boolean = None
+                        if value is not None: 
+                            if boolean is None: # Simple Equality match
+                                if scope_boolean:
+                                    last_scope[key] = {"sign": "=", "value":value}
+                                else:
+                                    last_scope[key] = value
+                            else: # boolean logic match
+                                if equality is not None: # >= <= ?=
+                                    last_scope[key] = {"sign": boolean + equality, "value":value}
+                                else: # > <
+                                    last_scope[key] = {"sign": boolean, "value":value}
+                        else:
+                            if color is None:
+                                if boolean is None:
+                                    if equality is None: # Lone entries without key is assigned a default key
+                                        last_scope[f"index{len(last_scope)}"] = field
+                                    else: # Incomplete equality match
+                                        last_scope[key] = {}
+                                        current_key = key
+                                else: # Incomplete boolean match
+                                    scope_boolean = len(scope)
+                                    if equality is not None:
+                                        last_scope[key] = {"sign":boolean + equality}
+                                    else:
+                                        last_scope[key] = {"sign":boolean}
+                                    current_key = key
+                            else: # Colorcode match
+                                last_scope[key] = {"field_type": color}
+                                current_key = key
+                    else:
+                        raise NotImplementedError(f"Exceptional field: {field}")
+
+
+class ExtractorCommon(Extractor):
+    """
+    A subclass of Extractor specifically designed for extracting data from Victoria 3 common files.
+    
+    This class inherits from Extractor and is tailored to handle the unique structure and requirements of 
+    Victoria 3 common files, including specific parsing rules and data extraction methods.
+    
+    It utilizes the same methods as Extractor but is optimized for common file formats.
+    """
+    def __init__(self, address, focuses=None, pline=False, version="1.9"):
+        super().__init__()
+        scope = [self.data]
+        current_key = None
+        scope_boolean = False
+        in_focus = False
+        spacing_ex = re.compile(r"(#+.*\n|\s+|#+.*$)")
+        split_ex = re.compile(r'(?<!<|>|=)\s(?!<|>|=|\?)')
+        catch_ex = re.compile(r"^([^=><\?\s]*)\s?([><\?])?(=)?\s?(rgb|hsv360|hsv)?\s?(\S+)?$")
+        # Try to open the file with encodings that support accented characters
+        try:
+            file = open(address, "r", encoding='utf-8-sig')
+            text = file.read()
+        except UnicodeDecodeError:
+            file.close()
+            try:
+                file = open(address, "r", encoding='utf-8')
+                text = file.read()
+            except UnicodeDecodeError:
+                file.close()
+                file = open(address, "r", encoding='latin-1')
+                text = file.read()
+        
+        text = spacing_ex.sub(" ", text)
+        file.close()
+        
+        for sstr in re.split(r"\s?([{}])\s?", text):
+            if not sstr.strip():
+                continue
+            if pline:
+                print(repr(sstr))
+            last_scope = scope[-1]
+            if "{" in sstr:
+                if current_key is None: # Double opening brackets
+                    current_key = f"index{len(last_scope)}"
+                    last_scope[current_key] = dict()
+                scope.append(last_scope[current_key])
+                current_key = None
+            elif '}' in sstr:
+                scope = scope[:-1]
+                if len(scope) == scope_boolean: # End of a Boolean Check
+                    scope_boolean = False
+                if len(scope) == 0 and focuses is not None and in_focus:
+                    if focuses == []:
+                        break
+                    else:
+                        in_focus = False
+            elif all([i not in sstr for i in [">", "=", "<"]]): # Simple list of values
+                if "field_type" not in last_scope:
+                    last_scope.update({"field_type":"list"})
+                last_scope.update({"value":[field for field in split_ex.split(sstr) if len(field) > 0]})
+            else: # Dictionary type fields with equations
+                parts = split_ex.split(sstr) # Split by whitespaces not adjacent to the (in)equality sign
+                for field in parts:
+                    if len(field) == 0:
+                        continue
+                    if match := catch_ex.match(field):
+                        key, boolean, equality, color, value = match.groups()
+                        if value is not None: 
+                            if boolean is None: # Simple Equality match
+                                if scope_boolean:
+                                    last_scope[key] = {"sign": "=", "value":value}
+                                else:
+                                    last_scope[key] = value
+                            else: # boolean logic match
+                                if equality is not None: # >= <= ?=
+                                    last_scope[key] = {"sign": boolean + equality, "value":value}
+                                else: # > <
+                                    last_scope[key] = {"sign": boolean, "value":value}
+                        else:
+                            if color is None:
+                                if boolean is None:
+                                    if equality is None: # Lone entries without key is assigned a default key
+                                        if len(scope) == 1: # If this is the root scope, assume it's a faulty comment and skip
+                                            continue
+                                        last_scope[f"index{len(last_scope)}"] = field
+                                    else: # Incomplete equality match
+                                        last_scope[key] = {}
+                                        current_key = key
+                                else: # Incomplete boolean match
+                                    scope_boolean = len(scope)
+                                    if equality is not None:
+                                        last_scope[key] = {"sign":boolean + equality}
+                                    else:
+                                        last_scope[key] = {"sign":boolean}
+                                    current_key = key
+                            else: # Colorcode match
+                                last_scope[key] = {"field_type": color}
+                                current_key = key
+                    else:
+                        raise NotImplementedError(f"Exceptional field: {field}")
