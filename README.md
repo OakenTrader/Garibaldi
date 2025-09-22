@@ -14,15 +14,19 @@ Save game analyzer for Victoria 3 which retrieve information from autosaves acro
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
-Save files must be in plaintext format. Rakaly's [`melter`](https://github.com/rakaly/librakaly) integrated in this program is available in Windows and Linux platforms and is executed on extraction.
+The script utilizes Rakaly's [`melter`](https://github.com/rakaly/librakaly), shipped in the release zip file, which allows a smooth pipeline of
+    - Automatically dumping autosaves in a designated folder during a game session
+    - Mass melting dumped autosaves after session
+    - Completing the data processing to get readable statistics and graphs
+
+The melter integrated in this program is available in Windows and Linux platforms and is executed on extraction.
 
 Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
 Works for games in version 1.9
 The program is not guaranteed to work in any other version (it will certainly break in earlier versions because Paradox changes variable names over time and I am too lazy to maintain backward compatibility)
 
-The script is intended (atleast in the future) to be compatible with as many mods as possible and so
-we try not to hardcode any variable into the script, relying all data from the provided definition files
+The script is intended (atleast in the future) to be compatible with as many mods as possible and so we try not to hardcode any variable into the script, relying all data from the provided definition files
 
 ## Dependencies
 Pandas, Numpy, Matplotlib
@@ -30,12 +34,12 @@ Pandas, Numpy, Matplotlib
 ## How to install and use
 Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who are not familiar with Python for installation as well as usage instructions.
 
-Do not hesitate to open an issue for bug reports and suggestions!
+The project is still far from polished. File extraction is around 30-60 seconds per save, the analyzing process is not truly optimized, and I have been struggling to make a good GUI (may move to a web-based framework). Do not hesitate to open an issue for bug reports and suggestions!
 
 ## Version 0.9.0
 Windows users download the rar file from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.9.0)
+- Added a few more statistics (GDP per capita, standard of living and innovation ratio over cap)
 - Restructured script structure
 - Statistics of all countries are now saved in extracted_save folder of each save, while the old stat csv files will only show player countries
-- More convenient mod selection
+- Added mod selection dropdown list with mod name shown in addition to folder name
 - Slight Optimization
-- Added a few more statistics (GDP per capita, standard of living and innovation ratio over cap)
