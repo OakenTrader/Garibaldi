@@ -4,10 +4,10 @@ Handles all existing GUI of Garibaldi
 import multiprocessing.queues
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from scripts.helpers.utility import *
-from scripts.helpers.save_watch import *
-from scripts.helpers.extraction import *
-from scripts.checkers.manager import perform_checking
+from src.helpers.utility import *
+from src.helpers.save_watch import *
+from src.helpers.extraction import *
+from src.checkers.manager import perform_checking
 import sys, json, os, glob, multiprocessing, queue
 
 class Garibaldi_gui:
@@ -16,7 +16,7 @@ class Garibaldi_gui:
     """
     def __init__(self):
         super().__init__()
-        self.variables = jopen("./scripts/variables.json")
+        self.variables = jopen("./src/variables.json")
         try:
             self.user_variables = jopen("./user_variables.json")
         except:
@@ -37,7 +37,7 @@ class Garibaldi_gui:
         self.user_variables[key] = value
         self.save_settings()
 
-    def browse_folder(self, entry_widget, settings_key, initialdir=None, only_folder_name=False):
+    def browse_folder(self, entry_widget, settings_key, initialdir=None, only_folder_name=False, custom_command=None):
         """Browses a folder location then set the value in the provided entry_widget and settings key of the user variables.
         Intialdir may be provided to set the initial directory of the browser."""
         if self.is_browsing:
@@ -56,6 +56,8 @@ class Garibaldi_gui:
             entry_widget.config(state='readonly')  # Set the entry back to read-only
             self.set_var(settings_key,folder_path)
         self.is_browsing = False
+        if custom_command is not None:
+            custom_command()
     
     def browse_file(self, entry_widget, settings_key, initialdir=None):
         """Browses a file location then set the value in the provided entry_widget and settings key of the user variables.
@@ -158,7 +160,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
     def __init__(self):
         super().__init__()
         Garibaldi_gui.__init__(self)
-        self.title("Garibaldi")
+        self.title("Garibaldi v0.9.0")
         self.stop_event = multiprocessing.Event()
         self.stop_event.clear()
         self.main_menu_gui()
@@ -314,12 +316,47 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         super().__init__(master)
         Garibaldi_gui.__init__(self)
         self.title("Save Analyzer")
+        self.geometry("1200x700")  # Expanded initial window size
+
+        # Create a frame with a vertical scrollbar
+        container = ttk.Frame(self)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(container)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        self.inner_frame = ttk.Frame(canvas)
+        canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
+
+        # Enable mouse wheel scrolling only for SaveAnalyzer window
+        def _on_mousewheel(event):
+            # For Windows and MacOS
+            if self.focus_get() is not None and self.focus_get().winfo_toplevel() == self:
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        def _on_mousewheel_linux(event):
+            # For Linux (event.num 4 is scroll up, 5 is scroll down)
+            if self.focus_get() is not None and self.focus_get().winfo_toplevel() == self:
+                if event.num == 4:
+                    canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    canvas.yview_scroll(1, "units")
+
+        # Bind mouse wheel events for different platforms, restricted to SaveAnalyzer
+        canvas.bind("<MouseWheel>", _on_mousewheel)      # Windows/Mac
+        canvas.bind("<Button-4>", _on_mousewheel_linux)  # Linux scroll up
+        canvas.bind("<Button-5>", _on_mousewheel_linux)  # Linux scroll down
+
         self.save_analyze_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
         self.finish_event = multiprocessing.Event()
         self.finish_event.clear()
-    
+
     def save_analyze_settings(self):
         """
         Plot the statistics of some variables and/or show it on an interactive screen
@@ -338,28 +375,36 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         grid = []
 
         def add_checker(text, showable=True):
-            label = ttk.Label(self, text=text)
-            check_var = tk.BooleanVar(self, value=True)
-            show_var = tk.BooleanVar(self, value=False)
-            show_button = ttk.Checkbutton(self, text="Show plot", variable=show_var, onvalue=True, offvalue=False)
-            yes_button = ttk.Radiobutton(self, text="Yes", variable=check_var, value=True, command=lambda: show_button.config(state=tk.NORMAL))
-            no_button = ttk.Radiobutton(self, text="No", variable=check_var, value=False, command=lambda: show_button.config(state=tk.DISABLED))
+            label = ttk.Label(self.inner_frame, text=text)
+            check_var = tk.BooleanVar(self.inner_frame, value=True)
+            show_var = tk.BooleanVar(self.inner_frame, value=False)
+            show_button = ttk.Checkbutton(self.inner_frame, text="Show plot", variable=show_var, onvalue=True, offvalue=False)
+            yes_button = ttk.Radiobutton(self.inner_frame, text="Yes", variable=check_var, value=True, command=lambda: show_button.config(state=tk.NORMAL))
+            no_button = ttk.Radiobutton(self.inner_frame, text="No", variable=check_var, value=False, command=lambda: show_button.config(state=tk.DISABLED))
             if showable:
                 grid.append([label, yes_button, no_button, show_button])
             else:
                 grid.append([label, yes_button, no_button])
             return check_var, show_var
-        
-        header = ttk.Label(self, text="Plot the statistics of some variables and optionally show it on an interactive screen")
-        
-        label_campaign_folder = ttk.Label(self, text="Campaign Folder")
-        self.folder_entry = ttk.Entry(self, width=50)
+
+        header = ttk.Label(self.inner_frame, text="Plot the statistics of some variables and optionally show it on an interactive screen")
+
+        label_campaign_folder = ttk.Label(self.inner_frame, text="Campaign Folder")
+        self.folder_entry = ttk.Entry(self.inner_frame, width=50)
         self.folder_entry.insert(0, self.user_variables["Campaign Folder"])
         self.folder_entry.config(state="readonly")
-        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
-        make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
-        
-        label_check = ttk.Label(self, text="Select which stats do you want to extract from the saves and plot?")
+        browse_button = ttk.Button(self.inner_frame, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
+        make_folder_button = ttk.Button(self.inner_frame, text="New Folder", command=lambda: self.new_window_entry(self.inner_frame, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
+
+        self.var_thread = tk.IntVar(self.inner_frame, value=1)
+        label_thread = ttk.Label(self.inner_frame, text="How many threads to perform analysis at once?")
+        radio_1thread = ttk.Radiobutton(self.inner_frame, text="1", variable=self.var_thread, value=1)
+        radio_2thread = ttk.Radiobutton(self.inner_frame, text="2", variable=self.var_thread, value=2)
+        radio_3thread = ttk.Radiobutton(self.inner_frame, text="3", variable=self.var_thread, value=3)
+        radio_4thread = ttk.Radiobutton(self.inner_frame, text="4", variable=self.var_thread, value=4)
+        label_risk = ttk.Label(self.inner_frame, text="(AT YOUR OWN RISK)")
+
+        label_check = ttk.Label(self.inner_frame, text="Select which stats do you want to extract from the saves and plot?")
         self.check_list = dict()
         self.check_list["construction"] = add_checker("Construction")
         self.check_list["avg_cost"] = add_checker("Average Construction Cost")
@@ -375,23 +420,24 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list["total_techs"] = add_checker("Total Techs")
         self.check_list["goods_produced"] = add_checker("Goods Produced")
 
-        warning_goods = ttk.Label(self, text="Note: We can only either not show or show ALL types of goods produced on interactive windows.")
+        warning_goods = ttk.Label(self.inner_frame, text="Note: We can only either not show or show ALL types of goods produced on interactive windows.")
 
-        self.start_date_label = ttk.Label(self, text="Start year")
-        self.start_date_entry = ttk.Entry(self, width=30)
+        self.start_date_label = ttk.Label(self.inner_frame, text="Start year")
+        self.start_date_entry = ttk.Entry(self.inner_frame, width=30)
         self.start_date_entry.insert(0, "1836")
-        self.end_date_label = ttk.Label(self, text="End year")
-        self.end_date_entry = ttk.Entry(self, width=30)
+        self.end_date_label = ttk.Label(self.inner_frame, text="End year")
+        self.end_date_entry = ttk.Entry(self.inner_frame, width=30)
         self.end_date_entry.insert(0, "1984")
 
-        self.ok_button = ttk.Button(self, text="Run", command=lambda: self.on_ok())
-        self.stop_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
+        self.ok_button = ttk.Button(self.inner_frame, text="Run", command=lambda: self.on_ok())
+        self.stop_button = ttk.Button(self.inner_frame, text="Stop", command=lambda: self.on_stop())
         self.stop_button.config(state=tk.DISABLED)
 
         self.tinkerable = [browse_button, make_folder_button] + [a for b in grid for a in b] + [self.ok_button] # Checker buttons
         self.make_grid([
              [(header, 5, 'w')],
              [label_campaign_folder, self.folder_entry, browse_button, make_folder_button],
+             [label_thread, radio_1thread, radio_2thread, radio_3thread, radio_4thread, label_risk],
              [(label_check, 3, 'w')]] 
           + grid
           + [[(warning_goods, 7, 'w')], 
@@ -411,19 +457,16 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
                 showers.append(checker)
         self.after(100, perform_checking, checkers, showers, self.folder_entry.get(), self.stop_event, self.finish_event)
         self.stop_button.config(state=tk.NORMAL)
-        # self.watch_thread = threading.Thread(target=perform_checking, args=(checkers, showers, self.folder_entry.get(), self.stop_event))
-        # self.watch_thread.start()
 
-    
     def on_closing(self):
         """Handles closing the SaveAnalyzer menu"""
         self.on_stop()
         self.end_task()
         self.destroy()
-    
+
     def on_stop(self):
         self.stop_event.set()
-    
+
     def end_task(self):
         """Checks if checking is done/terminated and restore the menu state"""
         """If finish event is raised but not stop_event, we proceed to draw plotting"""
@@ -433,7 +476,6 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
             self.stop_event.clear()
             self.stop_button.config(state=tk.DISABLED)
         self.after(500, self.end_task)
-
 
 class SaveWatcher(tk.Toplevel, Garibaldi_gui):
     """
@@ -622,23 +664,85 @@ class Configure_windows(tk.Toplevel, Garibaldi_gui):
         Garibaldi_gui.__init__(self)
         self.title("Configure settings")
         self.n_entries = 0
-        for key in ["Common Directory", "Events Directory", "Localization Directory", "Mod Directory"]:
-            self.add_directory_settings(key)
+        self.get_mod()
+        selected_mod_path = self.get_var("Selected Mod")
+        selected_mod_key = ""
+        for k, v in self.mods_list.items():
+            if os.path.abspath(v) == os.path.abspath(selected_mod_path):
+                selected_mod_key = k
+                break
+        self.selected_mod = tk.StringVar(value=selected_mod_key)
+        self.mod_combobox = ttk.Combobox(self, textvariable=self.selected_mod, values=list(self.mods_list.keys()), state=self.mod_combobox_state, width=47)
+
+        def on_mod_selected(event):
+            key = self.mod_combobox.get()
+            if key in self.mods_list:
+                self.set_var("Selected Mod", self.mods_list[key])
+
+        def refresh_mod_list():
+            # Refresh the mods_list and update combobox values
+            self.get_mod()
+            self.mod_combobox['values'] = list(self.mods_list.keys())
+            # Optionally, update the selected value if needed
+            selected_mod_path = self.get_var("Selected Mod")
+            for k, v in self.mods_list.items():
+                if v == selected_mod_path:
+                    self.selected_mod.set(k)
+                    break
+                else:
+                    self.selected_mod.set("")
+
+        for key in ["Common Directory", "Events Directory", "Localization Directory", "Mods Directory"]:
+            custom_command = None
+            if key == "Mods Directory":
+                custom_command = refresh_mod_list
+            self.add_directory_settings(key, custom_command=custom_command)
+
+        # Add a dropbar (Combobox) to choose a mod from mods_list
+        ttk.Label(self, text="Select Mod").grid(row=self.n_entries, column=0, padx=10, pady=10, sticky='e')
+
+        self.mod_combobox.bind("<<ComboboxSelected>>", on_mod_selected)
+        # Bind focus-in event to refresh the list when user clicks or tabs into the combobox
+        self.mod_combobox.grid(row=self.n_entries, column=1, padx=10, pady=10, columnspan=2, sticky='w')
+        self.n_entries += 1
     
-    def add_directory_settings(self, target):
+    def add_directory_settings(self, target, custom_command=None):
         """Generates Label/entry/button for each specified user variable"""
         ttk.Label(self, text=target).grid(row=self.n_entries, column=0, padx=10, pady=10, sticky='e')
         settings_entry = ttk.Entry(self, width=50)
         settings_entry.grid(row=self.n_entries, column=1, padx=10, pady=10)
         settings_entry.insert(0, self.get_var(target))
         settings_entry.config(state="readonly")
-        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, target))
+        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(settings_entry, target, custom_command=custom_command))
         browse_button.grid(row=self.n_entries, column=2, padx=2, pady=10)
         reset_button = ttk.Button(self, text="Restore Defaults", command=lambda: self.restore_defaults(settings_entry, target))
         reset_button.grid(row=self.n_entries, column=3, padx=2, pady=10)
         self.n_entries += 1
+    
+    def get_mod(self):
+        """Returns the selected mod from the combobox"""
+        self.mods_list = dict()
+        mod_dir = self.get_var("Mods Directory")
+        selected_mod = self.get_var("Selected Mod")
+        self.mod_combobox_state = "readonly"
+        if os.path.isdir(mod_dir):
+            for folder in os.listdir(mod_dir):
+                mod = folder
+                folder_dir = os.path.join(mod_dir, folder)
+                if os.path.isdir(folder_dir) and ".metadata" in os.listdir(folder_dir) and "metadata.json" in os.listdir(os.path.join(folder_dir, ".metadata")):
+                    with open(os.path.join(folder_dir, ".metadata", "metadata.json"), "r") as f:
+                        try:
+                            metadata = json.load(f)
+                            if "name" in metadata:
+                                mod = folder + " - " + metadata["name"]
+                        except json.JSONDecodeError:
+                            pass
+                self.mods_list[mod] = folder_dir
+        else:
+            self.mod_combobox_state = "disabled"
+        if selected_mod not in self.mods_list.values():
+            self.set_var("Selected Mod", "")
 
 """
-TODO Implement cleaning process to clean up things if some processes unexpectedly failed e.g. leftover save.txt
-    - May not be necessary now
+TODO We made a band-aid change to accomodate custom function to execute when browsing a folder.
 """

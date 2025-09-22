@@ -1,9 +1,9 @@
-from scripts.checkers.check_base import Checker
-from scripts.checkers.checkers_functions import get_country_name, get_building_output, institution_manager
-from scripts.helpers.utility import retrieve_from_tree, load_def_multiple
+from src.checkers.check_base import Checker
+from src.checkers.checkers_functions import get_country_name, get_building_output, institution_manager
+from src.helpers.utility import retrieve_from_tree, load_def_multiple
 import pandas as pd
 
-demographics_columns = ["literacy", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage"]
+demographics_columns = ["literacy", "standard of living", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage"]
 
 class CheckDemographics(Checker):
     
@@ -93,7 +93,7 @@ class CheckDemographics(Checker):
             incorporation = float(retrieve_from_tree(state, ["incorporation"], null=0))
             country["demographics"].append([incorporation, state["demographics"]])
 
-        df_literacy = []
+        df_demographics = []
         for country_id, country in countries.items():
             if not isinstance(country, dict) or "demographics" not in country:
                 continue
@@ -119,6 +119,7 @@ class CheckDemographics(Checker):
             unemployed_percentage = total_unemployed / max(total_workers, 0.0000001)
             radicals_percentage = total_radicals / max(total_population, 0.0000001)
             loyalists_percentage = total_loyalists / max(total_population, 0.0000001)
+            standard_of_living = retrieve_from_tree(country, ["avgsoltrend", "channels", "0", "values", "value"], null=[0])[-1]
             country_tag = country["definition"]
             country_name = get_country_name(country, localization)
             df_country = {
@@ -127,6 +128,7 @@ class CheckDemographics(Checker):
                 "country": country_name,
                 "population": total_population,
                 "literacy": literacy,
+                "standard of living": standard_of_living,
                 "incorporated population": incorporated_population,
                 "incorporated workforce": incorporated_workers,
                 "incorporated literates": incorporated_literates,
@@ -143,19 +145,20 @@ class CheckDemographics(Checker):
                 "radicals percentage": radicals_percentage,
                 "loyalists percentage": loyalists_percentage,
             }
-            df_literacy.append(df_country)
+            df_demographics.append(df_country)
 
-        df_literacy = pd.DataFrame(df_literacy, columns=df_literacy[0].keys())
-        df_literacy.sort_values(by='literacy', ascending=False)
-        df_literacy = df_literacy[df_literacy["id"].isin(players)]
+        df_demographics = pd.DataFrame(df_demographics, columns=df_demographics[0].keys())
+        df_demographics = df_demographics.sort_values(by='population', ascending=False)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
-            df_literacy.to_csv(f"{address}/demographics.csv", sep=",", index=False)
+            df_demographics.to_csv(f"{address}/data/demographics.csv", sep=",", index=False)
+            df_demographics = df_demographics[df_demographics["id"].isin(players)]
+            df_demographics.to_csv(f"{address}/demographics.csv", sep=",", index=False)
             with open(f"{address}/demographics.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                df_literacy.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")
+                df_demographics.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")
         
         print(f"Finished checking demographics on {day}/{month}/{year}")
 
-        return df_literacy
+        return df_demographics

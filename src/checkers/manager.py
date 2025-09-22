@@ -1,14 +1,14 @@
-from scripts.checkers.checkers_functions import *
-from scripts.checkers.check_construction import CheckConstruction
-from scripts.checkers.check_innovation import CheckInnovation
-from scripts.checkers.check_infamy import CheckInfamy
-from scripts.checkers.check_prestige import CheckPrestige, prestige_columns
-from scripts.checkers.check_tech import CheckTech
-from scripts.checkers.check_demographics import CheckDemographics, demographics_columns
-from scripts.checkers.check_finance import CheckFinance, finance_columns
+from src.checkers.checkers_functions import *
+from src.checkers.check_construction import CheckConstruction
+from src.checkers.check_innovation import CheckInnovation
+from src.checkers.check_infamy import CheckInfamy
+from src.checkers.check_prestige import CheckPrestige, prestige_columns
+from src.checkers.check_tech import CheckTech
+from src.checkers.check_demographics import CheckDemographics, demographics_columns
+from src.checkers.check_finance import CheckFinance, finance_columns
 
-from scripts.helpers.plotter import plot_stat, plot_goods_produced
-from scripts.convert_localization import get_all_localization
+from src.helpers.plotter import plot_stat, plot_goods_produced
+from src.helpers.convert_localization import get_all_localization
 import os, glob
 
 class SaveManager:
@@ -24,6 +24,7 @@ class SaveManager:
         self.cache["address"] = address
         self.checks = checks
         self.localization = get_all_localization()
+        os.makedirs(f"{address}/data", exist_ok=True)  # Create a data folder for outputs
         requirements = self.check_metadata(False) # mandatory to obtain metadata
         for check in checks: # Combine all needed requirements
             if not check.check_needs(address, False): # TODO deal with resetting later
@@ -36,8 +37,13 @@ class SaveManager:
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 
     def start_checking(self):
-        for check in self.checks:
-            check.check(self.cache)
+        while self.checks:
+            remaining_checks = []
+            for check in self.checks:
+                done = check.check(self.cache)
+                if not done: # Due to dependencies
+                    remaining_checks.append(check)
+            self.checks = remaining_checks
 
     def check_metadata(self, reset=False):
         """Check if loading metadata from the save file is necessary. Returns the requirement set"""

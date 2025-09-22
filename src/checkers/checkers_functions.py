@@ -3,7 +3,7 @@ Functions related to game variables that are used commonly by the checker functi
 """
 import os
 import re
-from scripts.helpers.utility import *
+from src.helpers.utility import *
 
 def companies_manager(save_data, countries, relevant_modifiers):
     """
@@ -192,3 +192,4 @@ def rename_folder_to_date(folder):
         os.rename(folder, f"./saves/{campaign_folder}/{new_name}")
     except PermissionError as e:
         raise PermissionError("Error when renaming folder:", e)
+    return new_name

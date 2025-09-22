@@ -24,7 +24,7 @@ class Checker:
             return True
         else:
             for output in self.output:
-                if output not in os.listdir(address):
+                if not (output in os.listdir(address) and output in os.listdir(f"{address}/data")):
                     return True
         return False            
 
@@ -35,8 +35,13 @@ class Checker:
         """
         if "reset" not in cache: # TODO Remove this later when reset is properly wired
             cache["reset"] = False
+        for dependency in self.dependencies:
+            print(cache["address"], dependency, os.listdir(f"{cache["address"]}/data"))
+            if dependency not in os.listdir(f"{cache["address"]}/data"):
+                return False
         if self.check_needs(cache["address"], cache["reset"]):
             self.execute_check(cache)
+        return True
 
     def execute_check(self, cache:dict):
         """

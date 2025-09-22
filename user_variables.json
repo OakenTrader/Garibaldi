@@ -1,10 +1,11 @@
 {
-    "Common Directory": "./common",
-    "Events Directory": "./events",
-    "Localization Directory": "./localization",
+    "Common Directory": "",
+    "Events Directory": "",
+    "Localization Directory": "",
     "Localization Language": "english",
-    "Mod Directory":"",
+    "Mods Directory": "",
     "Tree File Location": "",
-    "Campaign Folder": "autosaves",
-    "Autosave Location": ""
+    "Campaign Folder": "",
+    "Autosave Location": "autosaves",
+    "Selected Mod": ""
 }

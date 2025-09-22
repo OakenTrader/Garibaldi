@@ -1,6 +1,5 @@
 __pycache__
-events/**
-common/**
 saves/**
-localization/**
 !*/.gitkeep
+venv/
+bin/

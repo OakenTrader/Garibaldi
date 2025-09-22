@@ -1,10 +1,10 @@
 """
 File containing the save extraction functions
 """
-from scripts.checkers.checkers_functions import rename_folder_to_date
-from scripts.extractor import Extractor
-from scripts.helpers.melt import melt
-from scripts.helpers.utility import *
+from src.checkers.checkers_functions import rename_folder_to_date
+from src.extractor import ExtractorSave
+from src.helpers.melt import melt
+from src.helpers.utility import *
 import time, shutil, re
 from glob import glob
 
@@ -14,13 +14,13 @@ def extract_save_file(save_file):
     Handles extraction of a single save file.
     """
     try:
-        data = t_execute(Extractor)(f"{save_file}/save.txt", is_save=True)
+        data = t_execute(ExtractorSave)(f"{save_file}/save.txt")
         t_execute(data.unquote)()
         t_execute(data.write)(save_file, separate=True)
     except InterruptedError as e:
         raise InterruptedError("Stop event set")
     except Exception as e:
-        data = Extractor(f"{save_file}/save.txt", is_save=True, pline=True)
+        data = ExtractorSave(f"{save_file}/save.txt", pline=True)
 
 def extract_files(campaign_folder, files, stop_event, finish_event, queue, delete=True):
     """
@@ -71,11 +71,13 @@ def extract_files(campaign_folder, files, stop_event, finish_event, queue, delet
                 raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
             
             os.remove(f"{folder}/save.txt")
+            new_name = rename_folder_to_date(folder)
             if delete:
                 os.remove(file)
             else:
-                shutil.move(file, f"./saves/{campaign_folder}/archive/")
-            rename_folder_to_date(folder)
+                new_name = f"./saves/{campaign_folder}/{new_name}.v3"
+                os.rename(file, new_name)
+                shutil.move(new_name, f"./saves/{campaign_folder}/archive/")
             queue.put(1)
     except Exception as e:
         stop_event.set()
