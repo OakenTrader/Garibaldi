@@ -1,6 +1,6 @@
 # Garibaldi: Victoria 3 Save Analyzer
 
-Save game analyzer for Victoria 3 which retrieve information from autosaves across a campaign and plot them together.
+Save game analyzer for Victoria 3 which retrieve information from autosaves across a campaign and plot them together. The script is designed for campaigns in multiplayer (also works for singleplayer campaigns) and is run on Python.
 
 ## Features:
 - Extract save files and retrieve/plot information of
@@ -9,8 +9,8 @@ Save game analyzer for Victoria 3 which retrieve information from autosaves acro
     - Infamy
     - Prestige (consequently goods produced)
     - Technologies and table of technologies comparison
-    - Demographics
-    - Finance
+    - Demographics, including Standard of Living
+    - Finance, including GDP, money and debt
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
@@ -32,6 +32,10 @@ Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who
 
 Do not hesitate to open an issue for bug reports and suggestions!
 
-## Version 0.8.1
-Windows users download the rar file from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.8.1)
-- Updated to game version 1.9.x
+## Version 0.9.0
+Windows users download the rar file from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.9.0)
+- Restructured script structure
+- Statistics of all countries are now saved in extracted_save folder of each save, while the old stat csv files will only show player countries
+- More convenient mod selection
+- Slight Optimization
+- Added a few more statistics (GDP per capita, standard of living and innovation ratio over cap)
