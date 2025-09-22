@@ -316,12 +316,47 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         super().__init__(master)
         Garibaldi_gui.__init__(self)
         self.title("Save Analyzer")
+        self.geometry("1200x700")  # Expanded initial window size
+
+        # Create a frame with a vertical scrollbar
+        container = ttk.Frame(self)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(container)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        self.inner_frame = ttk.Frame(canvas)
+        canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
+
+        # Enable mouse wheel scrolling only for SaveAnalyzer window
+        def _on_mousewheel(event):
+            # For Windows and MacOS
+            if self.focus_get() is not None and self.focus_get().winfo_toplevel() == self:
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        def _on_mousewheel_linux(event):
+            # For Linux (event.num 4 is scroll up, 5 is scroll down)
+            if self.focus_get() is not None and self.focus_get().winfo_toplevel() == self:
+                if event.num == 4:
+                    canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    canvas.yview_scroll(1, "units")
+
+        # Bind mouse wheel events for different platforms, restricted to SaveAnalyzer
+        canvas.bind("<MouseWheel>", _on_mousewheel)      # Windows/Mac
+        canvas.bind("<Button-4>", _on_mousewheel_linux)  # Linux scroll up
+        canvas.bind("<Button-5>", _on_mousewheel_linux)  # Linux scroll down
+
         self.save_analyze_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.stop_event = master.stop_event
         self.finish_event = multiprocessing.Event()
         self.finish_event.clear()
-    
+
     def save_analyze_settings(self):
         """
         Plot the statistics of some variables and/or show it on an interactive screen
@@ -340,28 +375,36 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         grid = []
 
         def add_checker(text, showable=True):
-            label = ttk.Label(self, text=text)
-            check_var = tk.BooleanVar(self, value=True)
-            show_var = tk.BooleanVar(self, value=False)
-            show_button = ttk.Checkbutton(self, text="Show plot", variable=show_var, onvalue=True, offvalue=False)
-            yes_button = ttk.Radiobutton(self, text="Yes", variable=check_var, value=True, command=lambda: show_button.config(state=tk.NORMAL))
-            no_button = ttk.Radiobutton(self, text="No", variable=check_var, value=False, command=lambda: show_button.config(state=tk.DISABLED))
+            label = ttk.Label(self.inner_frame, text=text)
+            check_var = tk.BooleanVar(self.inner_frame, value=True)
+            show_var = tk.BooleanVar(self.inner_frame, value=False)
+            show_button = ttk.Checkbutton(self.inner_frame, text="Show plot", variable=show_var, onvalue=True, offvalue=False)
+            yes_button = ttk.Radiobutton(self.inner_frame, text="Yes", variable=check_var, value=True, command=lambda: show_button.config(state=tk.NORMAL))
+            no_button = ttk.Radiobutton(self.inner_frame, text="No", variable=check_var, value=False, command=lambda: show_button.config(state=tk.DISABLED))
             if showable:
                 grid.append([label, yes_button, no_button, show_button])
             else:
                 grid.append([label, yes_button, no_button])
             return check_var, show_var
-        
-        header = ttk.Label(self, text="Plot the statistics of some variables and optionally show it on an interactive screen")
-        
-        label_campaign_folder = ttk.Label(self, text="Campaign Folder")
-        self.folder_entry = ttk.Entry(self, width=50)
+
+        header = ttk.Label(self.inner_frame, text="Plot the statistics of some variables and optionally show it on an interactive screen")
+
+        label_campaign_folder = ttk.Label(self.inner_frame, text="Campaign Folder")
+        self.folder_entry = ttk.Entry(self.inner_frame, width=50)
         self.folder_entry.insert(0, self.user_variables["Campaign Folder"])
         self.folder_entry.config(state="readonly")
-        browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
-        make_folder_button = ttk.Button(self, text="New Folder", command=lambda: self.new_window_entry(self, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
-        
-        label_check = ttk.Label(self, text="Select which stats do you want to extract from the saves and plot?")
+        browse_button = ttk.Button(self.inner_frame, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
+        make_folder_button = ttk.Button(self.inner_frame, text="New Folder", command=lambda: self.new_window_entry(self.inner_frame, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
+
+        self.var_thread = tk.IntVar(self.inner_frame, value=1)
+        label_thread = ttk.Label(self.inner_frame, text="How many threads to perform analysis at once?")
+        radio_1thread = ttk.Radiobutton(self.inner_frame, text="1", variable=self.var_thread, value=1)
+        radio_2thread = ttk.Radiobutton(self.inner_frame, text="2", variable=self.var_thread, value=2)
+        radio_3thread = ttk.Radiobutton(self.inner_frame, text="3", variable=self.var_thread, value=3)
+        radio_4thread = ttk.Radiobutton(self.inner_frame, text="4", variable=self.var_thread, value=4)
+        label_risk = ttk.Label(self.inner_frame, text="(AT YOUR OWN RISK)")
+
+        label_check = ttk.Label(self.inner_frame, text="Select which stats do you want to extract from the saves and plot?")
         self.check_list = dict()
         self.check_list["construction"] = add_checker("Construction")
         self.check_list["avg_cost"] = add_checker("Average Construction Cost")
@@ -377,23 +420,24 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list["total_techs"] = add_checker("Total Techs")
         self.check_list["goods_produced"] = add_checker("Goods Produced")
 
-        warning_goods = ttk.Label(self, text="Note: We can only either not show or show ALL types of goods produced on interactive windows.")
+        warning_goods = ttk.Label(self.inner_frame, text="Note: We can only either not show or show ALL types of goods produced on interactive windows.")
 
-        self.start_date_label = ttk.Label(self, text="Start year")
-        self.start_date_entry = ttk.Entry(self, width=30)
+        self.start_date_label = ttk.Label(self.inner_frame, text="Start year")
+        self.start_date_entry = ttk.Entry(self.inner_frame, width=30)
         self.start_date_entry.insert(0, "1836")
-        self.end_date_label = ttk.Label(self, text="End year")
-        self.end_date_entry = ttk.Entry(self, width=30)
+        self.end_date_label = ttk.Label(self.inner_frame, text="End year")
+        self.end_date_entry = ttk.Entry(self.inner_frame, width=30)
         self.end_date_entry.insert(0, "1984")
 
-        self.ok_button = ttk.Button(self, text="Run", command=lambda: self.on_ok())
-        self.stop_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
+        self.ok_button = ttk.Button(self.inner_frame, text="Run", command=lambda: self.on_ok())
+        self.stop_button = ttk.Button(self.inner_frame, text="Stop", command=lambda: self.on_stop())
         self.stop_button.config(state=tk.DISABLED)
 
         self.tinkerable = [browse_button, make_folder_button] + [a for b in grid for a in b] + [self.ok_button] # Checker buttons
         self.make_grid([
              [(header, 5, 'w')],
              [label_campaign_folder, self.folder_entry, browse_button, make_folder_button],
+             [label_thread, radio_1thread, radio_2thread, radio_3thread, radio_4thread, label_risk],
              [(label_check, 3, 'w')]] 
           + grid
           + [[(warning_goods, 7, 'w')], 
@@ -413,19 +457,16 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
                 showers.append(checker)
         self.after(100, perform_checking, checkers, showers, self.folder_entry.get(), self.stop_event, self.finish_event)
         self.stop_button.config(state=tk.NORMAL)
-        # self.watch_thread = threading.Thread(target=perform_checking, args=(checkers, showers, self.folder_entry.get(), self.stop_event))
-        # self.watch_thread.start()
 
-    
     def on_closing(self):
         """Handles closing the SaveAnalyzer menu"""
         self.on_stop()
         self.end_task()
         self.destroy()
-    
+
     def on_stop(self):
         self.stop_event.set()
-    
+
     def end_task(self):
         """Checks if checking is done/terminated and restore the menu state"""
         """If finish event is raised but not stop_event, we proceed to draw plotting"""
@@ -435,7 +476,6 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
             self.stop_event.clear()
             self.stop_button.config(state=tk.DISABLED)
         self.after(500, self.end_task)
-
 
 class SaveWatcher(tk.Toplevel, Garibaldi_gui):
     """
