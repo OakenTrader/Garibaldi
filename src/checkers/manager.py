@@ -100,7 +100,7 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
                 check_map[outvar] = (checker_class, output)
     try:
         checkers = [c() for c in list(set([check_map[check][0] for check in checks]))] # Instantiate a single object from each class
-        for folder in glob.glob(f".\\saves\\{campaign_folder}\\*\\"):
+        for folder in glob.glob(os.path.join("saves", campaign_folder, "*")):
             if stop_event.is_set():
                 raise InterruptedError("Stop event set")
             if is_reserved_folder(folder):
