@@ -160,7 +160,7 @@ class Main_Menu(tk.Tk, Garibaldi_gui):
     def __init__(self):
         super().__init__()
         Garibaldi_gui.__init__(self)
-        self.title("Garibaldi v0.9.1")
+        self.title("Garibaldi v0.10.0")
         self.stop_event = multiprocessing.Event()
         self.stop_event.clear()
         self.main_menu_gui()
