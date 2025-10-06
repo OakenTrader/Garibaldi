@@ -1,6 +1,6 @@
 [project]
 name = "garibaldi"
-version = "0.9.1"
+version = "0.10.0"
 description = "Victoria 3 Save Games Analyzer"
 readme = "README.md"
 requires-python = ">=3.13"
