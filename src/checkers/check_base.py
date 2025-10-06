@@ -36,7 +36,6 @@ class Checker:
         if "reset" not in cache: # TODO Remove this later when reset is properly wired
             cache["reset"] = False
         for dependency in self.dependencies:
-            print(cache["address"], dependency, os.listdir(f"{cache["address"]}/data"))
             if dependency not in os.listdir(f"{cache["address"]}/data"):
                 return False
         if self.check_needs(cache["address"], cache["reset"]):
