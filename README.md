@@ -36,7 +36,7 @@ Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who
 
 The project is still far from polished. File extraction is around 30-60 seconds per save, the analyzing process is not truly optimized, and some statistics may not be correct (radicals/loyalists certainly are). Do not hesitate to open an issue for bug reports and suggestions!
 
-## Version 0.10.0
-Either clone this repository (it now has everything you need) to use, or download from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.10.0)
+## Version 0.10.1
+Either clone this repository (it now has everything you need) to use, or download from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.10.1)
 - Update to 1.10 games
 - Some project restructuring (again) and bugfixes
