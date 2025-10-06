@@ -99,6 +99,7 @@ class CheckTech(Checker):
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
 
         df_missing_techs = []
+        df_missing_techs_players = []
         miss_mil_tech = []
         miss_soc_tech = []
         miss_prod_tech = []
@@ -111,14 +112,18 @@ class CheckTech(Checker):
                 miss_prod_tech.append(missing_tech)
         missing_techs_keys = miss_mil_tech + miss_soc_tech + miss_prod_tech
 
-        for country_id in players: # Create a table for missing tech
+        for country_id in countries: # Create a table for missing tech
             if not isinstance(country := retrieve_from_tree(countries, [country_id]), dict):
                 continue
             df_missing_tech = {"id":country_id, "tag":country["definition"], "country":get_country_name(country, localization)}
             df_missing_tech.update({tech:False for tech in missing_techs_keys})
-            missing_tech = retrieve_from_tree(countries, [country_id, "Missing tech"], null=[])
+            missing_tech = retrieve_from_tree(countries, [country_id, "Missing tech"], null=None)
+            if missing_tech is None: # Primitive countries with no techs researched
+                continue
             df_missing_tech.update({tech:True for tech in missing_tech})
             df_missing_techs.append(df_missing_tech)
+            if country_id in players:
+                df_missing_techs_players.append(df_missing_tech)
         
         df_missing_techs = pd.DataFrame(df_missing_techs, columns=["id", "tag", "country"] + missing_techs_keys)
         count_country = df_missing_techs.iloc[:, 3:].sum()
@@ -132,13 +137,26 @@ class CheckTech(Checker):
         df_missing_techs.sort_values(by=["Total"], ascending=True, inplace=True)
         df_missing_techs = df_missing_techs.T
 
+        df_missing_techs_players = pd.DataFrame(df_missing_techs_players, columns=["id", "tag", "country"] + missing_techs_keys)
+        count_country = df_missing_techs_players.iloc[:, 3:].sum()
+        total_row = pd.DataFrame([['', '', 'Total', *count_country]], index=[0], columns=df_missing_techs_players.columns)
+        df_missing_techs_players = pd.concat([df_missing_techs_players, total_row], ignore_index=True)
+
+        df_missing_techs_players["Total"] = df_missing_techs_players.iloc[:, 3:].sum(axis=1)
+        df_missing_techs_players["Total Military"] = df_missing_techs_players.iloc[:, 3:3+len(miss_mil_tech)].sum(axis=1)
+        df_missing_techs_players["Total Society"] = df_missing_techs_players.iloc[:, 3+len(miss_mil_tech):3+len(miss_mil_tech)+len(miss_soc_tech)].sum(axis=1)
+        df_missing_techs_players["Total Production"] = df_missing_techs_players.iloc[:, 3+len(miss_mil_tech)+len(miss_soc_tech):3+len(missing_techs_keys)].sum(axis=1)
+        df_missing_techs_players.sort_values(by=["Total"], ascending=True, inplace=True)
+        df_missing_techs_players = df_missing_techs_players.T
+
         df_tech = pd.DataFrame(df_tech, columns=["id", "tag", "country", "production_techs", "military_techs", "society_techs", "total_techs", "tech_points", "researching"])
         df_tech.sort_values(by=["total_techs"], inplace=True, ascending=False)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             df_tech.to_csv(f"{address}/data/tech_tree.csv", sep=",", index=False, encoding="utf-8")
             df_tech = df_tech[df_tech["id"].isin(players)]
             df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
-            df_missing_techs.to_csv(f"{address}/missing_techs.csv", sep=",", encoding="utf-8")
+            df_missing_techs.to_csv(f"{address}/data/missing_techs.csv", sep=",", encoding="utf-8")
+            df_missing_techs_players.to_csv(f"{address}/missing_techs.csv", sep=",", encoding="utf-8")
             with open(f"{address}/tech_tree.txt", "w", encoding="utf-8") as file:
                 year, month, day = save_date
                 file.write(f"{day}/{month}/{year}\n")

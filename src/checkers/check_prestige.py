@@ -273,6 +273,8 @@ class CheckPrestige(Checker):
 
         df_countries_goods = [{"tag": k} | v for k, v in df_countries_goods.items()]
         df_goods_leaderboard = pd.DataFrame(df_countries_goods, columns=["id", "tag", "country"] + [num_to_goods[int(i)] for i in range(len(num_to_goods))])
+        df_goods_leaderboard.to_csv(f"{address}/data/goods_produced.csv", sep=",")
+        df_goods_leaderboard = df_goods_leaderboard[df_goods_leaderboard["id"].isin(players)]
         df_goods_leaderboard.to_csv(f"{address}/goods_produced.csv", sep=",")
         goods_leaderboard = {k:sorted(dictionary.items(), key=lambda item: item[1], reverse=True)[:10] for k, dictionary in goods_leaderboard.items()}
 
