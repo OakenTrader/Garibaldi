@@ -3,7 +3,7 @@ Functions related to game variables that are used commonly by the checker functi
 """
 import os
 import re
-from src.helpers.utility import *
+from helpers.utility import *
 
 def companies_manager(save_data, countries, relevant_modifiers):
     """
