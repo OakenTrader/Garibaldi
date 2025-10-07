@@ -30,8 +30,8 @@ export default {
       try {
         await this.downloadZip('/python.zip')
         await this.extractZip('python.zip', 'project')
-        await this.installDependencies('project/requirements.txt')
-        await this.runMainPy('project')
+        await this.installDependencies('project/python/requirements.txt')
+        await this.runMainPy('project/python/')
       } catch (err) {
         console.error('Error running Python project:', err)
       }
@@ -69,6 +69,12 @@ print("Extracted files:", os.listdir("${extractTo}"))
     async installDependencies(reqPath) {
       console.log('Installing dependencies...')
       await this.pyodide.loadPackage('micropip')
+      await this.pyodide.runPythonAsync(`
+import os
+print("Root:", os.listdir("/"))
+print("Project:", os.listdir("project"))
+print("Project/python:", os.listdir("project/python"))
+`)
       await this.pyodide.runPythonAsync(`
 import os, micropip
 if os.path.exists("${reqPath}"):
