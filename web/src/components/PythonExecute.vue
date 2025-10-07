@@ -92,17 +92,29 @@ else:
     // =========================
     async runMainPy(projectPath) {
       console.log('Running main.py...')
-      const result = await this.pyodide.runPythonAsync(`
-import sys
-sys.path.append("${projectPath}")
 
-import main
+      const script = `
+import sys, os, runpy
 
-if hasattr(main, "main"):
-    main.main()
-else:
-    print("main.py loaded, no main() function found")
-      `)
+# Pfade richtig setzen
+sys.path.extend([
+    "${projectPath}",
+    os.path.join("${projectPath}", "src"),
+])
+
+# Arbeitsverzeichnis ändern (wichtig!)
+os.chdir("${projectPath}")
+
+print("Current working dir:", os.getcwd())
+print("Files in src:", os.listdir(os.path.join("${projectPath}", "src")))
+
+# CLI-Argumente simulieren
+sys.argv = ["web_extractSave.py", "Test"]
+
+# Skript ausführen
+runpy.run_path(os.path.join("${projectPath}", "src", "web_extractSave.py"), run_name="__main__")
+`
+      const result = await this.pyodide.runPythonAsync(script)
       console.log('Python output:', result)
     },
   },
