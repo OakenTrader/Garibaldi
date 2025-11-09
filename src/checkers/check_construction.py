@@ -10,6 +10,7 @@ class CheckConstruction(Checker):
     Retrieve the construction, construction in use, construction cost and its average per construction point
     of player nations and nations with more construction than a minimum player's construction
     """
+    name = "CheckConstruction"
     requirements = ["building_manager", "country_manager", "pops"]
     output = {"construction.csv": ["construction", "avg_cost"]}
 
@@ -99,11 +100,11 @@ class CheckConstruction(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_construction.to_csv(f"{address}/data/construction.csv", sep=",", index=False)
-            df_construction = df_construction[df_construction["id"].isin(players)]
-            df_construction.to_csv(f"{address}/construction.csv", sep=",", index=False)
+            df_construction_players = df_construction[df_construction["id"].isin(players)]
+            df_construction_players.to_csv(f"{address}/construction.csv", sep=",", index=False)
             with open(f"{address}/construction.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                file.write(df_construction.to_string())
+                file.write(df_construction_players.to_string())
         print(f"Finished checking construction on {day}/{month}/{year}")
 
         return df_construction

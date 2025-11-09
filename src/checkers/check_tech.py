@@ -8,6 +8,7 @@ class CheckTech(Checker):
     Retrieve some information about each nation's technology. i.e. number of researched techs and missing techs which are researched elsewhere
     """
 
+    name = "CheckTech"
     requirements = ["country_manager", "technology"]
     output = {"tech_tree.csv": ["production_techs", "military_techs", "society_techs", "total_techs"], "missing_techs.csv": []}
 
@@ -153,8 +154,8 @@ class CheckTech(Checker):
         df_tech.sort_values(by=["total_techs"], inplace=True, ascending=False)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             df_tech.to_csv(f"{address}/data/tech_tree.csv", sep=",", index=False, encoding="utf-8")
-            df_tech = df_tech[df_tech["id"].isin(players)]
-            df_tech.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
+            df_tech_players = df_tech[df_tech["id"].isin(players)]
+            df_tech_players.to_csv(f"{address}/tech_tree.csv", sep=",", index=False, encoding="utf-8")
             df_missing_techs.to_csv(f"{address}/data/missing_techs.csv", sep=",", encoding="utf-8")
             df_missing_techs_players.to_csv(f"{address}/missing_techs.csv", sep=",", encoding="utf-8")
             with open(f"{address}/tech_tree.txt", "w", encoding="utf-8") as file:
@@ -162,3 +163,4 @@ class CheckTech(Checker):
                 file.write(f"{day}/{month}/{year}\n")
                 file.write(output)
                 print(f"Finished checking technology on {day}/{month}/{year}")
+        return df_tech

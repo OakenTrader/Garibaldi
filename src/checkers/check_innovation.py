@@ -9,6 +9,7 @@ class CheckInnovation(Checker):
     """
     Retrieve Innovation and its cap of player nations and nations with > base innovation
     """
+    name = "CheckInnovation"
     requirements = ["building_manager", "country_manager", "pops", "player_manager", "companies", "power_bloc_manager", "pacts", "institutions"]
     output = {"innovation.csv":["innovation", "capped_innovation", "innovation_ratio"]}
     dependencies = ["demographics.csv"]
@@ -105,10 +106,10 @@ class CheckInnovation(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_innov.to_csv(f"{address}/data/innovation.csv", sep=",", index=False)
-            df_innov = df_innov[df_innov["id"].isin(players)]
-            df_innov.to_csv(f"{address}/innovation.csv", sep=",", index=False)
+            df_innov_players = df_innov[df_innov["id"].isin(players)]
+            df_innov_players.to_csv(f"{address}/innovation.csv", sep=",", index=False)
             with open(f"{address}/innovation.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                file.write(df_innov.to_string())
+                file.write(df_innov_players.to_string())
         print(f"Finished checking innovation on {day}/{month}/{year}")
         return df_innov

@@ -7,6 +7,7 @@ class CheckInfamy(Checker):
     """
     Retrieve infamy of player countries and countries with non-zero infamy
     """
+    name = "CheckInfamy"
     requirements = ["country_manager"]
     output = {"infamy.csv": ["infamy"]}
     
@@ -39,10 +40,10 @@ class CheckInfamy(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df.to_csv(f"{address}/data/infamy.csv", sep=",", index=False)
-            df = df[df["id"].isin(players)]
-            df.to_csv(f"{address}/infamy.csv", sep=",", index=False)
+            df_players = df[df["id"].isin(players)]
+            df_players.to_csv(f"{address}/infamy.csv", sep=",", index=False)
             with open(f"{address}/infamy.txt", "w", encoding="utf-8") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                file.write(df.to_string())
+                file.write(df_players.to_string())
         print(f"Finished checking infamy on {day}/{month}/{year}")
         return df
