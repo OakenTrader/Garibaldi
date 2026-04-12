@@ -115,12 +115,53 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
         """
         FIXME Replace //common// with mode and properly implement depth_add
         """
+        """
+        FIXME Vibecoded this thing
+        """
         for address in glob.glob(user_variables["Selected Mod"] + "//common//" + folder + "//*.txt"):
             data = ExtractorCommon(address)
             data.unquote()
             data = data.data
             if depth_add == 0:
-                defs.update(data)
+                for key, value in data.items():
+                    if ':' in key:
+                        prefix, actual_key = key.split(':', 1)
+                        prefix = prefix.upper()
+                        if prefix == 'INJECT':
+                            if actual_key not in defs:
+                                raise ValueError(f"INJECT: {actual_key} does not exist")
+                            if isinstance(value, dict) and isinstance(defs[actual_key], dict):
+                                defs[actual_key].update(value)
+                            else:
+                                defs[actual_key] = value
+                        elif prefix == 'REPLACE':
+                            if actual_key not in defs:
+                                raise ValueError(f"REPLACE: {actual_key} does not exist")
+                            defs[actual_key] = value
+                        elif prefix == 'TRY_INJECT':
+                            if actual_key in defs:
+                                if isinstance(value, dict) and isinstance(defs[actual_key], dict):
+                                    defs[actual_key].update(value)
+                                else:
+                                    defs[actual_key] = value
+                        elif prefix == 'TRY_REPLACE':
+                            if actual_key in defs:
+                                defs[actual_key] = value
+                        elif prefix == 'REPLACE_OR_CREATE':
+                            defs[actual_key] = value
+                        elif prefix == 'INJECT_OR_CREATE':
+                            if actual_key in defs:
+                                if isinstance(value, dict) and isinstance(defs[actual_key], dict):
+                                    defs[actual_key].update(value)
+                                else:
+                                    defs[actual_key] = value
+                            else:
+                                defs[actual_key] = value
+                        else:
+                            # Invalid prefix, treat as normal key
+                            defs[key] = value
+                    else:
+                        defs[key] = value
             else:
                 for key, value in data.items():
                     if isinstance(value, dict) and key in defs:
@@ -130,6 +171,20 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
 
     return defs
 
+"""
+Each mod entries now may or may not have prefixes:
+INJECT:key - this mode tries to inject the script into an existing entry. Errors if the respective entry does not exist.
+
+REPLACE:key - this mode replaces an existing entry with a new one. Errors if the respective entry does not exist.
+
+TRY_INJECT:key same as INJECT: but does not error if the entry does not exist.
+
+TRY_REPLACE:key same as REPLACE: but does not error if the entry does not exist.
+
+REPLACE_OR_CREATE:key = { } # Same as REPLACE: but if the entry does not exist, it will create it
+
+INJECT_OR_CREATE:key = { } # Same as INJECT: but if the entry does not exist, it will create it
+"""
 
 def load_save(topics:list, address:str):
     """

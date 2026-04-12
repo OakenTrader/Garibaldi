@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 
 class Checker:
     """
@@ -39,8 +40,15 @@ class Checker:
             if dependency not in os.listdir(f"{cache["address"]}/data"):
                 return False
         if self.check_needs(cache["address"], cache["reset"]):
-            self.execute_check(cache)
-        return True
+            check_output = self.execute_check(cache)
+        else:
+            check_output = []
+            for file, variables in self.output.items():
+                if variables:
+                    check_output.append(pd.read_csv(f"{cache['address']}/data/{file}", sep=","))
+            if len(check_output) == 1:
+                check_output = check_output[0]
+        return check_output
 
     def execute_check(self, cache:dict):
         """

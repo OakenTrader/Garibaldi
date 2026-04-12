@@ -23,7 +23,7 @@ The melter integrated in this program is available in Windows and Linux platform
 
 Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
-Works for games in version 1.10
+Works for games in version 1.12
 The program is not guaranteed to work in any other version (it will certainly break in earlier versions because Paradox changes variable names over time and I am too lazy to maintain backward compatibility)
 
 The script is intended (atleast in the future) to be compatible with as many mods as possible and so we try not to hardcode any variable into the script, relying all data from the provided definition files
@@ -36,7 +36,6 @@ Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who
 
 The project is still far from polished. File extraction is around 30-60 seconds per save, the analyzing process is not truly optimized, and some statistics may not be correct (radicals/loyalists certainly are). Do not hesitate to open an issue for bug reports and suggestions!
 
-## Version 0.10.1
+## Version 0.11.0
 Either clone this repository (it now has everything you need) to use, or download from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.10.1)
-- Update to 1.10 games
-- Some project restructuring (again) and bugfixes
+- Update to 1.12 games

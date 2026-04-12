@@ -1,11 +1,11 @@
 [project]
 name = "garibaldi"
-version = "0.10.1"
+version = "0.11.0"
 description = "Victoria 3 Save Games Analyzer"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "matplotlib>=3.10.6",
-    "numpy>=2.3.3",
-    "pandas>=2.3.2",
+    "matplotlib>=3.10.8",
+    "pandas>=3.0.2",
+    "pytest>=9.0.3",
 ]

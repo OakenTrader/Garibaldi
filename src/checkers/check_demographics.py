@@ -7,6 +7,7 @@ demographics_columns = ["literacy", "standard of living", "population", "incorpo
 
 class CheckDemographics(Checker):
     
+    name = "CheckDemographics"
     requirements = ["pops", "states", "country_manager", "building_manager"]
     output = {"demographics.csv":demographics_columns}
 
@@ -153,11 +154,11 @@ class CheckDemographics(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_demographics.to_csv(f"{address}/data/demographics.csv", sep=",", index=False)
-            df_demographics = df_demographics[df_demographics["id"].isin(players)]
-            df_demographics.to_csv(f"{address}/demographics.csv", sep=",", index=False)
+            df_demographics_players = df_demographics[df_demographics["id"].isin(players)]
+            df_demographics_players.to_csv(f"{address}/demographics.csv", sep=",", index=False)
             with open(f"{address}/demographics.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                df_demographics.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")
+                df_demographics_players.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")
         
         print(f"Finished checking demographics on {day}/{month}/{year}")
 

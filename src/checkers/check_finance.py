@@ -30,6 +30,7 @@ class CheckFinance(Checker):
 
     """
     
+    name = "CheckFinance"
     requirements = ["pops", "country_manager", "building_manager", "states"]
     output = {"finance.csv":["GDP", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"],}
     dependencies = ["demographics.csv"]
@@ -131,11 +132,11 @@ class CheckFinance(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_finance.to_csv(f"{address}/data/finance.csv", sep=",", index=False)
-            df_finance = df_finance[df_finance["id"].isin(players)]
-            df_finance.to_csv(f"{address}/finance.csv", sep=",", index=False)
+            df_finance_players = df_finance[df_finance["id"].isin(players)]
+            df_finance_players.to_csv(f"{address}/finance.csv", sep=",", index=False)
             with open(f"{address}/finance.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                df_finance.to_string(buf=f"{address}/finance.txt", encoding="utf-8")
+                df_finance_players.to_string(buf=f"{address}/finance.txt", encoding="utf-8")
         
         print(f"Finished checking finance on {day}/{month}/{year}")
 

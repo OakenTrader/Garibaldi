@@ -14,6 +14,7 @@ class CheckPrestige(Checker):
     """
     Retrieve prestige and its modifiers for each country in each category.
     """
+    name = "CheckPrestige"
     requirements = ["country_manager", "new_combat_unit_manager", "states",
                     "interest_groups", "military_formation_manager", "building_manager",
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops"]
@@ -83,7 +84,7 @@ class CheckPrestige(Checker):
         relevant_modifiers += unit_types_specific_modifiers
 
         # Grouping
-        army_type_groups = {type_name:def_unit_type_groups[unit_type["group"]]["type"] for type_name, unit_type in def_unit_types.items()}
+        army_type_groups = {type_name:def_unit_type_groups[unit_type["group"]]["type"] for type_name, unit_type in def_unit_types.items() if "group" in unit_type}
 
         combat_units = save_data["new_combat_unit_manager"]["database"]
         formations = save_data["military_formation_manager"]["database"]
@@ -92,8 +93,9 @@ class CheckPrestige(Checker):
             if not isinstance(combat_unit, dict):
                 continue
             country = retrieve_from_tree(combat_unit, ["country"])
-            if country is None:
-                # print(f"Landless unit: {key}")
+            if (country is None) or (country not in countries) or (isinstance(countries[country], str)):
+                # print(f"Combat unit belonging to ghost country: {country}")
+                # print(combat_unit)
                 continue
             formation = combat_unit["formation"]
             if "mil_formations" not in countries[country]:
@@ -219,6 +221,7 @@ class CheckPrestige(Checker):
         Buildings Goods output
         Assume that the formula is prestige_factor * (2)^(MIN_SPOT_PRESTIGE_AWARD - #ranking)
         """
+        # FIXME The new 1.12 changes goods leaders prestige from constant to being scaled by global gdp
         
 
         if (min_spot_prestige_award := int(defines["MIN_SPOT_PRESTIGE_AWARD"])) != 3:
@@ -532,11 +535,11 @@ class CheckPrestige(Checker):
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
             df_prestige.to_csv(f"{address}/data/prestige.csv", sep=",", index=False)
-            df_prestige = df_prestige[df_prestige["id"].isin(players)]
-            df_prestige.to_csv(f"{address}/prestige.csv", sep=",", index=False)
+            df_prestige_players = df_prestige[df_prestige["id"].isin(players)]
+            df_prestige_players.to_csv(f"{address}/prestige.csv", sep=",", index=False)
             with open(f"{address}/prestige.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")
-                df_prestige.to_string(buf=f"{address}/prestige.txt", encoding="utf-8")
+                df_prestige_players.to_string(buf=f"{address}/prestige.txt", encoding="utf-8")
         
         print(f"Finished checking prestige on {day}/{month}/{year}")
 
