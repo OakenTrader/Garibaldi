@@ -89,6 +89,14 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     img_folder = input_file.replace(".csv", "")
     if img_folder not in os.listdir(f"saves/{campaign_folder}/campaign_data"):
         os.mkdir(f"saves/{campaign_folder}/campaign_data/{img_folder}")
+    
+    if "campaign_config.json" in os.listdir(f"saves/{campaign_folder}"):
+        campaign_config = jopen(f"saves/{campaign_folder}/campaign_config.json")
+        set_player_list = campaign_config.get("override_player_tags", [])
+        set_ai_list = campaign_config.get("show_ai_tags", [])
+    else:
+        set_player_list = []
+        set_ai_list = []
 
     t0 = time.time()
     last_save = None
@@ -115,18 +123,23 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
                 continue
             else:
                 df_stat = pd.read_csv(f"{save_folder}/{input_file}")
-            if players:
-                players = [v[0] for v in metadata["players"]]
-                df_players = df_stat[df_stat["id"].isin(players)]
+            if set_player_list:
+                player_list = set_player_list + set_ai_list
+                df_players = df_stat[df_stat["tag"].isin(player_list)]
                 was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
-                df_stat = df_stat[df_stat["id"].isin(players)]
+                df_stat = df_stat[df_stat["tag"].isin(player_list)]
+            elif players:
+                player_list = [v[1] for v in metadata["players"]] + set_ai_list
+                df_players = df_stat[df_stat["tag"].isin(player_list)]
+                was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
+                df_stat = df_stat[df_stat["tag"].isin(player_list)]
             elif limit and isinstance(limit, int):
                 df_stat = df_stat.sort_values(by=mode, ascending=False)
                 df_stat = df_stat.iloc[:limit]
             elif limit:
                 raise KeyError(f"Expected limit argument in integers, received {limit}")
             dfs[year_number] = df_stat
-            current_year = year_number
+    current_year = max(dfs.keys())
     # Plotting
     fig, ax = plt.subplots(figsize=(20,10))
     countries = dict()

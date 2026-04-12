@@ -37,12 +37,15 @@ class SaveManager:
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 
     def start_checking(self):
+        outputs = dict()
         while self.checks:
             remaining_checks = []
             for check in self.checks:
-                done = check.check(self.cache)
-                if not done: # Due to dependencies
+                output = check.check(self.cache)
+                if output is False: # Due to dependencies
                     remaining_checks.append(check)
+                else:
+                    outputs[check.name] = output
             self.checks = remaining_checks
 
     def check_metadata(self, reset=False):
