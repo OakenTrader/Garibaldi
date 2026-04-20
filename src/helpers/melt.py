@@ -3,8 +3,25 @@ Interface to Rakaly save melter. The melter is available in Windows and Linux pl
 """
 import glob, subprocess, platform, os
 
+try:
+    import js  # existiert nur in Pyodide
+    IN_PYODIDE = True
+except ImportError:
+    IN_PYODIDE = False
+
 def melt(address, out):
-    if platform.system() == "Linux":
+    print("TEST IS IT HERE? NOW?")
+    if IN_PYODIDE:
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+
+            array_buffer = js.fs_read_file(address)  
+
+            output = js.melter_run(array_buffer)
+            with open(out, "w") as f:
+                f.write(output)
+            print(f"[Browser] File {address} melted into {out}")
+
+    elif  platform.system() == "Linux":
         envariables = os.environ.copy()
         envariables["LD_LIBRARY_PATH"] = "./bin/rakaly_linux/"
         command = ["./bin/rakaly_linux/melter", "save", address, out]
