@@ -15,7 +15,6 @@ def extract_save_file(save_file):
     """
     try:
         data = t_execute(ExtractorSave)(f"{save_file}/save.txt")
-        t_execute(data.unquote)()
         t_execute(data.write)(save_file, separate=True)
     except InterruptedError as e:
         raise InterruptedError("Stop event set")

@@ -2,6 +2,7 @@
 Whatever functions written to help the program.
 """
 import sys, os, shutil, fnmatch, pickle, gzip, glob, json, re
+import zstandard as zstd
 from src.extractor import ExtractorCommon
 import time, functools
 
@@ -18,10 +19,17 @@ def t_execute(func):
 
 def zopen(address:str):
     """
-    Opens a gzip file.
+    Load a pickled, compressed data blob.
+
+    Transparently handles both the current zstandard (.zst) format and the
+    legacy gzip (.gz) format by sniffing the magic bytes, so previously
+    extracted saves keep loading without re-extraction.
     """
-    with gzip.open(address, 'rb') as f:
-        return pickle.load(f)
+    with open(address, 'rb') as f:
+        blob = f.read()
+    if blob[:2] == b'\x1f\x8b':  # legacy gzip
+        return pickle.loads(gzip.decompress(blob))
+    return pickle.loads(zstd.ZstdDecompressor().decompress(blob))  # zstd
 
 def jopen(address:str):
     """
@@ -186,6 +194,17 @@ REPLACE_OR_CREATE:key = { } # Same as REPLACE: but if the entry does not exist, 
 INJECT_OR_CREATE:key = { } # Same as INJECT: but if the entry does not exist, it will create it
 """
 
+def _extracted_blob_path(folder:str, name:str):
+    """
+    Return the path to an extracted blob, preferring the current zstd (.zst)
+    format over the legacy gzip (.gz) one. Returns None if neither exists.
+    """
+    for ext in (".zst", ".gz"):
+        path = os.path.join(folder, name + ext)
+        if os.path.exists(path):
+            return path
+    return None
+
 def load_save(topics:list, address:str):
     """
     Load a subset of information from a save file or pre-extracted data files
@@ -199,15 +218,18 @@ def load_save(topics:list, address:str):
     topics = topics.copy()
     t0 = time.time()
     data_output = dict()
+    extracted_dir = f"{address}/extracted_save"
     if "extracted_save" not in os.listdir(address):
-        os.mkdir(f"{address}/extracted_save")
-    if "miscellaneous.gz" in os.listdir(f"{address}/extracted_save"):
-        miscellaneous = zopen(f"{address}/extracted_save/miscellaneous.gz")
+        os.mkdir(extracted_dir)
+    misc_path = _extracted_blob_path(extracted_dir, "miscellaneous")
+    if misc_path is not None:
+        miscellaneous = zopen(misc_path)
     else:
         miscellaneous = dict()
     for topic in topics.copy():
-        if f"{topic}.gz" in os.listdir(f"{address}/extracted_save"):
-            data_output[topic] = zopen(f"{address}/extracted_save/{topic}.gz")[topic]
+        topic_path = _extracted_blob_path(extracted_dir, topic) if isinstance(topic, str) else None
+        if topic_path is not None:
+            data_output[topic] = zopen(topic_path)[topic]
             topics.pop(topics.index(topic))
         elif topic in miscellaneous:
             data_output[topic] = miscellaneous[topic]
