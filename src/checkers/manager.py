@@ -9,7 +9,7 @@ from src.checkers.check_finance import CheckFinance, finance_columns
 
 from src.helpers.plotter import plot_stat, plot_goods_produced
 from src.helpers.convert_localization import get_all_localization
-import os, glob
+import os, glob, multiprocessing
 
 class SaveManager:
     """
@@ -91,46 +91,90 @@ class SaveManager:
     so that we get all needed information for every checker by looping a single time
     """
 
-def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
-    """
-    Interface between GUI and the checkers / plotters
-    """
+def build_check_map():
+    """Maps each selectable output key to its (checker_class, output_file)."""
     check_map = dict()
     all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckDemographics, CheckFinance]
     for checker_class in all_checkers:
         for output, outvars in checker_class.output.items():
             for outvar in outvars:
                 check_map[outvar] = (checker_class, output)
+    return check_map
+
+
+def check_save_folders(checks, campaign_folder, folders, stop_event, finish_event, queue):
+    """
+    Run the selected checkers over a subset of save folders. This is the parallelisable
+    phase of analysis: each save folder writes into its own ``{folder}/data`` directory,
+    so disjoint folder sets can be processed concurrently by several processes.
+
+    The signature mirrors ``extract_files`` so the GUI can drive both the same way:
+        - checks (list[str]) : selected output keys
+        - campaign_folder (str) : name of the target folder in ./saves (unused here, kept
+          for symmetry / logging; folders are passed explicitly)
+        - folders (list[str]) : subset of save folders this worker handles
+        - stop_event (multiprocessing.Event) : to communicate termination with the GUI
+        - finish_event (multiprocessing.Event) : set once the subset is done (or aborted)
+        - queue (multiprocessing.Queue) : per-folder progress reporting
+    """
+    check_map = build_check_map()
     try:
         checkers = [c() for c in list(set([check_map[check][0] for check in checks]))] # Instantiate a single object from each class
-        for folder in glob.glob(os.path.join("saves", campaign_folder, "*")):
+        for folder in folders:
             if stop_event.is_set():
                 raise InterruptedError("Stop event set")
             if is_reserved_folder(folder):
                 continue
             save = SaveManager(folder, checkers)
             save.start_checking()
-        """
-        Make exceptional cases for prestige (many subcategories) and goods_produced (many goods)
-        """
-        for check in checks:
-            show = check in shows
-            if check == "total_prestige":
-                for prestige in prestige_columns:
-                    plot_stat(campaign_folder, prestige, input_file="prestige.csv", players=True, show=show)
-                plot_stat(campaign_folder, "total", input_file="prestige.csv", players=True, save_name="total_prestige.csv", show=show)
-            elif check == "goods_produced":
-                plot_goods_produced(campaign_folder, 10, show=show)
-            elif check == "GDP":
-                for finance in finance_columns:
-                    plot_stat(campaign_folder, finance, input_file="finance.csv", players=True, show=show)
-            elif check == "literacy":
-                for demographic in demographics_columns:
-                    plot_stat(campaign_folder, demographic, input_file="demographics.csv", players=True, show=show)
-            else:
-                check_class, outfile = check_map[check]
-                plot_stat(campaign_folder, check, input_file=outfile, show=show, players=True)
+            queue.put(1)
+    except Exception as e:
+        stop_event.set()
+        raise e
+    finally:
+        finish_event.set()
 
+
+def plot_results(checks, shows, campaign_folder):
+    """
+    Reduction phase of analysis: aggregate the per-folder CSVs produced by
+    ``check_save_folders`` and render (optionally show) the plots. Must run exactly once,
+    after every folder has been checked, since ``plot_stat`` reads across all folders.
+
+    Make exceptional cases for prestige (many subcategories) and goods_produced (many goods).
+    """
+    check_map = build_check_map()
+    for check in checks:
+        show = check in shows
+        if check == "total_prestige":
+            for prestige in prestige_columns:
+                plot_stat(campaign_folder, prestige, input_file="prestige.csv", players=True, show=show)
+            plot_stat(campaign_folder, "total", input_file="prestige.csv", players=True, save_name="total_prestige.csv", show=show)
+        elif check == "goods_produced":
+            plot_goods_produced(campaign_folder, 10, show=show)
+        elif check == "GDP":
+            for finance in finance_columns:
+                plot_stat(campaign_folder, finance, input_file="finance.csv", players=True, show=show)
+        elif check == "literacy":
+            for demographic in demographics_columns:
+                plot_stat(campaign_folder, demographic, input_file="demographics.csv", players=True, show=show)
+        else:
+            check_class, outfile = check_map[check]
+            plot_stat(campaign_folder, check, input_file=outfile, show=show, players=True)
+
+
+def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
+    """
+    Single-process interface between GUI and the checkers / plotters. Retained for
+    non-parallel callers (e.g. scripts); the GUI now drives ``check_save_folders`` across
+    several processes and then calls ``plot_results`` directly.
+    """
+    try:
+        folders = glob.glob(os.path.join("saves", campaign_folder, "*"))
+        check_save_folders(checks, campaign_folder, folders, stop_event, finish_event, multiprocessing.Queue())
+        if stop_event.is_set():
+            raise InterruptedError("Stop event set")
+        plot_results(checks, shows, campaign_folder)
     except InterruptedError as e:
         raise InterruptedError("Checking stopped:", e)
     finally:

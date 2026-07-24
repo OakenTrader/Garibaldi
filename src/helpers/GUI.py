@@ -7,7 +7,7 @@ from tkinter import ttk, filedialog, messagebox
 from src.helpers.utility import *
 from src.helpers.save_watch import *
 from src.helpers.extraction import *
-from src.checkers.manager import perform_checking
+from src.checkers.manager import perform_checking, check_save_folders, plot_results
 import sys, json, os, glob, multiprocessing, queue
 
 class Garibaldi_gui:
@@ -91,6 +91,22 @@ class Garibaldi_gui:
         with open("./user_variables.json", 'w') as file:
             json.dump(self.user_variables, file, indent=4)
     
+    def make_thread_selector(self, parent, question):
+        """Builds a labelled row of thread-count radios: 1-4 plus an 'All cores' option
+        that uses every logical CPU the machine has (os.cpu_count()). Sets self.var_thread
+        and returns the row (a list) to be dropped into make_grid. Fixed values at or above
+        the core count are omitted so no two radios share a value."""
+        self.var_thread = tk.IntVar(parent, value=1)
+        n_cores = os.cpu_count() or 1
+        row = [ttk.Label(parent, text=question)]
+        for n in range(1, 5):
+            if n >= n_cores:
+                break
+            row.append(ttk.Radiobutton(parent, text=str(n), variable=self.var_thread, value=n))
+        row.append(ttk.Radiobutton(parent, text=f"All cores ({n_cores})", variable=self.var_thread, value=n_cores))
+        row.append(ttk.Label(parent, text="(AT YOUR OWN RISK)"))
+        return row
+
     def custom_size_button(self, root, text, command, width, height):
         """Generates a button with a custom size"""
         frame = tk.Frame(root, width=width, height=height)
@@ -223,13 +239,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
 
         browse_button = ttk.Button(self, text="Browse", command=lambda: self.browse_folder(entry_folder, "Campaign Folder", only_folder_name=True, initialdir="./saves"))
 
-        self.var_thread = tk.IntVar(self, value=1)
-        label_thread = ttk.Label(self, text="How many threads to perform extraction at once?")
-        radio_1thread = ttk.Radiobutton(self, text="1", variable=self.var_thread, value=1)
-        radio_2thread = ttk.Radiobutton(self, text="2", variable=self.var_thread, value=2)
-        radio_3thread = ttk.Radiobutton(self, text="3", variable=self.var_thread, value=3)
-        radio_4thread = ttk.Radiobutton(self, text="4", variable=self.var_thread, value=4)
-        label_risk = ttk.Label(self, text="(AT YOUR OWN RISK)")
+        thread_row = self.make_thread_selector(self, "How many threads to perform extraction at once?")
 
         self.ok_button = ttk.Button(self, text="Start", command=lambda: self.on_start())
         self.stop_button = ttk.Button(self, text="Stop", command=lambda: self.on_stop())
@@ -240,7 +250,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
             [label_desc],
             [label_del, yes_radio, no_radio],
             [label_folder, (entry_folder, 3, 'w'), (browse_button, 1, 'w')],
-            [label_thread, radio_1thread, radio_2thread, radio_3thread, radio_4thread, label_risk],
+            thread_row,
             [self.ok_button, (None, 1), self.stop_button]
         ], 5, 10)
         self.after(100, self.end_task)
@@ -264,7 +274,7 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
         print(folders)
         self.watch_thread = []
         self.finish_events = [multiprocessing.Event() for _ in range(len(folders))]
-        self.queue = multiprocessing.Queue(self.var_thread.get())
+        self.queue = multiprocessing.Queue()
         for finish_event, folder_set in zip(self.finish_events, folders):
             thread = multiprocessing.Process(target=extract_files, args=(campaign_folder, folder_set, self.stop_event, finish_event, self.queue, self.del_var.get()))
             self.watch_thread.append(thread)
@@ -273,9 +283,9 @@ class SaveExtractor(tk.Toplevel, Garibaldi_gui):
     
     def check_progress(self):
         try:
-            value = self.queue.get(block=False)
-            self.completed += value
-            print(f"Progress: {self.completed}/{self.num_targets}")
+            while True:
+                self.completed += self.queue.get(block=False)
+                print(f"Progress: {self.completed}/{self.num_targets}")
         except queue.Empty:
             pass
         self.after(1000, self.check_progress)
@@ -351,11 +361,11 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         canvas.bind("<Button-4>", _on_mousewheel_linux)  # Linux scroll up
         canvas.bind("<Button-5>", _on_mousewheel_linux)  # Linux scroll down
 
+        self.stop_event = master.stop_event
+        self.watch_thread = None
+        self.finish_events = None
         self.save_analyze_settings()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.stop_event = master.stop_event
-        self.finish_event = multiprocessing.Event()
-        self.finish_event.clear()
 
     def save_analyze_settings(self):
         """
@@ -396,13 +406,7 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         browse_button = ttk.Button(self.inner_frame, text="Browse", command=lambda: self.browse_folder(self.folder_entry, "Campaign Folder", "./saves", only_folder_name=True))
         make_folder_button = ttk.Button(self.inner_frame, text="New Folder", command=lambda: self.new_window_entry(self.inner_frame, self.create_new_folder, self.folder_entry, "Create new campaign folder"))
 
-        self.var_thread = tk.IntVar(self.inner_frame, value=1)
-        label_thread = ttk.Label(self.inner_frame, text="How many threads to perform analysis at once?")
-        radio_1thread = ttk.Radiobutton(self.inner_frame, text="1", variable=self.var_thread, value=1)
-        radio_2thread = ttk.Radiobutton(self.inner_frame, text="2", variable=self.var_thread, value=2)
-        radio_3thread = ttk.Radiobutton(self.inner_frame, text="3", variable=self.var_thread, value=3)
-        radio_4thread = ttk.Radiobutton(self.inner_frame, text="4", variable=self.var_thread, value=4)
-        label_risk = ttk.Label(self.inner_frame, text="(AT YOUR OWN RISK)")
+        thread_row = self.make_thread_selector(self.inner_frame, "How many threads to perform analysis at once?")
 
         label_check = ttk.Label(self.inner_frame, text="Select which stats do you want to extract from the saves and plot?")
         self.check_list = dict()
@@ -437,8 +441,8 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.make_grid([
              [(header, 5, 'w')],
              [label_campaign_folder, self.folder_entry, browse_button, make_folder_button],
-             [label_thread, radio_1thread, radio_2thread, radio_3thread, radio_4thread, label_risk],
-             [(label_check, 3, 'w')]] 
+             thread_row,
+             [(label_check, 3, 'w')]]
           + grid
           + [[(warning_goods, 7, 'w')], 
              [self.start_date_label, self.start_date_entry, self.end_date_label, self.end_date_entry],
@@ -446,7 +450,12 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.after(500, self.end_task)
 
     def on_ok(self):
+        """Splits the save folders across var_thread processes running the checking phase,
+        then tracks their progress. Plotting (the reduction) runs later in end_task, once
+        every folder has been checked."""
         self.toggle_tinkerable()
+        self.stop_event.clear()
+
         checkers = []
         showers = []
         for checker, checkbox in self.check_list.items():
@@ -455,8 +464,37 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
                 checkers.append(checker)
             if show_var:
                 showers.append(checker)
-        self.after(100, perform_checking, checkers, showers, self.folder_entry.get(), self.stop_event, self.finish_event)
+        self._checks = checkers
+        self._shows = showers
+        self._campaign_folder = self.folder_entry.get()
+
+        folders = [f for f in glob.glob(os.path.join("saves", self._campaign_folder, "*")) if not is_reserved_folder(f)]
+        self.num_targets = len(folders)
+        self.completed = 0
+
+        n_threads = max(1, min(self.var_thread.get(), self.num_targets or 1))
+        folder_sets = [[folder for j, folder in enumerate(folders) if j % n_threads == i] for i in range(n_threads)]
+
+        self.watch_thread = []
+        self.finish_events = [multiprocessing.Event() for _ in range(len(folder_sets))]
+        self.queue = multiprocessing.Queue()
+        for finish_event, folder_set in zip(self.finish_events, folder_sets):
+            process = multiprocessing.Process(target=check_save_folders, args=(checkers, self._campaign_folder, folder_set, self.stop_event, finish_event, self.queue))
+            self.watch_thread.append(process)
+            process.start()
         self.stop_button.config(state=tk.NORMAL)
+        self.after(1000, self.check_progress)
+
+    def check_progress(self):
+        """Drains per-folder progress reports from the analysis workers."""
+        try:
+            while True:
+                self.completed += self.queue.get(block=False)
+                print(f"Analysis progress: {self.completed}/{self.num_targets}")
+        except queue.Empty:
+            pass
+        if self.finish_events is not None:
+            self.after(1000, self.check_progress)
 
     def on_closing(self):
         """Handles closing the SaveAnalyzer menu"""
@@ -468,10 +506,20 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.stop_event.set()
 
     def end_task(self):
-        """Checks if checking is done/terminated and restore the menu state"""
-        """If finish event is raised but not stop_event, we proceed to draw plotting"""
-        if self.stop_event.is_set() and self.finish_event.is_set():
-            self.finish_event.clear()
+        """Checks if the checking phase is done/terminated. On clean completion (finish
+        events all set, stop not requested) it runs the plotting reduction once before
+        restoring the menu state."""
+        if self.finish_events is not None and (self.stop_event.is_set() or all(event.is_set() for event in self.finish_events)):
+            stopped = self.stop_event.is_set()
+            for process in self.watch_thread:
+                process.join()
+            self.watch_thread = None
+            self.finish_events = None
+            if not stopped:
+                try:
+                    plot_results(self._checks, self._shows, self._campaign_folder)
+                except Exception as e:
+                    messagebox.showerror("Plotting failed", str(e))
             self.toggle_tinkerable()
             self.stop_event.clear()
             self.stop_button.config(state=tk.DISABLED)
