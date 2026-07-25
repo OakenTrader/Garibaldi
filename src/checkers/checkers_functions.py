@@ -55,6 +55,22 @@ def subject_manager(save_data, countries):
                 FIXME Not sure if we can get all countries in their power blocs, i.e in some deep subject networks (subject of subject of subject)
                 """
 
+def collect_subject_tree(countries, root_id):
+    """
+    Return the set of all descendants in a country's subject tree (subjects,
+    subjects-of-subjects, ...). Requires ``subject_manager`` to have populated the
+    per-country ``subjects`` lists first. Cycle-guarded.
+    """
+    seen = set()
+    stack = list(retrieve_from_tree(countries[root_id], "subjects", null=[]))
+    while stack:
+        sid = stack.pop()
+        if sid in seen or not isinstance(countries.get(sid), dict):
+            continue
+        seen.add(sid)
+        stack.extend(retrieve_from_tree(countries[sid], "subjects", null=[]))
+    return seen
+
 def bloc_manager(save_data, relevant_modifiers):
     """
     Retrieve power blocs and/with relevant principles
@@ -155,6 +171,10 @@ def get_building_output(building, target, def_production_methods, modifier_type=
     employees = 0
     employees_pl = dict()
     for pm_name in building["production_methods"]["value"]:
+        # def_production_methods is filtered to PMs carrying a relevant modifier;
+        # a building's other active PMs (e.g. ownership) simply carry no target.
+        if pm_name not in def_production_methods:
+            continue
         pm = def_production_methods[pm_name]
         if (output_workforce := retrieve_from_tree(pm, [modifier_type, "workforce_scaled", target])) is not None:
             output += float(output_workforce)
@@ -171,7 +191,13 @@ def get_building_output(building, target, def_production_methods, modifier_type=
 
     # print(employees_pl)
     # print(f"Total Employees at level {int(building['level'])}: {employees}")
-    employees /= sum([employees_pl[e] for e in employees_pl])
+    employees_pl_total = sum([employees_pl[e] for e in employees_pl])
+    if employees_pl_total <= 0:
+        # Degenerate staffing (e.g. modded monuments with negative building_employment):
+        # apply the workforce-scaled modifier in full rather than letting the ratio flip sign.
+        employees = 1.0
+    else:
+        employees /= employees_pl_total
     # print(f"Employees ratio: {employees}")
     # print([employees_pl[e] for e in employees_pl])
     if "throughput" not in building:

@@ -8,7 +8,7 @@ from src.helpers.utility import *
 There are several sources of prestige, some fixed to a certain amount, some scaling by another metric. (Vickypedia)
 """
 prestige_columns = ["tier prestige", "army projection", "navy projection", "GDP prestige",
-            "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "monuments prestige", "events prestige", "modifiers"]
+            "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "prestige goods prestige", "monuments prestige", "events prestige", "modifiers"]
 
 class CheckPrestige(Checker):
     """
@@ -17,7 +17,8 @@ class CheckPrestige(Checker):
     name = "CheckPrestige"
     requirements = ["country_manager", "new_combat_unit_manager", "states",
                     "interest_groups", "military_formation_manager", "building_manager",
-                    "companies", "technology", "character_manager", "player_manager", "pacts", "pops"]
+                    "companies", "technology", "character_manager", "player_manager", "pacts", "pops",
+                    "ship_manager", "ship_templates_manager"]
     output = {"prestige.csv": ["total_prestige"] + prestige_columns, "goods_produced.csv": ["goods_produced"]}
     dependencies = ["finance.csv"]
 
@@ -32,14 +33,31 @@ class CheckPrestige(Checker):
         address = cache["address"]
         df_finance = pd.read_csv(f"{address}/data/finance.csv", sep=",")[["id", "GDP"]]
 
+        tiers = ["hegemony", "empire", "kingdom", "grand_principality", "principality", "city_state"]
+        needed_defines = {
+            "MIN_SPOT_PRESTIGE_AWARD", "PRESTIGE_FROM_COUNTRY_GDP_DIVISOR",
+            "PRESTIGE_FROM_COUNTRY_GDP", "POWER_PROJECTION_DIVISOR",
+            "PRESTIGE_FROM_ARMY_POWER_PROJECTION", "PRESTIGE_FROM_NAVY_POWER_PROJECTION",
+            "PRESTIGE_FROM_SUBJECT_GDP", "PRESTIGE_FROM_SUBJECT_ARMY_POWER_PROJECTION",
+            "PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION",
+            # Goods-leaderboard prestige is scaled by global GDP since 1.12.
+            "GOODS_LEADERBOARD_GLOBAL_GDP_SCALING", "GOODS_LEADERBOARD_PRESTIGE_BASE",
+            "GOODS_LEADERBOARD_PRESTIGE_SCALED", "PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION",
+            # Ship power-projection weights (navy prestige).
+            "SHIP_POWER_PROJECTION_HULL_DAMAGE_MULTIPLIER", "SHIP_POWER_PROJECTION_CREW_DAMAGE_MULTIPLIER",
+            "SHIP_POWER_PROJECTION_ARMOR_MULTIPLIER", "SHIP_POWER_PROJECTION_HIT_POINTS_MULTIPLIER",
+        } | {f"COUNTRY_TIER_{t.upper()}_PRESTIGE" for t in tiers}
+
         defines_file = load_def_multiple("defines", "Common Directory", depth_add=1)
         defines = dict()
         for key, defs in defines_file.items():
             if not isinstance(defs, dict):
                 defines[key] = defs
                 continue
-            if any([k in defines for k in defs]):
-                raise KeyError(f"Duplicate defines definition")
+            if not any(k in needed_defines for k in defs):
+                continue
+            if any(k in defines for k in defs):
+                raise KeyError(f"Duplicate defines definition in section '{key}'")
             defines.update(defs)
 
         relevant_modifiers = ["country_prestige_add", "country_prestige_mult",
@@ -62,7 +80,6 @@ class CheckPrestige(Checker):
         Tier
         """
         # Yet to see the way the game let modding country tiers so tiers are hardcoded here
-        tiers = ["hegemony", "empire", "kingdom", "grand_principality", "principality", "city_state"]
         try:
             def_tier = {k:float(defines[f"COUNTRY_TIER_{k.upper()}_PRESTIGE"]) for k in tiers}
         except KeyError:
@@ -84,7 +101,44 @@ class CheckPrestige(Checker):
         relevant_modifiers += unit_types_specific_modifiers
 
         # Grouping
-        army_type_groups = {type_name:def_unit_type_groups[unit_type["group"]]["type"] for type_name, unit_type in def_unit_types.items() if "group" in unit_type}
+        army_type_groups = {type_name: def_unit_type_groups[unit_type["group"]].get("type", "army") for type_name, unit_type in def_unit_types.items() if "group" in unit_type}
+
+        # Ship combat stats (navy power projection). Techs grow the damage/armor terms;
+        # relevant_modifiers is extended so the tech loop captures them per country.
+        ship_stat_modifiers = ["ship_hull_damage_add", "ship_crew_damage_add", "ship_armor_add"]
+        relevant_modifiers += ship_stat_modifiers
+        def_ship_types = dict()
+        for ship_type_name, ship_type in load_def_multiple("ship_types", "Common Directory").items():
+            mod = retrieve_from_tree(ship_type, "modifier", {})
+            def_ship_types[ship_type_name] = {
+                "hull": float(mod.get("ship_hull_damage_add", 0)),
+                "crew_dmg": float(mod.get("ship_crew_damage_add", 0)),
+                "armor": float(mod.get("ship_armor_add", 0)),
+            }
+        # Gun/armor/etc. modifications add flat combat stats on top of the base ship type.
+        def_ship_modifications = dict()
+        for mod_name, ship_mod in load_def_multiple("ship_modifications", "Common Directory").items():
+            m = retrieve_from_tree(ship_mod, "modifier", {})
+            def_ship_modifications[mod_name] = {
+                "hull": float(m.get("ship_hull_damage_add", 0)),
+                "crew_dmg": float(m.get("ship_crew_damage_add", 0)),
+                "armor": float(m.get("ship_armor_add", 0)),
+            }
+        # Each ship references a design version -> ship type + chosen modifications. Precompute
+        # the (base type + modifications) combat stats per version id.
+        ship_version_stats = dict()
+        for version_id, version in retrieve_from_tree(save_data, ["ship_templates_manager", "versions", "database"], null={}).items():
+            info = retrieve_from_tree(version, "info")
+            if not isinstance(info, dict):
+                continue
+            base = def_ship_types.get(info.get("type"), {"hull": 0, "crew_dmg": 0, "armor": 0})
+            stats = dict(base)
+            for mod_name in retrieve_from_tree(info, ["modifications", "value"], null=[]):
+                mod = def_ship_modifications.get(mod_name)
+                if mod:
+                    for k in ("hull", "crew_dmg", "armor"):
+                        stats[k] += mod[k]
+            ship_version_stats[version_id] = stats
 
         combat_units = save_data["new_combat_unit_manager"]["database"]
         formations = save_data["military_formation_manager"]["database"]
@@ -113,6 +167,22 @@ class CheckPrestige(Checker):
                 countries[country]["mil_formations"][formation]["units"] = dict()
             countries[country]["mil_formations"][formation]["units"][key] = combat_unit
 
+        # Attach ships to their country via fleet -> formation -> country. Ships live in
+        # a separate manager and carry no explicit type, so the type is inferred later
+        # from crew size / hit points.
+        ships = save_data["ship_manager"]["database"]
+        for ship_key, ship in ships.items():
+            if not isinstance(ship, dict):
+                continue
+            fleet = ship.get("fleet")
+            formation = formations.get(fleet)
+            if not isinstance(formation, dict):
+                continue
+            country = formation.get("country")
+            if (country not in countries) or (not isinstance(countries[country], dict)):
+                continue
+            countries[country].setdefault("ships", dict())[ship_key] = ship
+
         # Get relevant mobilizations
         mobilizations_def = load_def_multiple("mobilization_options", "Common Directory")
         def_mobilizations = dict()
@@ -128,6 +198,10 @@ class CheckPrestige(Checker):
 
         pp_prestige_divisor_land = float(defines["PRESTIGE_FROM_ARMY_POWER_PROJECTION"])
         pp_prestige_divisor_navy = float(defines["PRESTIGE_FROM_NAVY_POWER_PROJECTION"])
+        ship_pp_hull_mult = float(defines["SHIP_POWER_PROJECTION_HULL_DAMAGE_MULTIPLIER"])
+        ship_pp_crew_dmg_mult = float(defines["SHIP_POWER_PROJECTION_CREW_DAMAGE_MULTIPLIER"])
+        ship_pp_armor_mult = float(defines["SHIP_POWER_PROJECTION_ARMOR_MULTIPLIER"])
+        ship_pp_hp_mult = float(defines["SHIP_POWER_PROJECTION_HIT_POINTS_MULTIPLIER"])
 
         """
         Companies
@@ -144,22 +218,18 @@ class CheckPrestige(Checker):
                 def_ig_traits[ig_trait] = def_ig_traits_file[ig_trait]
 
         ig_data = save_data["interest_groups"]["database"]
-        ig_influence_modifier = {"influential":2, "neutral":1}
         for key, ig in ig_data.items():
             if not isinstance(ig, dict):
                 continue
-            if not isinstance(country := countries[ig["country"]], dict):
+            if not isinstance(country := countries.get(ig.get("country")), dict):
                 continue
-            if (ig_traits := retrieve_from_tree(ig, ["enabled_traits", "value"])) is None:
+            # The IG's currently-enabled traits carry their country modifiers at full value.
+            active = [t for t in retrieve_from_tree(ig, ["enabled_traits", "value"], null=[]) if t in def_ig_traits]
+            if not active:
                 continue
-            if influence := retrieve_from_tree(ig, "influence") is None:
-                continue
-            ig_traits = [[ig_trait, ig_influence_modifier[influence]] for ig_trait in ig_traits if any(mod in relevant_modifiers for mod in def_ig_traits[ig_trait]["modifier"])]
-            if len(ig_traits.keys()) == 0:
-                continue
-            if "interest_groups_traits" not in country:
-                country["interest_groups_traits"] = dict()
-            country["interest_groups_traits"].update(ig_traits)
+            ig_traits = country.setdefault("interest_groups_traits", dict())
+            for trait in active:
+                ig_traits[trait] = 1.0
 
 
         def_character_traits = dict()
@@ -219,10 +289,18 @@ class CheckPrestige(Checker):
 
         """
         Buildings Goods output
-        Assume that the formula is prestige_factor * (2)^(MIN_SPOT_PRESTIGE_AWARD - #ranking)
+        Per-spot award = prestige_factor * 2^(MIN_SPOT_PRESTIGE_AWARD - rank - 1),
+        scaled (since 1.12) by the global-GDP factor below.
         """
-        # FIXME The new 1.12 changes goods leaders prestige from constant to being scaled by global gdp
-        
+        # Since 1.12 the goods-leader award is scaled against global yearly GDP:
+        #   k = BASE + SCALED * min(1, global_yearly_GDP / GLOBAL_GDP_SCALING)
+        # Early game (small global GDP) k is small; it rises toward BASE+SCALED (=3) late game.
+        global_yearly_gdp = float(df_finance["GDP"].sum())
+        goods_leaderboard_scale = (
+            float(defines["GOODS_LEADERBOARD_PRESTIGE_BASE"])
+            + float(defines["GOODS_LEADERBOARD_PRESTIGE_SCALED"])
+            * min(1.0, global_yearly_gdp / float(defines["GOODS_LEADERBOARD_GLOBAL_GDP_SCALING"]))
+        )
 
         if (min_spot_prestige_award := int(defines["MIN_SPOT_PRESTIGE_AWARD"])) != 3:
             warnings.warn("This mod modifies the MIN_SPOT_PRESTIGE_AWARD and may make the producing leader prestige calculation inaccurate", UserWarning)
@@ -282,11 +360,42 @@ class CheckPrestige(Checker):
         goods_leaderboard = {k:sorted(dictionary.items(), key=lambda item: item[1], reverse=True)[:10] for k, dictionary in goods_leaderboard.items()}
 
         """
+        Prestige goods: a company that can produce a prestige good grants its country the
+        base good's leaderboard prestige (rank-0 spot) multiplied by
+        PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION. Each prestige-good variant is unique to its
+        producer, so the top-spot weight (2^(MIN_SPOT-1)) applies.
+        """
+        # A base good whose prestige variant has been unlocked anywhere in the world moves off
+        # the ordinary goods leaderboard onto the prestige-goods leaderboard, where the top
+        # producers earn PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION times the usual award. This is
+        # a GLOBAL property of the good (not tied to the earner owning the company).
+        prestige_goods_mult = float(defines["PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION"])
+        def_prestige_goods = load_def_multiple("prestige_goods", "Common Directory")
+        goods_name_to_num = {good: str(i) for i, good in num_to_goods.items()}
+        company_type_base_good = dict()
+        for company_type_name, company_type in load_def_multiple("company_types", "Common Directory").items():
+            possible = retrieve_from_tree(company_type, ["possible_prestige_goods", "value"], null=[])
+            for prestige_good in possible:
+                base_good = retrieve_from_tree(def_prestige_goods, [prestige_good, "base_good"])
+                if base_good in goods_name_to_num:
+                    company_type_base_good[company_type_name] = goods_name_to_num[base_good]
+                    break
+        prestige_base_good_nums = set()
+        for company in save_data["companies"]["database"].values():
+            if not isinstance(company, dict) or company.get("can_produce_prestige_goods") != "yes":
+                continue
+            base_num = company_type_base_good.get(company.get("company_type"))
+            if base_num is not None:
+                prestige_base_good_nums.add(base_num)
+
+        """
         Government wages affecting prestige and power projection
         """
         
+        # government_wages_* / military_wages_* (which carry country_prestige_mult) live in
+        # the static_modifiers folder, not modifiers/.
         static_modifiers = dict()
-        for mod_name, static_modifier in load_def_multiple("modifiers", "Common Directory").items():
+        for mod_name, static_modifier in load_def_multiple("static_modifiers", "Common Directory").items():
             for relevant_modifier in relevant_modifiers:
                 if relevant_modifier in static_modifier:
                     static_modifiers[mod_name] = static_modifier
@@ -391,11 +500,10 @@ class CheckPrestige(Checker):
             Interest Group traits
             """
             if "interest_groups_traits" in country:
-                for ig_trait, influence in country["interest_groups_traits"].items():
-                    for modifier in [m for m in ig_trait["modifier"] if m in relevant_modifiers]:
-                        national_modifiers[modifier][ig_trait] = float(def_ig_traits[ig_trait]["modifier"][modifier]) * influence
-                        if modifier == "country_prestige_add":
-                            raise ValueError(f"Unexpected interest group prestige add from {ig_trait} of {country_tag}")
+                for ig_trait, mult in country["interest_groups_traits"].items():
+                    for modifier, value in def_ig_traits[ig_trait]["modifier"].items():
+                        if modifier in relevant_modifiers:
+                            national_modifiers[modifier][ig_trait] = float(value) * mult
         
             """
             Technologies that affect prestige and military stats
@@ -455,13 +563,32 @@ class CheckPrestige(Checker):
                         unit_pp = float(unit["current_manpower"]) * (unit_offense * (1 + unit_offense_mult) + unit_defense * (1 + unit_defense_mult)) / 2 / pp_divisor
                         army_power_projection[unit_type_group] += unit_pp
 
+            # Navy power projection: ships sit outside mil_formations. Each ship's
+            # PP = 0.33*(hull + crew_damage + armor) + 0.1*max_hit_points (defines).
+            # Ships carry no type, so infer it from crew size (tech-invariant) and hit
+            # points; tech bonuses grow the damage/armor terms, hit points are stored.
+            ship_hull_bonus = sum(retrieve_from_tree(national_modifiers, ["ship_hull_damage_add"], null={}).values())
+            ship_crew_dmg_bonus = sum(retrieve_from_tree(national_modifiers, ["ship_crew_damage_add"], null={}).values())
+            ship_armor_bonus = sum(retrieve_from_tree(national_modifiers, ["ship_armor_add"], null={}).values())
+            navy_pp = 0.0
+            for ship in retrieve_from_tree(country, "ships", null={}).values():
+                stats = ship_version_stats.get(ship.get("version"), {"hull": 0, "crew_dmg": 0, "armor": 0})
+                ship_hp = float(ship.get("hit_points", 0))
+                navy_pp += (ship_pp_hull_mult * (stats["hull"] + ship_hull_bonus)
+                            + ship_pp_crew_dmg_mult * (stats["crew_dmg"] + ship_crew_dmg_bonus)
+                            + ship_pp_armor_mult * (stats["armor"] + ship_armor_bonus)
+                            + ship_pp_hp_mult * ship_hp)
+            army_power_projection["navy"] = navy_pp
+
             # if sum(army_power_projection.values()) > 2000:
             country["power_projection"] = army_power_projection
             national_prestige["army projection"] = army_power_projection["army"] * pp_prestige_divisor_land * (1 + sum(retrieve_from_tree(national_modifiers, ["country_prestige_from_army_power_projection_mult"], null={}).values()))
             national_prestige["navy projection"] = army_power_projection["navy"] * pp_prestige_divisor_navy * (1 + sum(retrieve_from_tree(national_modifiers, ["country_prestige_from_navy_power_projection_mult"], null={}).values()))
 
 
-            country_gdp_row = df_finance[df_finance["id"] == country_key]
+            # df_finance["id"] is int64 while country_key is a string dict key,
+            # so compare on the integer id (a raw == would never match -> GDP 0).
+            country_gdp_row = df_finance[df_finance["id"] == int(country_key)]
             if not country_gdp_row.empty:
                 country_gdp = country_gdp_row.iloc[0]["GDP"]
             else:
@@ -479,16 +606,25 @@ class CheckPrestige(Checker):
             for goods_type, leaderboard in goods_leaderboard.items():
                 for rank, stat in enumerate(leaderboard[:min_spot_prestige_award]):
                     if country_key == stat[0]:
-                        national_prestige["production leader prestige"] += float(retrieve_from_tree(def_goods, [num_to_goods[int(goods_type)], "prestige_factor"], 0)) * 2 ** (min_spot_prestige_award - rank - 1)
+                        # Rank 0 (top) gets 2^(MIN_SPOT-1) of the base, halving each rank down,
+                        # scaled by the global-GDP factor. Goods with an unlocked prestige
+                        # variant go to the prestige-goods line at PRESTIGE_FROM_PRESTIGE_GOODS
+                        # times the award; the rest to the ordinary leading-goods line.
+                        award = float(retrieve_from_tree(def_goods, [num_to_goods[int(goods_type)], "prestige_factor"], 0)) * 2 ** (min_spot_prestige_award - rank - 1) * goods_leaderboard_scale
+                        if goods_type in prestige_base_good_nums:
+                            national_prestige["prestige goods prestige"] += award * prestige_goods_mult
+                        else:
+                            national_prestige["production leader prestige"] += award
                         break
 
             """
             The major canals and most other monuments grant prestige. (Vickypedia)
             """
             for monument_id, monument in retrieve_from_tree(country, "monuments", null=dict()).items():
-                for relevant_modifier in relevant_modifiers:
-                    if relevant_modifier not in def_production_methods:
-                        continue
+                # A monument PM can add flat prestige and/or a prestige multiplier;
+                # (the old guard compared a modifier name against a PM-keyed dict and
+                # so skipped every monument, leaving this category permanently 0).
+                for relevant_modifier in ("country_prestige_add", "country_prestige_mult"):
                     output = get_building_output(monument, relevant_modifier, def_production_methods)
                     if output == 0:
                         continue
@@ -508,17 +644,18 @@ class CheckPrestige(Checker):
         prestige_per_subject_navy_pp = float(defines["PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION"])
 
         subject_manager(save_data, countries)
-        
+
         for country_id, country in countries.items():
             if not isinstance(country, dict):
                 continue
             if "national_prestige" not in country:
                 continue
-            if "subjects" in country:
-                for subject in country["subjects"]:
-                    country["national_prestige"]["subject army projection"] += countries[subject]["power_projection"]["army"] * prestige_per_subject_army_pp
-                    country["national_prestige"]["subject navy projection"] += countries[subject]["power_projection"]["navy"] * prestige_per_subject_navy_pp
-                    country["national_prestige"]["subject gdp prestige"] += countries[subject]["national_prestige"]["GDP prestige"] * prestige_per_subject_gdp / prestige_per_gdp
+            # The overlord earns prestige from its whole subject tree, not just direct subjects.
+            for subject in collect_subject_tree(countries, country_id):
+                subj = countries[subject]
+                country["national_prestige"]["subject army projection"] += retrieve_from_tree(subj, ["power_projection", "army"], null=0) * prestige_per_subject_army_pp
+                country["national_prestige"]["subject navy projection"] += retrieve_from_tree(subj, ["power_projection", "navy"], null=0) * prestige_per_subject_navy_pp
+                country["national_prestige"]["subject gdp prestige"] += retrieve_from_tree(subj, ["national_prestige", "GDP prestige"], null=0) * prestige_per_subject_gdp / prestige_per_gdp
             
             total_prestige = sum([v for v in country["national_prestige"].values()])
             total_modifiers = sum([v for v in country["national_modifiers"]["country_prestige_mult"].values()])

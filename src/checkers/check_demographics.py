@@ -66,7 +66,14 @@ class CheckDemographics(Checker):
                 if "workplace" not in pop and "workforce" in pop:
                     unemployed = int(pop["workforce"])
                 if "loyalists_and_radicals" in pop:
-                    loyalists = float(pop["loyalists_and_radicals"]) * (total) / 100
+                    # `loyalists_and_radicals` is the pop's *net* count of politically
+                    # aligned individuals (positive => loyalists, negative => radicals),
+                    # matching the engine's CPop::CalcRadicalFraction/CalcLoyalistFraction:
+                    # num = max(0, +/- field) with the fraction = num / pop_size. The field
+                    # is a fixed-point integer that the melter shows as raw / 100000, so
+                    # multiply back to recover the individual count. It is NOT a per-capita
+                    # rate: do not scale by pop size.
+                    loyalists = float(pop["loyalists_and_radicals"]) * 100000
                 if "wealth" in pop:
                     """Standard of living (SOL) = wealth + modifiers + pollution_effect + ruler personality + power_bloc modifier + state modifiers
                     pollution_effect is workforce_scaled from all building production methods.
