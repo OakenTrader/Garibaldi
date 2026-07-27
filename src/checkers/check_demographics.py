@@ -1,5 +1,5 @@
 from src.checkers.check_base import Checker
-from src.checkers.checkers_functions import get_country_name, get_building_output, institution_manager
+from src.checkers.checkers_functions import get_country_name, get_building_output, institution_manager, safe_ratio, MISSING
 from src.helpers.utility import retrieve_from_tree, load_def_multiple
 import pandas as pd
 
@@ -122,12 +122,12 @@ class CheckDemographics(Checker):
                     incorporated_literates += sum([pop["literates"] for pop in pops])
                     incorporated_peasants += sum([pop["peasants"] for pop in pops])
                     incorporated_unemployed += sum([pop["unemployed"] for pop in pops])
-            literacy = incorporated_literates / max(incorporated_workers, 0.0000001)
-            peasants_percentage = total_peasants / max(total_workers, 0.0000001)
-            unemployed_percentage = total_unemployed / max(total_workers, 0.0000001)
-            radicals_percentage = total_radicals / max(total_population, 0.0000001)
-            loyalists_percentage = total_loyalists / max(total_population, 0.0000001)
-            standard_of_living = retrieve_from_tree(country, ["avgsoltrend", "channels", "0", "values", "value"], null=[0])[-1]
+            literacy = safe_ratio(incorporated_literates, incorporated_workers)
+            peasants_percentage = safe_ratio(total_peasants, total_workers)
+            unemployed_percentage = safe_ratio(total_unemployed, total_workers)
+            radicals_percentage = safe_ratio(total_radicals, total_population)
+            loyalists_percentage = safe_ratio(total_loyalists, total_population)
+            standard_of_living = retrieve_from_tree(country, ["avgsoltrend", "channels", "0", "values", "value"], null=[MISSING])[-1]
             country_tag = country["definition"]
             country_name = get_country_name(country, localization)
             df_country = {

@@ -64,6 +64,32 @@ def get_color(tag):
     colors = np.concatenate([colors, [1]])
     return np.array(colors)
 
+def interpolate_missing(series):
+    """
+    Repair MISSING (NaN) values in one country's ``[[year, value], ...]`` time
+    series, using neighboring saves. This is the "manager outside the checking
+    logic" of proposal 02: checkers emit NaN for a statistic that is absent or
+    undefined for a given save, and this fills those in across the campaign.
+
+    - Interior gaps (a NaN bracketed by known saves) are linearly interpolated
+      weighted by the actual save date (the year index).
+    - Leading / trailing gaps (no known neighbor on one side) are hold-filled from
+      the nearest known value so the line spans its full date range.
+    - A series with no known value at all is returned unchanged (all-NaN -> the
+      country simply won't plot; nothing is fabricated).
+    """
+    arr = np.asarray(series, dtype=float)
+    if arr.size == 0:
+        return series
+    years, values = arr[:, 0], arr[:, 1]
+    s = pd.Series(values, index=years).sort_index()
+    if s.notna().any():
+        # interpolate(method="index") fills interior NaNs by date; ffill/bfill then
+        # hold-fills the ends that interpolation cannot reach.
+        s = s.interpolate(method="index").ffill().bfill()
+    return [[year, value] for year, value in zip(s.index, s.values)]
+
+
 def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024):
     """
     Plot a variable over the campaign
@@ -150,6 +176,11 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
             if country not in countries:
                 countries[country] = []
             countries[country].append([year, df.iloc[row][mode]])
+
+    # Repair statistics the checkers marked MISSING (NaN) for individual saves by
+    # interpolating each country's series across neighboring saves before plotting.
+    for name in countries:
+        countries[name] = interpolate_missing(countries[name])
 
     last_save = dfs[current_year]
     last_save = last_save.sort_values(by=mode, ascending=False)

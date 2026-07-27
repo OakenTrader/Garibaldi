@@ -1,5 +1,5 @@
 from src.checkers.check_base import Checker
-from src.checkers.checkers_functions import get_country_name
+from src.checkers.checkers_functions import get_country_name, safe_ratio, MISSING
 from src.helpers.utility import retrieve_from_tree, load_def
 import pandas as pd
 import numpy as np
@@ -101,17 +101,17 @@ class CheckFinance(Checker):
             building_cash_reserves = country["data_building_reserves"]
             gdp = (credit - def_min_credit_base - building_cash_reserves) / def_min_credit_scale
             cash_reserve_limit = gdp * def_gold_reserve_limit_factor
-            money_percentage = money/(gdp + 0.00001)
-            debt_percentage = principal/(credit + 0.00001)
+            money_percentage = safe_ratio(money, gdp)
+            debt_percentage = safe_ratio(principal, credit)
             if principal > 0:
                 money = -principal
             population_row = df_demographics[df_demographics["id"].astype(str) == str(country_key)]
             if not population_row.empty:
                 population = population_row.iloc[0]["population"]
             else:
-                population = np.inf
+                population = MISSING
                 warnings.warn(f"No population record for {country_key}:{country['definition']}")
-            gdp_per_capita = gdp / np.maximum(population, 1)  # Avoid division by zero
+            gdp_per_capita = safe_ratio(gdp, population)  # MISSING when population is absent/zero
             df_finance.append({
                 "id": country_key,
                 "tag": country["definition"],

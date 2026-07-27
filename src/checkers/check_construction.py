@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import warnings
 from src.checkers.check_base import Checker
-from src.checkers.checkers_functions import get_building_output, get_country_name, national_modifiers_manager
+from src.checkers.checkers_functions import get_building_output, get_country_name, national_modifiers_manager, safe_ratio, MISSING
 from src.helpers.utility import *
 
 class CheckConstruction(Checker):
@@ -85,12 +85,14 @@ class CheckConstruction(Checker):
                 construction_list = np.stack(construction_list)
                 out_list, cost_list = construction_list[:, 0], construction_list[:, 1]
                 total_cost = np.sum(cost_list)
-                average_cost = total_cost / (used_cons + 0.000001)
-                if average_cost > 10000:
-                    average_cost = 0
+                # avg cost per construction point is undefined when nothing is being
+                # built (used_cons == 0) -> MISSING, not a fabricated 0.
+                average_cost = safe_ratio(total_cost, used_cons)
+                if average_cost > 10000:  # NaN compares False, so a MISSING stays MISSING
+                    average_cost = MISSING  # implausibly large -> spurious
             else:
                 total_cost = 0
-                average_cost = 0
+                average_cost = MISSING
             
             national_modifiers = national_modifiers_manager(country, save_date, def_static_modifiers, relevant_modifiers)
             construction += sum([float(v) for v in national_modifiers["country_construction_add"].values()])

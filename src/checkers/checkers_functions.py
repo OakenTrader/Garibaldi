@@ -3,7 +3,29 @@ Functions related to game variables that are used commonly by the checker functi
 """
 import os
 import re
+import numpy as np
 from src.helpers.utility import *
+
+# Sentinel for a statistic that could not be retrieved or is undefined for a save.
+# Checkers must emit MISSING instead of a fabricated 0 so that a genuinely absent
+# value is distinguishable from a legitimate 0. pandas writes it as an empty CSV
+# cell and reads it back as NaN; the plotting layer interpolates it across
+# neighboring saves (see plotter.interpolate_missing).
+MISSING = np.nan
+
+
+def safe_ratio(numer, denom, minimum=0):
+    """
+    Compute ``numer / denom`` guarding against a division by zero.
+
+    Returns ``MISSING`` (NaN) when the denominator is at or below ``minimum``
+    (default 0), i.e. when the ratio is undefined rather than legitimately zero.
+    This supersedes the old ``numer / (denom + epsilon)`` / ``numer / max(denom,
+    epsilon)`` fudges, which silently produced a spurious 0 or a huge number.
+    """
+    if denom is None or denom <= minimum:
+        return MISSING
+    return numer / denom
 
 def companies_manager(save_data, countries, relevant_modifiers):
     """

@@ -58,7 +58,7 @@ class CheckInnovation(Checker):
             if not literacy_row.empty:
                 literacy = literacy_row.iloc[0]["literacy"]
             else:
-                literacy = 0
+                literacy = MISSING
                 warnings.warn(f"No literacy record for {kc}:{country['definition']}")
 
             inno_cap = base_innovation + literacy_max_inno * float(literacy)
@@ -92,7 +92,7 @@ class CheckInnovation(Checker):
             inno_cap += sum([float(v) for v in national_modifiers["country_weekly_innovation_max_add"].values()])
 
             innov = innov * innov_mult
-            inno_ratio = innov / inno_cap if inno_cap > 0 else 0
+            inno_ratio = safe_ratio(innov, inno_cap)
             country_name = get_country_name(country, localization)
 
             new_data = pd.DataFrame([[kc, country["definition"], country_name, innov, inno_cap, inno_ratio]], columns=columns)
