@@ -413,6 +413,7 @@ class SaveAnalyzer(tk.Toplevel, Garibaldi_gui):
         self.check_list["construction"] = add_checker("Construction")
         self.check_list["avg_cost"] = add_checker("Average Construction Cost")
         self.check_list["GDP"] = add_checker("Finance")
+        self.check_list["levels"] = add_checker("Companies")
         self.check_list["innovation"] = add_checker("Innovation")
         self.check_list["capped_innovation"] = add_checker("Capped Innovation")
         self.check_list["infamy"] = add_checker("Infamy")

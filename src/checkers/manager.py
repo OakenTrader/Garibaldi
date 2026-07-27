@@ -6,8 +6,9 @@ from src.checkers.check_prestige import CheckPrestige, prestige_columns
 from src.checkers.check_tech import CheckTech
 from src.checkers.check_demographics import CheckDemographics, demographics_columns
 from src.checkers.check_finance import CheckFinance, finance_columns
+from src.checkers.check_companies import CheckCompanies, company_columns, company_country_columns
 
-from src.helpers.plotter import plot_stat, plot_goods_produced
+from src.helpers.plotter import plot_stat, plot_goods_produced, plot_company_stat
 from src.helpers.convert_localization import get_all_localization
 import os, glob, multiprocessing
 
@@ -94,7 +95,7 @@ class SaveManager:
 def build_check_map():
     """Maps each selectable output key to its (checker_class, output_file)."""
     check_map = dict()
-    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckDemographics, CheckFinance]
+    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckDemographics, CheckFinance, CheckCompanies]
     for checker_class in all_checkers:
         for output, outvars in checker_class.output.items():
             for outvar in outvars:
@@ -158,6 +159,17 @@ def plot_results(checks, shows, campaign_folder):
         elif check == "literacy":
             for demographic in demographics_columns:
                 plot_stat(campaign_folder, demographic, input_file="demographics.csv", players=True, show=show)
+        elif check == "levels":
+            # Companies checkbox (like "GDP" for finance): plot every company metric.
+            # Per-company metrics need the company-aware plotter (a line is a company,
+            # not a country); the per-country rollups use the ordinary plot_stat since
+            # company_countries.csv carries tag/country columns.
+            for metric in company_columns:
+                plot_company_stat(campaign_folder, metric, input_file="companies.csv", players=True, show=show)
+            for metric in company_country_columns:
+                plot_stat(campaign_folder, metric, input_file="company_countries.csv", players=True, show=show)
+        elif check in company_columns:
+            plot_company_stat(campaign_folder, check, input_file="companies.csv", players=True, show=show)
         else:
             check_class, outfile = check_map[check]
             plot_stat(campaign_folder, check, input_file=outfile, show=show, players=True)

@@ -213,6 +213,207 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     plt.close()
     return fig
 
+# Level bands the company plots are split into, so a few giant companies don't flatten
+# the rest. Each company is classified by its levels in its latest save; the plot for a
+# band draws that band's companies in full, and (on the two lower bands) the larger
+# companies faded and behind for context. Each tuple:
+#   (filename suffix, title fragment, in_band(levels), in_background(levels) | None,
+#    upper level threshold | None)
+# The upper threshold caps the y-axis on the ``levels`` plots (whose y is levels), so a
+# band fills exactly up to its boundary; it is dimensionless for the other metrics and
+# ignored there.
+COMPANY_LEVEL_BANDS = [
+    ("above_1000", "above 1000 levels", lambda L: L > 1000, None, None),
+    ("100_1000", "100-1000 levels", lambda L: 100 <= L <= 1000, lambda L: L > 1000, 1000),
+    ("below_100", "below 100 levels", lambda L: L < 100, lambda L: L >= 100, 100),
+]
+
+
+def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024, top_n=30):
+    """
+    Plot a per-company variable (levels / productivity / profit) over the campaign,
+    split into three plots by company size so that a handful of giant companies don't
+    flatten everyone else: **above 1000 levels**, **100-1000 levels**, and **below 100
+    levels**. A company is placed by its levels in its latest save (the ``levels``
+    column, regardless of which ``mode`` is plotted).
+
+    Also emits a ``_top{top_n}`` leaderboard plot of the ``top_n`` companies with the
+    highest latest ``mode`` value. Ranking by the plotted metric means the levels /
+    productivity / profit leaderboards list different companies — the biggest companies
+    are not necessarily the most productive or profitable.
+
+    On the two lower plots the larger companies are still drawn for context — faded,
+    behind the band's own lines, and left off the legend. Each plot's y-axis is scaled
+    to its own band's companies, so those faded context lines simply run off the top as
+    they outgrow the band (rather than squashing the band's lines flat).
+
+    A sibling of ``plot_stat``. Where ``plot_stat`` identifies each line by a country
+    (tag, country name), a company cannot be identified that way: a country owns
+    several companies and a company_type recurs across countries. Each line here is a
+    single company, identified by ``(tag, company_type)`` — unique per save since the
+    game allows only one instance of each company_type per country.
+
+    Lines are coloured by the owning country (``get_color(tag)``); when one country
+    owns several companies their lines share a colour and are separated by line style.
+    Legend labels read ``"<name> (<country>)"`` where ``<name>`` is the company's
+    custom in-game name when set, else the localised company_type name.
+
+    ``limit`` caps how many foreground companies each band lists (top by the latest
+    value of ``mode``) when not plotting a players-only view, keeping legends legible;
+    the faded background lines are never capped. Other arguments mirror ``plot_stat``.
+    """
+    if title is None:
+        title = mode
+    if save_name is None:
+        save_name = title
+    if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
+        os.mkdir(f"saves/{campaign_folder}/campaign_data")
+    img_folder = input_file.replace(".csv", "")
+    if img_folder not in os.listdir(f"saves/{campaign_folder}/campaign_data"):
+        os.mkdir(f"saves/{campaign_folder}/campaign_data/{img_folder}")
+
+    if "campaign_config.json" in os.listdir(f"saves/{campaign_folder}"):
+        campaign_config = jopen(f"saves/{campaign_folder}/campaign_config.json")
+        set_player_list = campaign_config.get("override_player_tags", [])
+        set_ai_list = campaign_config.get("show_ai_tags", [])
+    else:
+        set_player_list = []
+        set_ai_list = []
+
+    t0 = time.time()
+    dfs = dict()
+    for folder in os.listdir(f"saves/{campaign_folder}"):
+        save_folder = f"saves/{campaign_folder}/{folder}"
+        if os.path.isdir(save_folder) and not is_reserved_folder(folder):
+            try:
+                metadata = jopen(f"{save_folder}/metadata.json")
+            except FileNotFoundError:
+                metadata = None
+            try:
+                year, month, day = metadata["save_date"]
+            except KeyError:
+                metadata = load_save(["meta_data"], save_folder, True)
+                year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
+            year_number = int(year) + (int(month) - 1) / 12 + int(day) / (365)
+            if year_number < start_date or year_number > end_date + 1:
+                continue
+            if input_file not in os.listdir(save_folder):
+                print(f"No file provided at {year}, {month}, {day}")
+                continue
+            else:
+                df_stat = pd.read_csv(f"{save_folder}/{input_file}")
+            # Player filtering keeps companies whose OWNING country tag is a player.
+            # Without it, every company is kept — the level bands (not a top-N cut) are
+            # what keep each plot legible.
+            if set_player_list:
+                df_stat = df_stat[df_stat["tag"].isin(set_player_list + set_ai_list)]
+            elif players:
+                df_stat = df_stat[df_stat["tag"].isin([v[1] for v in metadata["players"]] + set_ai_list)]
+            dfs[year_number] = df_stat
+    if not dfs:
+        print(f"No {input_file} data to plot for {campaign_folder}")
+        return []
+
+    # Build each company's [[year, value], ...] series keyed by (tag, company_type),
+    # tracking its latest display name/country (legend) and latest levels (band).
+    series = dict()
+    label_info = dict()
+    latest_levels = dict()
+    for year in sorted(dfs.keys()):
+        df = dfs[year]
+        for row in range(len(df)):
+            r = df.iloc[row]
+            identity = (r["tag"], r["company_type"])
+            series.setdefault(identity, []).append([year, r[mode]])
+            label_info[identity] = (r["company_name"], r["country"])
+            try:
+                latest_levels[identity] = float(r["levels"])
+            except (TypeError, ValueError):
+                latest_levels[identity] = 0.0
+
+    for identity in series:
+        series[identity] = interpolate_missing(series[identity])
+
+    def latest_value(identity):
+        v = series[identity][-1][1] if series[identity] else 0.0
+        return v if v == v else float("-inf")  # push NaN to the bottom of the sort
+
+    linestyles = ["-", "--", ":", "-."]
+
+    def draw_companies(ax, identities):
+        """Plot each company coloured by its owning country, distinguishing a country's
+        several companies by line style and labelling each ``"<name> (<country>)"``.
+        Returns every plotted (non-NaN) y-value, for axis scaling."""
+        tag_seen = dict()
+        values = []
+        for identity in identities:
+            tag = identity[0]
+            idx = tag_seen.get(tag, 0)
+            tag_seen[tag] = idx + 1
+            style = linestyles[idx % len(linestyles)]
+            name, country = label_info[identity]
+            arr = np.stack(series[identity])
+            values.extend(v for v in arr[:, 1] if v == v)
+            ax.plot(arr[:, 0], arr[:, 1], label=f"{name} ({country})", color=get_color(tag), linewidth=3, linestyle=style, zorder=2)
+        return values
+
+    def finish(ax, band_title, out_suffix):
+        ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+        ax.set_title(f"{title} graph over the years ({band_title})")
+        ax.grid(True)
+        plt.subplots_adjust(right=0.75)
+        plt.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}_{out_suffix}.png")
+        if show:
+            plt.show()
+
+    # Only cap foreground legends when showing the whole field (not a players view).
+    cap = None if (set_player_list or players) else (limit if isinstance(limit, int) and limit else None)
+    figs = []
+    for suffix, band_title, in_band, in_background, upper_threshold in COMPANY_LEVEL_BANDS:
+        foreground = sorted((i for i in series if in_band(latest_levels.get(i, 0.0))),
+                            key=latest_value, reverse=True)
+        if not foreground:
+            continue
+        if cap is not None:
+            foreground = foreground[:cap]
+        background = [i for i in series if in_background and in_background(latest_levels.get(i, 0.0))]
+
+        fig, ax = plt.subplots(figsize=(20, 10))
+        # Context first: larger companies faded and behind, no legend entry.
+        for identity in background:
+            arr = np.stack(series[identity])
+            ax.plot(arr[:, 0], arr[:, 1], color=get_color(identity[0]), linewidth=1.5, alpha=0.15, zorder=1)
+        # Band's own companies on top.
+        fg_values = draw_companies(ax, foreground)
+
+        # Scale the y-axis to the band's own companies so faded context lines that grow
+        # past the band clip off the top instead of squashing everything flat. On the
+        # levels plot the y-axis is the level count itself, so cap the top at the band's
+        # level threshold (1000 / 100) for a clean band-height boundary.
+        if fg_values:
+            lo, hi = min(fg_values), max(fg_values)
+            pad = (hi - lo) * 0.05 or abs(hi) * 0.05 or 1.0
+            top = upper_threshold if (mode == "levels" and upper_threshold is not None) else hi + pad
+            ax.set_ylim(lo - pad, top)
+
+        finish(ax, band_title, suffix)
+        plt.close()
+        figs.append(fig)
+
+    # Leaderboard: the top_n companies by their latest value of the plotted metric.
+    # Ranking by mode means the levels / productivity / profit boards differ.
+    if top_n:
+        leaders = sorted(series, key=latest_value, reverse=True)[:top_n]
+        if leaders:
+            fig, ax = plt.subplots(figsize=(20, 10))
+            draw_companies(ax, leaders)
+            finish(ax, f"top {len(leaders)}", f"top{top_n}")
+            plt.close()
+            figs.append(fig)
+
+    print(f"Finished plotting company {mode} in {time.time() - t0} seconds")
+    return figs
+
 def plot_goods_produced(campaign_folder, limit=10, show=False):
     """
     Plot all goods produced in a campaign
