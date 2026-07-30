@@ -6,10 +6,13 @@
         "Events Directory":"./events",
         "Localization Directory":"./localization",
         "Localization Language":"english",
-        "Mods Directory": "",
-        "Tree File Location":"",
+        "Steamapp Location": "",
+        "Overridden Directories": [],
+        "Mod Directories": [],
         "Autosave Location":"",
         "Campaign Folder": "autosaves",
-        "Selected Mod": ""
+        "Selected Mod": "",
+        "Start Year": 1836,
+        "End Year": 1936
     }
 }

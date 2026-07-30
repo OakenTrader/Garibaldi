@@ -8,6 +8,8 @@ demographics_columns = ["literacy", "standard of living", "population", "incorpo
 class CheckDemographics(Checker):
     
     name = "CheckDemographics"
+    display_name = "Demographics"
+    sort_order = 20
     requirements = ["pops", "states", "country_manager", "building_manager"]
     output = {"demographics.csv":demographics_columns}
 

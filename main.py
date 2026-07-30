@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-from src.helpers.GUI import *
+import sys
+
+from src.gui.app import main
 
 if __name__ == "__main__":
-    a = Main_Menu()
+    sys.exit(main())

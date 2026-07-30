@@ -297,9 +297,19 @@ class CheckFinance(Checker):
     """
     
     name = "CheckFinance"
+    display_name = "Finance"
+    sort_order = 30
     requirements = ["pops", "country_manager", "building_manager", "states", "laws", "technology"]
-    output = {"finance.csv":["GDP", "money", "money_percentage", "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"],
+    # finance.csv carries every column in ``finance_columns``. This used to declare
+    # a seven-item subset, which silently hid total income, total expense, net
+    # balance and the whole interest group from the statistics tree even though the
+    # checker wrote them and the batch pass plotted them.
+    output = {"finance.csv": finance_columns,
               "income.csv": [], "expenses.csv": []}
+    # The per-slot income and expense breakdowns depend on game version and mod, so
+    # their columns are read from the CSV header instead of being declared.
+    header_columns = ("income.csv", "expenses.csv")
+    file_categories = {"income.csv": ("Income", 31), "expenses.csv": ("Expenses", 32)}
     dependencies = ["demographics.csv"]
 
     def __init__(self):

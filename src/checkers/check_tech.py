@@ -9,6 +9,8 @@ class CheckTech(Checker):
     """
 
     name = "CheckTech"
+    display_name = "Techs"
+    sort_order = 80
     requirements = ["country_manager", "technology"]
     output = {"tech_tree.csv": ["production_techs", "military_techs", "society_techs", "total_techs"], "missing_techs.csv": []}
 

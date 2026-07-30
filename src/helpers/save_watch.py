@@ -5,9 +5,24 @@ import os
 import time
 import shutil
 
-def watch_save(target_file, destination_folder, stop_event, freq=1):
+def watch_save_job(target_file, destination_folder, stop_event, finish_event, queue, freq=1):
+    """``watch_save`` in the (stop_event, finish_event, queue) protocol the GUI drives.
+
+    The watcher runs until it is stopped, so ``finish_event`` fires on the way out
+    rather than on completion. Module-level so it survives pickling under a spawn
+    start method.
+    """
+    try:
+        watch_save(target_file, destination_folder, stop_event, freq, queue)
+    finally:
+        finish_event.set()
+
+
+def watch_save(target_file, destination_folder, stop_event, freq=1, queue=None):
     """
     Watch the autosave file and copy it to a designated folder whenever it is modified.
+
+    ``queue``, when given, receives a 1 per copied autosave so a GUI can show a count.
     """
     # Get the initial modification time of the target file
     try:
@@ -29,6 +44,8 @@ def watch_save(target_file, destination_folder, stop_event, freq=1):
                 if check % freq == 0:
                     shutil.copy(target_file, f"./saves/{destination_folder}/{dest_path}")
                     print(f"Copied {target_file} to {destination_folder}/{dest_path}")
+                    if queue is not None:
+                        queue.put(1)
                 # Update the last modified time
                 last_modified_time = current_modified_time
                 check += 1

@@ -10,8 +10,10 @@ class CheckInnovation(Checker):
     Retrieve Innovation and its cap of player nations and nations with > base innovation
     """
     name = "CheckInnovation"
+    display_name = "Innovation"
+    sort_order = 70
     requirements = ["building_manager", "country_manager", "pops", "player_manager", "companies", "power_bloc_manager", "pacts", "institutions"]
-    output = {"innovation.csv":["innovation", "capped_innovation", "innovation_ratio"]}
+    output = {"innovation.csv":["innovation", "capped innovation", "innovation ratio"]}
     dependencies = ["demographics.csv"]
     
     def __init__(self):
@@ -100,8 +102,8 @@ class CheckInnovation(Checker):
             # print(kc, country["definition"], innov)
 
         df_innov = pd.concat(df_innov, ignore_index=True)
-        df_innov["capped_innovation"] = np.minimum(df_innov["innovation"], df_innov["innovation cap"])
-        df_innov = df_innov.sort_values(by='capped_innovation', ascending=False)
+        df_innov["capped innovation"] = np.minimum(df_innov["innovation"], df_innov["innovation cap"])
+        df_innov = df_innov.sort_values(by='capped innovation', ascending=False)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date

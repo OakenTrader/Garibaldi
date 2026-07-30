@@ -8,6 +8,8 @@ class CheckInfamy(Checker):
     Retrieve infamy of player countries and countries with non-zero infamy
     """
     name = "CheckInfamy"
+    display_name = "Infamy"
+    sort_order = 90
     requirements = ["country_manager"]
     output = {"infamy.csv": ["infamy"]}
     

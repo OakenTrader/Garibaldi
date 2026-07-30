@@ -29,7 +29,7 @@ The program is not guaranteed to work in any other version (it will certainly br
 The script is intended (atleast in the future) to be compatible with as many mods as possible and so we try not to hardcode any variable into the script, relying all data from the provided definition files
 
 ## Dependencies
-Pandas, Numpy, Matplotlib
+Pandas, Numpy, Matplotlib, Zstandard, PySide6
 
 ## How to install and use
 Refer to https://github.com/OakenTrader/Garibaldi/issues/1 for Windows users who are not familiar with Python for installation as well as usage instructions.

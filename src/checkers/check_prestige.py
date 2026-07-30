@@ -15,11 +15,18 @@ class CheckPrestige(Checker):
     Retrieve prestige and its modifiers for each country in each category.
     """
     name = "CheckPrestige"
+    display_name = "Prestige"
+    sort_order = 50
     requirements = ["country_manager", "new_combat_unit_manager", "states",
                     "interest_groups", "military_formation_manager", "building_manager",
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops",
                     "ship_manager", "ship_templates_manager"]
     output = {"prestige.csv": ["total_prestige"] + prestige_columns, "goods_produced.csv": ["goods_produced"]}
+    # Goods production is written here (production leaders need it) but belongs in
+    # its own tree category rather than nested under Prestige. Which goods exist
+    # depends on the mod, so the columns come from the CSV header.
+    file_categories = {"goods_produced.csv": ("Goods", 60)}
+    header_columns = ("goods_produced.csv",)
     dependencies = ["finance.csv"]
 
     def __init__(self):

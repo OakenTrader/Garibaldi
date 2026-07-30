@@ -2,3 +2,5 @@
 numpy
 matplotlib
 pandas
+pyside6
+zstandard

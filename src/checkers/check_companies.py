@@ -83,6 +83,8 @@ class CheckCompanies(Checker):
     """
 
     name = "CheckCompanies"
+    display_name = "Companies"
+    sort_order = 40
     requirements = ["companies", "country_manager"]
     output = {"companies.csv": company_columns,
               "company_countries.csv": company_country_columns}

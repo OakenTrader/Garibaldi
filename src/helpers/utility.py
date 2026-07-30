@@ -308,3 +308,77 @@ def walk_tree(tree:dict, target, path:list=[]):
 
 def is_reserved_folder(folder):
     return re.split(r"[\\/]", folder.strip("\\/"))[-1] in ["campaign_data", "archive"]
+
+
+def save_year_number(year, month, day):
+    """Collapse a save date into a single fractional year, for plotting and sorting."""
+    return int(year) + (int(month) - 1) / 12 + int(day) / 365
+
+
+def date_from_folder_name(folder):
+    """Recover (year, month, day) from a ``campaign_YYYY_M_D`` folder name.
+
+    ``rename_folder_to_date`` gives every extracted save this shape, which lets a
+    date range be applied without opening anything. Returns None when the name
+    does not parse. Splitting from the right keeps campaign names with underscores
+    working.
+    """
+    parts = folder.rsplit("_", 3)
+    if len(parts) != 4:
+        return None
+    try:
+        return tuple(int(part) for part in parts[1:])
+    except ValueError:
+        return None
+
+
+def iter_save_folders(campaign_folder, start_date=0, end_date=2024, need_metadata=True):
+    """Walk a campaign's save folders in a date range.
+
+    Yields ``(save_folder, year_number, metadata)`` for every non-reserved save
+    folder whose date falls within ``[start_date, end_date + 1]``. This is the one
+    place that knows how to turn a save folder into a date, and it backs the two
+    plotters, the Process window's year filter and the Statistics date slider.
+
+    The date is taken from the folder name where possible so that folders outside
+    the range cost nothing. Only folders that survive the filter are opened — and
+    only when ``need_metadata`` is set, since callers that just want paths (the
+    checking phase) would otherwise pay to load every freshly extracted save that
+    has no ``metadata.json`` yet.
+
+    Note the fallback for a save with no usable ``metadata.json`` calls
+    ``load_save(["meta_data"], save_folder)``. The copies of this loop that used to
+    live in plotter.py passed a third positional argument that ``load_save`` does
+    not accept, so that branch raised TypeError instead of recovering.
+    """
+    root = f"saves/{campaign_folder}"
+    for folder in sorted(os.listdir(root)):
+        save_folder = f"{root}/{folder}"
+        if not os.path.isdir(save_folder) or is_reserved_folder(folder):
+            continue
+
+        year_number = None
+        from_name = date_from_folder_name(folder)
+        if from_name is not None:
+            year_number = save_year_number(*from_name)
+            if year_number < start_date or year_number > end_date + 1:
+                continue
+            if not need_metadata:
+                yield save_folder, year_number, None
+                continue
+
+        try:
+            metadata = jopen(f"{save_folder}/metadata.json")
+        except FileNotFoundError:
+            metadata = None
+        try:
+            year, month, day = metadata["save_date"]
+            year_number = save_year_number(year, month, day)
+        except (KeyError, TypeError):
+            if year_number is None or need_metadata:
+                metadata = load_save(["meta_data"], save_folder)
+                year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
+                year_number = save_year_number(year, month, day)
+        if year_number < start_date or year_number > end_date + 1:
+            continue
+        yield save_folder, year_number, metadata

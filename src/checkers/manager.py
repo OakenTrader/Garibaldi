@@ -2,15 +2,28 @@ from src.checkers.checkers_functions import *
 from src.checkers.check_construction import CheckConstruction
 from src.checkers.check_innovation import CheckInnovation
 from src.checkers.check_infamy import CheckInfamy
-from src.checkers.check_prestige import CheckPrestige, prestige_columns
+from src.checkers.check_prestige import CheckPrestige
 from src.checkers.check_tech import CheckTech
-from src.checkers.check_demographics import CheckDemographics, demographics_columns
-from src.checkers.check_finance import CheckFinance, finance_columns
-from src.checkers.check_companies import CheckCompanies, company_columns, company_country_columns
+from src.checkers.check_demographics import CheckDemographics
+from src.checkers.check_finance import CheckFinance
+# company_columns still decides which plotter a check needs; the other per-checker
+# column lists became import-only once plot_results stopped expanding groups, since
+# every column is now declared in its checker's `output`.
+from src.checkers.check_companies import CheckCompanies, company_columns
 
-from src.helpers.plotter import plot_stat, plot_goods_produced, plot_company_stat
+from src.helpers.plotter import plot_stat, plot_goods_produced, plot_company_stat, csv_value_columns
 from src.helpers.convert_localization import get_all_localization
 import os, glob, multiprocessing
+
+ALL_CHECKERS = [
+    CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech,
+    CheckDemographics, CheckFinance, CheckCompanies,
+]
+
+
+def registered_checkers():
+    """Checker classes in stable display order (sort_order, then name)."""
+    return sorted(ALL_CHECKERS, key=lambda c: (c.sort_order, c.category_name()))
 
 class SaveManager:
     """
@@ -93,14 +106,27 @@ class SaveManager:
     """
 
 def build_check_map():
-    """Maps each selectable output key to its (checker_class, output_file)."""
+    """Maps each selectable output key to its (checker_class, output_file).
+
+    Two checkers can declare the same column: CheckPrestige writes
+    goods_produced.csv as a by-product of its production-leader maths, and
+    CheckGoods owns it. Iterating in a stable order and letting the declared owner
+    win keeps this deterministic — the previous version iterated a ``set()``, so
+    the winner varied between runs.
+    """
     check_map = dict()
-    all_checkers = [CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech, CheckDemographics, CheckFinance, CheckCompanies]
-    for checker_class in all_checkers:
+    for checker_class in registered_checkers():
         for output, outvars in checker_class.output.items():
             for outvar in outvars:
+                if outvar in check_map and not checker_class.owns(output):
+                    continue
                 check_map[outvar] = (checker_class, output)
     return check_map
+
+
+def all_check_keys():
+    """Every selectable stat key — what a parse runs, now that checking is not selective."""
+    return list(build_check_map())
 
 
 def check_save_folders(checks, campaign_folder, folders, stop_event, finish_event, queue):
@@ -136,46 +162,106 @@ def check_save_folders(checks, campaign_folder, folders, stop_event, finish_even
         finish_event.set()
 
 
-def plot_results(checks, shows, campaign_folder):
+def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
     """
     Reduction phase of analysis: aggregate the per-folder CSVs produced by
-    ``check_save_folders`` and render (optionally show) the plots. Must run exactly once,
+    ``check_save_folders`` and write the plots to campaign_data/. Must run exactly once,
     after every folder has been checked, since ``plot_stat`` reads across all folders.
 
+    Nothing is displayed — figures are written and dropped. The GUI renders its own
+    figures on demand via ``figures_for``; this is purely the batch pass, so the PNG
+    set on disk stays complete for use outside the app.
+
     Make exceptional cases for prestige (many subcategories) and goods_produced (many goods).
+
+    A stat that cannot be plotted is skipped rather than aborting the batch. One
+    pass renders ~90 figures and any single CSV may be stale: ValueError covers
+    "no saves with this data in range", KeyError covers a CSV written before a
+    column existed (prestige.csv gains columns as the checker grows). Letting
+    either escape would cost every plot queued behind it.
     """
     check_map = build_check_map()
+    dates = {"start_date": start_date, "end_date": end_date}
+
+    def render(check, plot):
+        try:
+            plot()
+        except (ValueError, KeyError) as e:
+            print(f"Skipped plotting {check}: {type(e).__name__}: {e}")
+
+    # One plot per declared column. There used to be group branches here — "GDP"
+    # rendered every finance column, "literacy" every demographic one — left over
+    # from the old Analyze window's one-checkbox-per-group. Every column is now a
+    # key in its own right, so those branches would render each figure twice.
     for check in checks:
-        show = check in shows
         if check == "total_prestige":
-            for prestige in prestige_columns:
-                plot_stat(campaign_folder, prestige, input_file="prestige.csv", players=True, show=show)
-            plot_stat(campaign_folder, "total", input_file="prestige.csv", players=True, save_name="total_prestige.csv", show=show)
+            # The campaign-wide total lives in prestige.csv under the column "total".
+            render(check, lambda: plot_stat(
+                campaign_folder, "total", input_file="prestige.csv", players=True,
+                save_name="total_prestige.csv", **dates))
         elif check == "goods_produced":
-            plot_goods_produced(campaign_folder, 10, show=show)
-        elif check == "GDP":
-            for finance in finance_columns:
-                plot_stat(campaign_folder, finance, input_file="finance.csv", players=True, show=show)
-        elif check == "literacy":
-            for demographic in demographics_columns:
-                plot_stat(campaign_folder, demographic, input_file="demographics.csv", players=True, show=show)
-        elif check == "levels":
-            # Companies checkbox (like "GDP" for finance): plot every company metric.
-            # Per-company metrics need the company-aware plotter (a line is a company,
-            # not a country); the per-country rollups use the ordinary plot_stat since
-            # company_countries.csv carries tag/country columns.
-            for metric in company_columns:
-                plot_company_stat(campaign_folder, metric, input_file="companies.csv", players=True, show=show)
-            for metric in company_country_columns:
-                plot_stat(campaign_folder, metric, input_file="company_countries.csv", players=True, show=show)
+            # Not a column: expands to one plot per good.
+            render(check, lambda: plot_goods_produced(campaign_folder, 10, **dates))
         elif check in company_columns:
-            plot_company_stat(campaign_folder, check, input_file="companies.csv", players=True, show=show)
+            # A line here is a company, not a country, so it needs the company
+            # plotter; the per-country rollups in company_countries.csv go through
+            # plot_stat like anything else.
+            render(check, lambda c=check: plot_company_stat(
+                campaign_folder, c, input_file="companies.csv", players=True, **dates))
         else:
-            check_class, outfile = check_map[check]
-            plot_stat(campaign_folder, check, input_file=outfile, show=show, players=True)
+            outfile = check_map[check][1]
+            render(check, lambda c=check, f=outfile: plot_stat(
+                campaign_folder, c, input_file=f, players=True, **dates))
+
+    # Columns that only the campaign's own CSV header knows about (income and
+    # expense slots, goods). They are not in ``checks`` because they cannot be
+    # declared, but the batch pass still owns rendering them.
+    for checker in registered_checkers():
+        for input_file in checker.header_columns:
+            if input_file == "goods_produced.csv":
+                continue  # already covered by plot_goods_produced above
+            for column in csv_value_columns(campaign_folder, input_file):
+                render(column, lambda c=column, f=input_file: plot_stat(
+                    campaign_folder, c, input_file=f, players=True, **dates))
 
 
-def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
+def figures_for(campaign_folder, column, input_file, players=True, start_date=0,
+                end_date=2024, figsize=None):
+    """Render one stat interactively: return its Figures without saving anything.
+
+    The interactive counterpart to ``plot_results``. Which plotter applies is
+    decided by the source file, not the column: a line in companies.csv is a
+    company, everywhere else it is a country.
+    """
+    kwargs = {"players": players, "save": False, "start_date": start_date, "end_date": end_date}
+    if figsize is not None:
+        kwargs["figsize"] = figsize
+    if input_file == "companies.csv":
+        return plot_company_stat(campaign_folder, column, input_file=input_file, **kwargs)
+    if column == "total_prestige":
+        # The campaign-wide total lives in prestige.csv under the column "total".
+        return [plot_stat(campaign_folder, "total", input_file=input_file, **kwargs)]
+    return [plot_stat(campaign_folder, column, input_file=input_file, **kwargs)]
+
+
+def plot_results_job(checks, campaign_folder, start_date, end_date, stop_event, finish_event, queue):
+    """``plot_results`` wrapped in the (stop_event, finish_event, queue) protocol.
+
+    Module-level so it survives pickling under a spawn start method, and shaped like
+    ``extract_files`` / ``check_save_folders`` so the GUI's job runner can drive all
+    three phases identically.
+    """
+    try:
+        plot_results(checks, campaign_folder, start_date=start_date, end_date=end_date)
+        queue.put(1)
+    except Exception as e:
+        stop_event.set()
+        raise e
+    finally:
+        finish_event.set()
+
+
+def perform_checking(checks, campaign_folder, stop_event, finish_event, start_date=0, end_date=2024):
     """
     Single-process interface between GUI and the checkers / plotters. Retained for
     non-parallel callers (e.g. scripts); the GUI now drives ``check_save_folders`` across
@@ -186,7 +272,7 @@ def perform_checking(checks, shows, campaign_folder, stop_event, finish_event):
         check_save_folders(checks, campaign_folder, folders, stop_event, finish_event, multiprocessing.Queue())
         if stop_event.is_set():
             raise InterruptedError("Stop event set")
-        plot_results(checks, shows, campaign_folder)
+        plot_results(checks, campaign_folder, start_date=start_date, end_date=end_date)
     except InterruptedError as e:
         raise InterruptedError("Checking stopped:", e)
     finally:

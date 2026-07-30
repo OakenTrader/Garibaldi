@@ -4,11 +4,34 @@ Functions that manage data plotting.
 
 import os, warnings, time
 from src.helpers.utility import *
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from random import randint
 from matplotlib import colors as mpl_colors
 import numpy as np
 import pandas as pd
+
+"""
+Figures are built with the object-oriented ``Figure`` API rather than pyplot.
+pyplot keeps every figure alive in a global registry and binds a GUI backend at
+import time; embedding those in a Qt canvas leaks figures and fights the backend.
+A bare ``Figure`` can be handed straight to ``FigureCanvasQTAgg``, saved
+headlessly, or thrown away — which is what lets one plotting function serve batch
+rendering, interactive display and save-as alike.
+"""
+
+DEFAULT_FIGSIZE = (20, 10)
+
+
+def label_figure(figure, name, suffix=None):
+    """Tag a figure with what it depicts and the filename stem it is saved under.
+
+    ``plot_company_stat`` emits a variable number of figures — bands with no
+    companies are skipped — so position in the returned list identifies nothing.
+    Callers that present or save a figure read these instead of counting.
+    """
+    figure.garibaldi_name = name
+    figure.garibaldi_suffix = suffix
+    return figure
 
 # plt.rcParams.update({
 #     'axes.facecolor': [0.1, 0.1, .1, 1],
@@ -90,19 +113,24 @@ def interpolate_missing(series):
     return [[year, value] for year, value in zip(s.index, s.values)]
 
 
-def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024):
+def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
     """
     Plot a variable over the campaign
-    
+
     campaign_folder: The address of the folder containing the campaign's saves
     mode: The variable you want to plot
     input_file: The address of the file you draw the data from (mode.csv by default)
     title: Title of the plot
     limit: Int (Limit to first N places in the last save)
     players: Whether to include all players in the plot
+    save: Whether to write the figure to campaign_data/ (off for interactive use)
     save_name: the file name of the plot image
     start_date: The starting year in which save files are included in the plot
     end_date: The ending year in which save files are included in the plot
+    figsize: Figure size in inches; the GUI passes a canvas-sized value
+
+    Returns the Figure. Nothing is displayed — the caller decides whether to embed
+    it, save it, or discard it.
     """
     if title is None:
         title = mode
@@ -110,12 +138,10 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
         save_name = title
     if input_file is None:
         input_file = f"{mode}.csv"
-    if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
-        os.mkdir(f"saves/{campaign_folder}/campaign_data")
     img_folder = input_file.replace(".csv", "")
-    if img_folder not in os.listdir(f"saves/{campaign_folder}/campaign_data"):
-        os.mkdir(f"saves/{campaign_folder}/campaign_data/{img_folder}")
-    
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
+
     if "campaign_config.json" in os.listdir(f"saves/{campaign_folder}"):
         campaign_config = jopen(f"saves/{campaign_folder}/campaign_config.json")
         set_player_list = campaign_config.get("override_player_tags", [])
@@ -129,45 +155,33 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     dfs = dict()
     was_player = set()
     current_year = 0
-    for folder in os.listdir(f"saves/{campaign_folder}"):
-        save_folder = f"saves/{campaign_folder}/{folder}"
-        if os.path.isdir(save_folder) and not is_reserved_folder(folder):
-            try:
-                metadata = jopen(f"{save_folder}/metadata.json")
-            except FileNotFoundError:
-                metadata = None
-            try:
-                year, month, day = metadata["save_date"]
-            except KeyError:
-                metadata = load_save(["meta_data"], save_folder, True)
-                year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
-            year_number = int(year) + (int(month) - 1) / 12 + int(day) / (365) # Simplified formula
-            if year_number < start_date or year_number > end_date + 1:
-                continue
-            if input_file not in os.listdir(save_folder):
-                print(f"No file provided at {year}, {month}, {day}")
-                continue
-            else:
-                df_stat = pd.read_csv(f"{save_folder}/{input_file}")
-            if set_player_list:
-                player_list = set_player_list + set_ai_list
-                df_players = df_stat[df_stat["tag"].isin(player_list)]
-                was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
-                df_stat = df_stat[df_stat["tag"].isin(player_list)]
-            elif players:
-                player_list = [v[1] for v in metadata["players"]] + set_ai_list
-                df_players = df_stat[df_stat["tag"].isin(player_list)]
-                was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
-                df_stat = df_stat[df_stat["tag"].isin(player_list)]
-            elif limit and isinstance(limit, int):
-                df_stat = df_stat.sort_values(by=mode, ascending=False)
-                df_stat = df_stat.iloc[:limit]
-            elif limit:
-                raise KeyError(f"Expected limit argument in integers, received {limit}")
-            dfs[year_number] = df_stat
+    for save_folder, year_number, metadata in iter_save_folders(campaign_folder, start_date, end_date):
+        if input_file not in os.listdir(save_folder):
+            print(f"No {input_file} at {save_folder}")
+            continue
+        df_stat = pd.read_csv(f"{save_folder}/{input_file}")
+        if set_player_list:
+            player_list = set_player_list + set_ai_list
+            df_players = df_stat[df_stat["tag"].isin(player_list)]
+            was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
+            df_stat = df_stat[df_stat["tag"].isin(player_list)]
+        elif players:
+            player_list = [v[1] for v in metadata["players"]] + set_ai_list
+            df_players = df_stat[df_stat["tag"].isin(player_list)]
+            was_player.update([(player["tag"], player["country"]) for _, player in df_players.reset_index().iterrows()])
+            df_stat = df_stat[df_stat["tag"].isin(player_list)]
+        elif limit and isinstance(limit, int):
+            df_stat = df_stat.sort_values(by=mode, ascending=False)
+            df_stat = df_stat.iloc[:limit]
+        elif limit:
+            raise KeyError(f"Expected limit argument in integers, received {limit}")
+        dfs[year_number] = df_stat
+    if not dfs:
+        raise ValueError(f"No {input_file} data to plot for {campaign_folder} in {start_date}-{end_date}")
     current_year = max(dfs.keys())
     # Plotting
-    fig, ax = plt.subplots(figsize=(20,10))
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
     countries = dict()
     for year in sorted(dfs.keys()): # Get ascending order date
         df = dfs[year]
@@ -204,13 +218,11 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
     ax.set_title(f"{title} graph over the years")
     ax.grid(True)
-    # plt.tight_layout()
-    plt.subplots_adjust(right=0.75)
-    plt.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
     print(f"Finished plotting {mode} in {time.time() - t0} seconds")
-    if show:
-        plt.show()
-    plt.close()
     return fig
 
 # Level bands the company plots are split into, so a few giant companies don't flatten
@@ -229,7 +241,7 @@ COMPANY_LEVEL_BANDS = [
 ]
 
 
-def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=10, players=True, title=None, show=False, save_name=None, start_date=0, end_date=2024, top_n=30):
+def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=10, players=True, title=None, save=True, save_name=None, start_date=0, end_date=2024, top_n=30, figsize=DEFAULT_FIGSIZE):
     """
     Plot a per-company variable (levels / productivity / profit) over the campaign,
     split into three plots by company size so that a handful of giant companies don't
@@ -266,11 +278,9 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
         title = mode
     if save_name is None:
         save_name = title
-    if "campaign_data" not in os.listdir(f"saves/{campaign_folder}"):
-        os.mkdir(f"saves/{campaign_folder}/campaign_data")
     img_folder = input_file.replace(".csv", "")
-    if img_folder not in os.listdir(f"saves/{campaign_folder}/campaign_data"):
-        os.mkdir(f"saves/{campaign_folder}/campaign_data/{img_folder}")
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
 
     if "campaign_config.json" in os.listdir(f"saves/{campaign_folder}"):
         campaign_config = jopen(f"saves/{campaign_folder}/campaign_config.json")
@@ -282,34 +292,19 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
 
     t0 = time.time()
     dfs = dict()
-    for folder in os.listdir(f"saves/{campaign_folder}"):
-        save_folder = f"saves/{campaign_folder}/{folder}"
-        if os.path.isdir(save_folder) and not is_reserved_folder(folder):
-            try:
-                metadata = jopen(f"{save_folder}/metadata.json")
-            except FileNotFoundError:
-                metadata = None
-            try:
-                year, month, day = metadata["save_date"]
-            except KeyError:
-                metadata = load_save(["meta_data"], save_folder, True)
-                year, month, day = metadata["meta_data"]["game_date"].split(".")[:3]
-            year_number = int(year) + (int(month) - 1) / 12 + int(day) / (365)
-            if year_number < start_date or year_number > end_date + 1:
-                continue
-            if input_file not in os.listdir(save_folder):
-                print(f"No file provided at {year}, {month}, {day}")
-                continue
-            else:
-                df_stat = pd.read_csv(f"{save_folder}/{input_file}")
-            # Player filtering keeps companies whose OWNING country tag is a player.
-            # Without it, every company is kept — the level bands (not a top-N cut) are
-            # what keep each plot legible.
-            if set_player_list:
-                df_stat = df_stat[df_stat["tag"].isin(set_player_list + set_ai_list)]
-            elif players:
-                df_stat = df_stat[df_stat["tag"].isin([v[1] for v in metadata["players"]] + set_ai_list)]
-            dfs[year_number] = df_stat
+    for save_folder, year_number, metadata in iter_save_folders(campaign_folder, start_date, end_date):
+        if input_file not in os.listdir(save_folder):
+            print(f"No {input_file} at {save_folder}")
+            continue
+        df_stat = pd.read_csv(f"{save_folder}/{input_file}")
+        # Player filtering keeps companies whose OWNING country tag is a player.
+        # Without it, every company is kept — the level bands (not a top-N cut) are
+        # what keep each plot legible.
+        if set_player_list:
+            df_stat = df_stat[df_stat["tag"].isin(set_player_list + set_ai_list)]
+        elif players:
+            df_stat = df_stat[df_stat["tag"].isin([v[1] for v in metadata["players"]] + set_ai_list)]
+        dfs[year_number] = df_stat
     if not dfs:
         print(f"No {input_file} data to plot for {campaign_folder}")
         return []
@@ -357,14 +352,17 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
             ax.plot(arr[:, 0], arr[:, 1], label=f"{name} ({country})", color=get_color(tag), linewidth=3, linestyle=style, zorder=2)
         return values
 
-    def finish(ax, band_title, out_suffix):
+    def finish(fig, ax, band_title, out_suffix):
         ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
         ax.set_title(f"{title} graph over the years ({band_title})")
         ax.grid(True)
-        plt.subplots_adjust(right=0.75)
-        plt.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}_{out_suffix}.png")
-        if show:
-            plt.show()
+        fig.subplots_adjust(right=0.75)
+        # Label the figure with the band it belongs to. Bands with no companies are
+        # skipped, so a caller cannot infer which band a figure is from its position
+        # in the returned list.
+        label_figure(fig, band_title, out_suffix)
+        if save:
+            fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}_{out_suffix}.png")
 
     # Only cap foreground legends when showing the whole field (not a players view).
     cap = None if (set_player_list or players) else (limit if isinstance(limit, int) and limit else None)
@@ -378,7 +376,8 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
             foreground = foreground[:cap]
         background = [i for i in series if in_background and in_background(latest_levels.get(i, 0.0))]
 
-        fig, ax = plt.subplots(figsize=(20, 10))
+        fig = Figure(figsize=figsize)
+        ax = fig.add_subplot(111)
         # Context first: larger companies faded and behind, no legend entry.
         for identity in background:
             arr = np.stack(series[identity])
@@ -396,8 +395,7 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
             top = upper_threshold if (mode == "levels" and upper_threshold is not None) else hi + pad
             ax.set_ylim(lo - pad, top)
 
-        finish(ax, band_title, suffix)
-        plt.close()
+        finish(fig, ax, band_title, suffix)
         figs.append(fig)
 
     # Leaderboard: the top_n companies by their latest value of the plotted metric.
@@ -405,19 +403,50 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
     if top_n:
         leaders = sorted(series, key=latest_value, reverse=True)[:top_n]
         if leaders:
-            fig, ax = plt.subplots(figsize=(20, 10))
+            fig = Figure(figsize=figsize)
+            ax = fig.add_subplot(111)
             draw_companies(ax, leaders)
-            finish(ax, f"top {len(leaders)}", f"top{top_n}")
-            plt.close()
+            finish(fig, ax, f"top {len(leaders)}", f"top{top_n}")
             figs.append(fig)
 
     print(f"Finished plotting company {mode} in {time.time() - t0} seconds")
     return figs
 
-def plot_goods_produced(campaign_folder, limit=10, show=False):
+# Columns that name a row rather than measure it, in any checker output.
+IDENTITY_COLUMNS = ("", "id", "tag", "country", "company_name", "company_type")
+
+
+def csv_value_columns(campaign_folder, filename):
+    """The measurable columns a campaign's copy of ``filename`` actually has.
+
+    For outputs whose columns cannot be declared up front — the goods a mod
+    defines, the income and expense slots a game version uses — the campaign's own
+    CSV header is the only honest source. Returns [] when no save has that file.
     """
-    Plot all goods produced in a campaign
+    for save_folder, _, _ in iter_save_folders(campaign_folder, need_metadata=False):
+        path = f"{save_folder}/{filename}"
+        if os.path.isfile(path):
+            columns = list(pd.read_csv(path, nrows=0).columns)
+            # The saved index column comes back as "Unnamed: 0".
+            return [c for c in columns
+                    if c not in IDENTITY_COLUMNS and not c.startswith("Unnamed:")]
+    return []
+
+
+def goods_in_campaign(campaign_folder):
+    """The goods this campaign recorded, falling back to the game defines."""
+    return csv_value_columns(campaign_folder, "goods_produced.csv") or \
+        list(load_def_multiple("goods", "Common Directory").keys())
+
+
+def plot_goods_produced(campaign_folder, limit=10, save=True, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot all goods produced in a campaign. Returns a list of Figures.
     """
     goods = load_def_multiple("goods", "Common Directory")
+    figs = []
     for i, good in enumerate(goods.keys()):
-        plot_stat(campaign_folder, good, input_file="goods_produced.csv", limit=limit, players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}", show=show)
+        figs.append(plot_stat(campaign_folder, good, input_file="goods_produced.csv", limit=limit,
+                              players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}",
+                              save=save, start_date=start_date, end_date=end_date, figsize=figsize))
+    return figs

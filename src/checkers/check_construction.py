@@ -11,6 +11,8 @@ class CheckConstruction(Checker):
     of player nations and nations with more construction than a minimum player's construction
     """
     name = "CheckConstruction"
+    display_name = "Construction"
+    sort_order = 10
     requirements = ["building_manager", "country_manager", "pops"]
     output = {"construction.csv": ["construction", "avg_cost"]}
 
