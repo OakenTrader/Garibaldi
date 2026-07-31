@@ -13,6 +13,7 @@ from src.checkers.check_companies import CheckCompanies, company_columns
 
 from src.helpers.plotter import plot_stat, plot_goods_produced, plot_company_stat, csv_value_columns
 from src.helpers.convert_localization import get_all_localization
+from src.helpers.utility import load_def, load_def_multiple
 import os, glob, multiprocessing
 
 ALL_CHECKERS = [
@@ -25,6 +26,41 @@ def registered_checkers():
     """Checker classes in stable display order (sort_order, then name)."""
     return sorted(ALL_CHECKERS, key=lambda c: (c.sort_order, c.category_name()))
 
+
+def load_definitions(checkers):
+    """
+    Parse the union of the given checkers' declared ``definitions``, once.
+
+    Definitions are identical for every save, so they are read here — before the
+    first save is opened — and handed down as ``cache["definitions"]``, keyed by
+    the declared path. Previously each checker loaded its own folders inside every
+    save: 36 load_def* calls expanding to ~690 files per save, because
+    static_modifiers, production_methods, company_types and
+    technology/technologies are each wanted by three or four checkers.
+
+    A ``.txt`` entry is one file (``load_def``); anything else is a folder
+    (``load_def_multiple``). ``depth_add`` comes from the declaration because the
+    same folder read with a different value yields a different tree, so two
+    checkers disagreeing about it is an error rather than a silent coin-flip.
+    """
+    depths = dict()
+    for checker in checkers:
+        for spec in checker.definitions:
+            path, depth_add = spec if isinstance(spec, tuple) else (spec, 0)
+            if depths.setdefault(path, depth_add) != depth_add:
+                raise ValueError(
+                    f"Checkers disagree on depth_add for definition '{path}': "
+                    f"{depths[path]} and {depth_add}. The two settings produce "
+                    f"different trees, so they cannot share one cache entry.")
+
+    definitions = dict()
+    for path, depth_add in sorted(depths.items()):
+        if path.endswith(".txt"):
+            definitions[path] = load_def(path, "Common Directory")
+        else:
+            definitions[path] = load_def_multiple(path, "Common Directory", depth_add)
+    return definitions
+
 class SaveManager:
     """
     Class to manage a single save file's resource
@@ -33,11 +69,19 @@ class SaveManager:
     Checkers will no longer load data on their own.
     """
 
-    def __init__(self, address, checks=None):
-        self.cache = {"address": address, "localization":get_all_localization()}
-        self.cache["address"] = address
+    def __init__(self, address, checks=None, definitions=None, localization=None):
+        """
+        definitions / localization: game data that is the same for every save.
+        ``check_save_folders`` reads them once and passes them in; they are built
+        here only when a caller (a script, a test) drives a single save directly.
+        This used to call get_all_localization twice per save, 0.30 s and ~20 MiB
+        each time, on top of every checker re-reading its own definition folders.
+        """
+        self.localization = get_all_localization() if localization is None else localization
+        self.definitions = load_definitions(checks) if definitions is None else definitions
+        self.cache = {"address": address, "localization": self.localization,
+                      "definitions": self.definitions}
         self.checks = checks
-        self.localization = get_all_localization()
         os.makedirs(f"{address}/data", exist_ok=True)  # Create a data folder for outputs
         requirements = self.check_metadata(False) # mandatory to obtain metadata
         for check in checks: # Combine all needed requirements
@@ -46,7 +90,8 @@ class SaveManager:
             requirements.update(check.requirements)
         self.save_data = load_save(list(requirements), address)
         self.metadata = self.get_metadata(address)
-        self.cache = {"save_data":self.save_data, "metadata":self.metadata, "localization":self.localization, "address":address}
+        self.cache = {"save_data":self.save_data, "metadata":self.metadata, "localization":self.localization,
+                      "definitions":self.definitions, "address":address}
 
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 
@@ -108,11 +153,11 @@ class SaveManager:
 def build_check_map():
     """Maps each selectable output key to its (checker_class, output_file).
 
-    Two checkers can declare the same column: CheckPrestige writes
-    goods_produced.csv as a by-product of its production-leader maths, and
-    CheckGoods owns it. Iterating in a stable order and letting the declared owner
-    win keeps this deterministic — the previous version iterated a ``set()``, so
-    the winner varied between runs.
+    Two checkers can declare the same column — CheckPrestige writes
+    goods_produced.csv as a by-product of its production-leader maths, and a
+    dedicated goods checker would own it. Iterating in a stable order and letting
+    the declared owner (``owns_output``) win keeps this deterministic; the previous
+    version iterated a ``set()``, so the winner varied between runs.
     """
     check_map = dict()
     for checker_class in registered_checkers():
@@ -146,13 +191,22 @@ def check_save_folders(checks, campaign_folder, folders, stop_event, finish_even
     """
     check_map = build_check_map()
     try:
-        checkers = [c() for c in list(set([check_map[check][0] for check in checks]))] # Instantiate a single object from each class
+        # Sorted by the registered display order rather than iterated out of a set:
+        # a set's order varies between runs, and checkers with a CSV dependency
+        # (Prestige needs finance.csv, Innovation and Finance need demographics.csv)
+        # would then be deferred and retried a varying number of times.
+        selected = {check_map[check][0] for check in checks}
+        checkers = [c() for c in registered_checkers() if c in selected] # Instantiate a single object from each class
+        # Game data is the same for every folder below, so it is read once here
+        # rather than inside each save.
+        definitions = load_definitions(checkers)
+        localization = get_all_localization()
         for folder in folders:
             if stop_event.is_set():
                 raise InterruptedError("Stop event set")
             if is_reserved_folder(folder):
                 continue
-            save = SaveManager(folder, checkers)
+            save = SaveManager(folder, checkers, definitions, localization)
             save.start_checking()
             queue.put(1)
     except Exception as e:

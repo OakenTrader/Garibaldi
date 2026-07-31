@@ -12,6 +12,7 @@ class CheckTech(Checker):
     display_name = "Techs"
     sort_order = 80
     requirements = ["country_manager", "technology"]
+    definitions = ("technology/technologies", "technology/eras")
     output = {"tech_tree.csv": ["production_techs", "military_techs", "society_techs", "total_techs"], "missing_techs.csv": []}
 
     def __init__(self):
@@ -42,8 +43,8 @@ class CheckTech(Checker):
                 else:
                     techs[t] += 1
         
-        def_techs = load_def_multiple("technology/technologies", "Common Directory")
-        def_techs_era = load_def_multiple("technology/eras", "Common Directory")
+        def_techs = cache["definitions"]["technology/technologies"]
+        def_techs_era = cache["definitions"]["technology/eras"]
         def_prod_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "production"}
         def_mil_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "military"}
         def_soc_tech = {key:value for key, value in def_techs.items() if retrieve_from_tree(value, ["category"]) == "society"}

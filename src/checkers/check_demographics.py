@@ -1,6 +1,6 @@
 from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import get_country_name, get_building_output, institution_manager, safe_ratio, MISSING
-from src.helpers.utility import retrieve_from_tree, load_def_multiple
+from src.helpers.utility import retrieve_from_tree
 import pandas as pd
 
 demographics_columns = ["literacy", "standard of living", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage"]

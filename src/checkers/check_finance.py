@@ -1,6 +1,6 @@
 from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import get_country_name, safe_ratio, MISSING
-from src.helpers.utility import retrieve_from_tree, load_def, load_def_multiple
+from src.helpers.utility import retrieve_from_tree
 import pandas as pd
 import numpy as np
 import warnings
@@ -157,21 +157,24 @@ def _current_prestige(country):
     return 0.0
 
 
-def load_interest_defs():
+def load_interest_defs(definitions):
     """
     Gather everything needed to reconstruct the loan interest rate from game data
-    (vanilla + selected mod, via load_def_multiple). Returns a dict of:
+    (vanilla + selected mod). Returns a dict of:
       base_add        : always-on additive base (base_values, ~0.2)
       bankruptcy_mult : multiplicative penalty while bankrupt (~0.5)
       ranks           : ordered [(name, rank_value, avg_thr, rel_thr, valid_types, mult)]
       law_mults       : {law_name: multiplicative modifier}
+
+    definitions (dict): the manager's preloaded definitions; needs
+    "static_modifiers", "country_ranks" and "laws".
     """
-    sm = load_def_multiple("static_modifiers", "Common Directory")
+    sm = definitions["static_modifiers"]
     base_add = float(retrieve_from_tree(sm, ["base_values", "country_loan_interest_rate_add"], null=0.0))
     bankruptcy_mult = float(retrieve_from_tree(sm, ["declared_bankruptcy", "country_loan_interest_rate_mult"], null=0.0))
 
     ranks = []
-    for name, rd in load_def_multiple("country_ranks", "Common Directory").items():
+    for name, rd in definitions["country_ranks"].items():
         if not isinstance(rd, dict):
             continue
         mult = retrieve_from_tree(rd, ["modifier", "country_loan_interest_rate_mult"], null=0.0)
@@ -187,7 +190,7 @@ def load_interest_defs():
     ranks.sort(key=lambda r: r[1], reverse=True)  # highest rank_value first
 
     law_mults = {}
-    for law_name, law in load_def_multiple("laws", "Common Directory").items():
+    for law_name, law in definitions["laws"].items():
         if not isinstance(law, dict):
             continue
         mult = retrieve_from_tree(law, ["modifier", "country_loan_interest_rate_mult"], null=None)
@@ -300,6 +303,12 @@ class CheckFinance(Checker):
     display_name = "Finance"
     sort_order = 30
     requirements = ["pops", "country_manager", "building_manager", "states", "laws", "technology"]
+    # defines/00_defines.txt is declared as a single file rather than the defines
+    # folder, so a mod override of GOLD_RESERVE_LIMIT_FACTOR / COUNTRY_MIN_CREDIT_*
+    # keeps being ignored exactly as it was before — folding it into the folder read
+    # would change what the GDP formula sees, which is not a caching change.
+    definitions = ("defines/00_defines.txt", "static_modifiers", "country_ranks",
+                   "laws", "technology/technologies")
     # finance.csv carries every column in ``finance_columns``. This used to declare
     # a seven-item subset, which silently hid total income, total expense, net
     # balance and the whole interest group from the statistics tree even though the
@@ -333,14 +342,15 @@ class CheckFinance(Checker):
         selfcheck_warned = set()
 
         # --- Interest-rate reconstruction inputs (see reconstruct_interest_rate) ---
-        idefs = load_interest_defs()
+        definitions = cache["definitions"]
+        idefs = load_interest_defs(definitions)
         rank_mult_by_name = {name: mult for name, _rv, _a, _r, _vt, mult in idefs["ranks"]}
         country_rank = compute_country_ranks(countries, idefs["ranks"])
 
         # Society technologies that shift country_loan_interest_rate_add. Values are
         # read from the tech defs (mod-robust) rather than hardcoded.
         tech_add_values = {}
-        for tech_name, tech in load_def_multiple("technology/technologies", "Common Directory").items():
+        for tech_name, tech in definitions["technology/technologies"].items():
             add = retrieve_from_tree(tech, ["modifier", "country_loan_interest_rate_add"], null=None)
             if add is not None:
                 tech_add_values[tech_name] = float(add)
@@ -372,7 +382,7 @@ class CheckFinance(Checker):
             )
 
         """get definition from defines/00_defines.txt GOLD_RESERVE_LIMIT_FACTOR = 0.2"""
-        defines = load_def("defines/00_defines.txt", "Common Directory")["NEconomy"]
+        defines = definitions["defines/00_defines.txt"]["NEconomy"]
         def_gold_reserve_limit_factor = float(defines["GOLD_RESERVE_LIMIT_FACTOR"])
         def_min_credit_base = float(defines["COUNTRY_MIN_CREDIT_BASE"])
         def_min_credit_scale = float(defines["COUNTRY_MIN_CREDIT_SCALED"])

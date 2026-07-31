@@ -21,6 +21,20 @@ class CheckPrestige(Checker):
                     "interest_groups", "military_formation_manager", "building_manager",
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops",
                     "ship_manager", "ship_templates_manager"]
+    # ``defines`` is declared with depth_add=1: the prestige defines are spread
+    # across sections (NEconomy, NMilitary, NCountry, ...) that must merge across
+    # files rather than the last file replacing them wholesale. No other checker
+    # reads the defines folder, so there is no conflicting depth_add.
+    # company_types and subject_types are used by companies_manager and
+    # subject_manager, which now take the definitions dict as an argument.
+    definitions = (
+        ("defines", 1), "static_modifiers", "country_definitions", "buildings",
+        "goods", "prestige_goods", "production_methods", "production_method_groups",
+        "company_types", "subject_types", "interest_group_traits", "character_traits",
+        "technology/technologies", "combat_unit_types", "combat_unit_groups",
+        "combat_unit_experience_levels", "mobilization_options", "ship_types",
+        "ship_modifications",
+    )
     output = {"prestige.csv": ["total_prestige"] + prestige_columns, "goods_produced.csv": ["goods_produced"]}
     # Goods production is written here (production leaders need it) but belongs in
     # its own tree category rather than nested under Prestige. Which goods exist
@@ -38,6 +52,7 @@ class CheckPrestige(Checker):
         save_date = cache["metadata"]["save_date"]
         players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
+        definitions = cache["definitions"]
         df_finance = pd.read_csv(f"{address}/data/finance.csv", sep=",")[["id", "GDP"]]
 
         tiers = ["hegemony", "empire", "kingdom", "grand_principality", "principality", "city_state"]
@@ -55,7 +70,7 @@ class CheckPrestige(Checker):
             "SHIP_POWER_PROJECTION_ARMOR_MULTIPLIER", "SHIP_POWER_PROJECTION_HIT_POINTS_MULTIPLIER",
         } | {f"COUNTRY_TIER_{t.upper()}_PRESTIGE" for t in tiers}
 
-        defines_file = load_def_multiple("defines", "Common Directory", depth_add=1)
+        defines_file = definitions["defines"]
         defines = dict()
         for key, defs in defines_file.items():
             if not isinstance(defs, dict):
@@ -69,10 +84,8 @@ class CheckPrestige(Checker):
 
         relevant_modifiers = ["country_prestige_add", "country_prestige_mult",
                             "country_prestige_from_army_power_projection_mult", "country_prestige_from_navy_power_projection_mult"]
-        def_modifiers = {k:v for k, v in load_def_multiple("static_modifiers", "Common Directory").items() if any([vi in relevant_modifiers for vi in v.keys()])}
-
-        save_data = load_save(self.requirements, address)
-
+        def_modifiers = {k:v for k, v in definitions["static_modifiers"].items() if any([vi in relevant_modifiers for vi in v.keys()])}
+        
         # key_veterancy = resolve_compatibility("veterancy", version)
         key_veterancy = "current_veterancy_level"
 
@@ -81,7 +94,7 @@ class CheckPrestige(Checker):
         """
         countries = save_data["country_manager"]["database"]
         dynamic_countries = retrieve_from_tree(save_data, ["country_manager", "dynamic_country_definition_data"], null=[])
-        def_countries = load_def_multiple(f"country_definitions", "Common Directory")
+        def_countries = definitions["country_definitions"]
         
         """
         Tier
@@ -102,8 +115,8 @@ class CheckPrestige(Checker):
         Military
         """
         pp_divisor = float(defines["POWER_PROJECTION_DIVISOR"])
-        def_unit_types = load_def_multiple("combat_unit_types", "Common Directory")
-        def_unit_type_groups = load_def_multiple("combat_unit_groups", "Common Directory")
+        def_unit_types = definitions["combat_unit_types"]
+        def_unit_type_groups = definitions["combat_unit_groups"]
         unit_types_specific_modifiers = [f"unit_{def_unit_type}_{modifier}" for def_unit_type in def_unit_types for modifier in ["offense_mult", "defense_mult", "offense_add", "defense_add"]]
         relevant_modifiers += unit_types_specific_modifiers
 
@@ -115,7 +128,7 @@ class CheckPrestige(Checker):
         ship_stat_modifiers = ["ship_hull_damage_add", "ship_crew_damage_add", "ship_armor_add"]
         relevant_modifiers += ship_stat_modifiers
         def_ship_types = dict()
-        for ship_type_name, ship_type in load_def_multiple("ship_types", "Common Directory").items():
+        for ship_type_name, ship_type in definitions["ship_types"].items():
             mod = retrieve_from_tree(ship_type, "modifier", {})
             def_ship_types[ship_type_name] = {
                 "hull": float(mod.get("ship_hull_damage_add", 0)),
@@ -124,7 +137,7 @@ class CheckPrestige(Checker):
             }
         # Gun/armor/etc. modifications add flat combat stats on top of the base ship type.
         def_ship_modifications = dict()
-        for mod_name, ship_mod in load_def_multiple("ship_modifications", "Common Directory").items():
+        for mod_name, ship_mod in definitions["ship_modifications"].items():
             m = retrieve_from_tree(ship_mod, "modifier", {})
             def_ship_modifications[mod_name] = {
                 "hull": float(m.get("ship_hull_damage_add", 0)),
@@ -191,14 +204,14 @@ class CheckPrestige(Checker):
             countries[country].setdefault("ships", dict())[ship_key] = ship
 
         # Get relevant mobilizations
-        mobilizations_def = load_def_multiple("mobilization_options", "Common Directory")
+        mobilizations_def = definitions["mobilization_options"]
         def_mobilizations = dict()
         for key, mobilization in mobilizations_def.items():
             if "unit_modifier" in mobilization:
                 if any([x in mobilization["unit_modifier"] for x in relevant_modifiers]):
                     def_mobilizations[key] = mobilization
 
-        veterancy_def = load_def_multiple("combat_unit_experience_levels", "Common Directory")
+        veterancy_def = definitions["combat_unit_experience_levels"]
         def_veterancy = dict()
         for key, veterancy in veterancy_def.items():
             def_veterancy[veterancy["level"]] = veterancy
@@ -213,12 +226,12 @@ class CheckPrestige(Checker):
         """
         Companies
         """
-        companies_manager(save_data, countries, relevant_modifiers)
+        companies_manager(save_data, definitions, countries, relevant_modifiers)
 
         """
         Politics
         """
-        def_ig_traits_file = load_def_multiple("interest_group_traits", "Common Directory")
+        def_ig_traits_file = definitions["interest_group_traits"]
         def_ig_traits = dict()
         for ig_trait in def_ig_traits_file:
             if any([ig_mod in relevant_modifiers for ig_mod in def_ig_traits_file[ig_trait]["modifier"]]):
@@ -242,7 +255,7 @@ class CheckPrestige(Checker):
         def_character_traits = dict()
         characters = save_data["character_manager"]["database"]
         # Consider only ruler modifier
-        for character_trait_name, character_trait in load_def_multiple("character_traits", "Common Directory").items():
+        for character_trait_name, character_trait in definitions["character_traits"].items():
             if (ruler_modifiers := retrieve_from_tree(character_trait, "country_modifier")) is None:
                 continue
             if any([modifier in relevant_modifiers for modifier in ruler_modifiers]):
@@ -252,7 +265,7 @@ class CheckPrestige(Checker):
         Technology
         """
         def_techs = dict()
-        file_techs = load_def_multiple("technology/technologies", "Common Directory")
+        file_techs = definitions["technology/technologies"]
         for name, tech in file_techs.items():
             if (tech_mod := retrieve_from_tree(tech, ["modifier"])) is None:
                 continue
@@ -275,7 +288,7 @@ class CheckPrestige(Checker):
         """
 
         def_production_methods = dict()
-        file_production_methods = load_def_multiple("production_methods", "Common Directory")
+        file_production_methods = definitions["production_methods"]
         for pm_name, production_method in file_production_methods.items():
             for relevant_modifier in relevant_modifiers:
                 if len(walk_tree(production_method, relevant_modifier)) > 0:
@@ -283,12 +296,12 @@ class CheckPrestige(Checker):
                     break
         
         def_production_method_groups = dict()
-        for pmg_name, production_method_group in load_def_multiple("production_method_groups", "Common Directory").items():
+        for pmg_name, production_method_group in definitions["production_method_groups"].items():
             if any([pm in def_production_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
                 def_production_method_groups[pmg_name] = production_method_group
 
         def_buildings = dict()
-        for building_name, building in load_def_multiple("buildings", "Common Directory").items():
+        for building_name, building in definitions["buildings"].items():
             for def_pmg in def_production_methods:
                 if def_pmg in building["production_method_groups"]:
                     def_buildings[building_name] = building
@@ -313,7 +326,7 @@ class CheckPrestige(Checker):
             warnings.warn("This mod modifies the MIN_SPOT_PRESTIGE_AWARD and may make the producing leader prestige calculation inaccurate", UserWarning)
         states = save_data["states"]["database"]
         num_to_goods = dict()
-        def_goods = load_def_multiple("goods", "Common Directory")
+        def_goods = definitions["goods"]
         for i, good in enumerate(def_goods.keys()):
             num_to_goods[i] = good
         
@@ -377,10 +390,10 @@ class CheckPrestige(Checker):
         # producers earn PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION times the usual award. This is
         # a GLOBAL property of the good (not tied to the earner owning the company).
         prestige_goods_mult = float(defines["PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION"])
-        def_prestige_goods = load_def_multiple("prestige_goods", "Common Directory")
+        def_prestige_goods = definitions["prestige_goods"]
         goods_name_to_num = {good: str(i) for i, good in num_to_goods.items()}
         company_type_base_good = dict()
-        for company_type_name, company_type in load_def_multiple("company_types", "Common Directory").items():
+        for company_type_name, company_type in definitions["company_types"].items():
             possible = retrieve_from_tree(company_type, ["possible_prestige_goods", "value"], null=[])
             for prestige_good in possible:
                 base_good = retrieve_from_tree(def_prestige_goods, [prestige_good, "base_good"])
@@ -402,7 +415,7 @@ class CheckPrestige(Checker):
         # government_wages_* / military_wages_* (which carry country_prestige_mult) live in
         # the static_modifiers folder, not modifiers/.
         static_modifiers = dict()
-        for mod_name, static_modifier in load_def_multiple("static_modifiers", "Common Directory").items():
+        for mod_name, static_modifier in definitions["static_modifiers"].items():
             for relevant_modifier in relevant_modifiers:
                 if relevant_modifier in static_modifier:
                     static_modifiers[mod_name] = static_modifier
@@ -650,7 +663,7 @@ class CheckPrestige(Checker):
         prestige_per_subject_army_pp = float(defines["PRESTIGE_FROM_SUBJECT_ARMY_POWER_PROJECTION"])
         prestige_per_subject_navy_pp = float(defines["PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION"])
 
-        subject_manager(save_data, countries)
+        subject_manager(save_data, definitions, countries)
 
         for country_id, country in countries.items():
             if not isinstance(country, dict):

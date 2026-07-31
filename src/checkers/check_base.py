@@ -9,6 +9,7 @@ class Checker:
 
     Attributes:
         - requirements (list): List of sub-trees in save_data needed in a checker
+        - definitions (tuple): Game/mod definition folders the checker parses
         - dependencies (list): List of Checkers that need to be executed before this one
         - output (dict): Dictionary mapping files produced by the checker mapping to lists of plottable variables.
         Used to check if checking is necessary (whether or not these files exist) and to assign file for plotter to read
@@ -24,6 +25,28 @@ class Checker:
     requirements = []
     dependencies = []
     output = dict()
+
+    # Game/mod definition folders this checker reads, declared the way
+    # ``requirements`` declares save subtrees. ``load_definitions`` in manager.py
+    # parses the union across the selected checkers once and hands the result down
+    # as ``cache["definitions"]``; checkers look their trees up there instead of
+    # calling load_def_multiple. Definitions never vary between saves, but each
+    # checker used to load its own — 36 calls expanding to ~690 files for every
+    # save, since static_modifiers, production_methods, company_types and
+    # technology/technologies are each wanted by three or four checkers.
+    #
+    # An entry is a folder under the Common Directory ("production_methods"), a
+    # single file ("defines/00_defines.txt"), or a ``(folder, depth_add)`` pair
+    # where the folder must be merged section-wise instead of file-wise — only
+    # ``defines`` needs that, and only for CheckPrestige.
+    #
+    # Declare everything the checker reaches, including definitions used on its
+    # behalf by helpers in checkers_functions (companies_manager -> company_types,
+    # subject_manager -> subject_types, bloc_manager -> power_bloc_principles);
+    # those take the definitions dict as an argument. An undeclared folder is a
+    # KeyError at the lookup, which is the point: the attribute is the record of
+    # what the checker reads.
+    definitions = ()
 
     display_name = None
     column_labels = dict()

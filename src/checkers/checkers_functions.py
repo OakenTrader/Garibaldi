@@ -27,12 +27,16 @@ def safe_ratio(numer, denom, minimum=0):
         return MISSING
     return numer / denom
 
-def companies_manager(save_data, countries, relevant_modifiers):
+def companies_manager(save_data, definitions, countries, relevant_modifiers):
     """
     Provides checkers with information of companies with relevant traits
+
+    definitions (dict): the manager's preloaded definitions; needs "company_types".
+    Passed in rather than loaded here so that the folder is read once per session
+    and stays visible in the calling checker's ``definitions`` declaration.
     """
     def_companies = dict()
-    companies = load_def_multiple("company_types", "Common Directory")
+    companies = definitions["company_types"]
     for name, company_name in companies.items():
         if any([x in relevant_modifiers for x in company_name["prosperity_modifier"]]):
             def_companies.update({name:company_name["prosperity_modifier"]})
@@ -50,11 +54,13 @@ def companies_manager(save_data, countries, relevant_modifiers):
             countries[country]["companies"] = dict()
         countries[country]["companies"][company_name["company_type"]] = company
 
-def subject_manager(save_data, countries):
+def subject_manager(save_data, definitions, countries):
     """
     Get all subjects of each country and the country it is subject to
+
+    definitions (dict): the manager's preloaded definitions; needs "subject_types".
     """
-    def_subjects = [v["diplomatic_action"] for v in load_def_multiple("subject_types", "Common Directory").values()]
+    def_subjects = [v["diplomatic_action"] for v in definitions["subject_types"].values()]
     for _, pact in save_data["pacts"]["database"].items():
         if not isinstance(pact, dict):
             continue
@@ -93,11 +99,14 @@ def collect_subject_tree(countries, root_id):
         stack.extend(retrieve_from_tree(countries[sid], "subjects", null=[]))
     return seen
 
-def bloc_manager(save_data, relevant_modifiers):
+def bloc_manager(save_data, definitions, relevant_modifiers):
     """
     Retrieve power blocs and/with relevant principles
+
+    definitions (dict): the manager's preloaded definitions; needs
+    "power_bloc_principles".
     """
-    def_principles = load_def_multiple("power_bloc_principles")
+    def_principles = definitions["power_bloc_principles"]
     principles = dict()
     for principle_key, principle in def_principles.items():
         for relevant_modifier in relevant_modifiers:

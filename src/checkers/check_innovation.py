@@ -13,6 +13,10 @@ class CheckInnovation(Checker):
     display_name = "Innovation"
     sort_order = 70
     requirements = ["building_manager", "country_manager", "pops", "player_manager", "companies", "power_bloc_manager", "pacts", "institutions"]
+    # company_types, subject_types and power_bloc_principles are loaded on this
+    # checker's behalf by companies_manager, subject_manager and bloc_manager.
+    definitions = ("production_methods", "static_modifiers", "company_types",
+                   "subject_types", "power_bloc_principles")
     output = {"innovation.csv":["innovation", "capped innovation", "innovation ratio"]}
     dependencies = ["demographics.csv"]
     
@@ -40,16 +44,17 @@ class CheckInnovation(Checker):
                 building["pops_employed"] = dict()
             building["pops_employed"][pop_id] = pop
 
+        definitions = cache["definitions"]
         relevant_modifiers = ["country_weekly_innovation_add", "country_weekly_innovation_mult", "country_weekly_innovation_max_add"]
-        def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
+        def_production_methods = definitions["production_methods"]
+        def_static_modifiers = definitions["static_modifiers"]
         base_innovation = float(retrieve_from_tree(def_static_modifiers, ["base_values", "country_weekly_innovation_add"], null=0))
         literacy_innovation = float(retrieve_from_tree(def_static_modifiers, ["country_literacy_rate", "country_weekly_innovation_add"], null=0))
         literacy_max_inno = float(retrieve_from_tree(def_static_modifiers, ["country_literacy_rate", "country_weekly_innovation_max_add"], null=0))
-        companies_manager(save_data, countries, relevant_modifiers)
-        subject_manager(save_data, countries)
+        companies_manager(save_data, definitions, countries, relevant_modifiers)
+        subject_manager(save_data, definitions, countries)
         institution_manager(save_data, countries, ["institution_schools"])
-        principles, blocs = bloc_manager(save_data, relevant_modifiers)
+        principles, blocs = bloc_manager(save_data, definitions, relevant_modifiers)
 
         columns = ["id", "tag", "country", "innovation", "innovation cap", "innovation ratio"]
         df_innov = []

@@ -14,6 +14,7 @@ class CheckConstruction(Checker):
     display_name = "Construction"
     sort_order = 10
     requirements = ["building_manager", "country_manager", "pops"]
+    definitions = ("production_methods", "static_modifiers")
     output = {"construction.csv": ["construction", "avg_cost"]}
 
     def __init__(self):
@@ -26,6 +27,7 @@ class CheckConstruction(Checker):
         players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
 
+        definitions = cache["definitions"]
         relevant_modifiers = ["country_construction_add"]
         buildings = save_data["building_manager"]["database"]
         countries = save_data["country_manager"]["database"]
@@ -40,9 +42,8 @@ class CheckConstruction(Checker):
                 building["pops_employed"] = dict()
             building["pops_employed"][pop_id] = pop
         
-        defines = load_def_multiple("defines", "Common Directory")
-        def_production_methods = load_def_multiple("production_methods", "Common Directory")
-        def_static_modifiers = load_def_multiple("static_modifiers", "Common Directory")
+        def_production_methods = definitions["production_methods"]
+        def_static_modifiers = definitions["static_modifiers"]
         def_static_modifiers = {k:v for k,v in def_static_modifiers.items() if any([vi in relevant_modifiers for vi in v.keys()])}
         # FIXME New base construction now scales with GDP, which I'm not going to do right now because it's so little.
         base_construction = 10
