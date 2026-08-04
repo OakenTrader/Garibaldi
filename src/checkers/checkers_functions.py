@@ -4,6 +4,8 @@ Functions related to game variables that are used commonly by the checker functi
 import os
 import re
 import numpy as np
+from src.checkers.aggregates import Agg, Call, Emit, F, present, run_aggregates
+from src.helpers.columnar import load_columns
 from src.helpers.utility import *
 
 # Sentinel for a statistic that could not be retrieved or is undefined for a save.
@@ -85,9 +87,15 @@ def subject_manager(save_data, definitions, countries):
 
 def collect_subject_tree(countries, root_id):
     """
-    Return the set of all descendants in a country's subject tree (subjects,
-    subjects-of-subjects, ...). Requires ``subject_manager`` to have populated the
-    per-country ``subjects`` lists first. Cycle-guarded.
+    Return all descendants in a country's subject tree (subjects,
+    subjects-of-subjects, ...) as a sorted list. Requires ``subject_manager`` to have
+    populated the per-country ``subjects`` lists first. Cycle-guarded.
+
+    Sorted rather than a bare set because the caller accumulates floats over the
+    result (CheckPrestige's subject army/navy/GDP projection). Python randomises
+    string hashing per process, so set order — and therefore summation order —
+    varied between runs, leaving ~1 ULP of noise in prestige.csv that made
+    output diffing unreliable.
     """
     seen = set()
     stack = list(retrieve_from_tree(countries[root_id], "subjects", null=[]))
@@ -97,7 +105,7 @@ def collect_subject_tree(countries, root_id):
             continue
         seen.add(sid)
         stack.extend(retrieve_from_tree(countries[sid], "subjects", null=[]))
-    return seen
+    return sorted(seen)
 
 def bloc_manager(save_data, definitions, relevant_modifiers):
     """
@@ -193,17 +201,83 @@ def get_save_date(address, split=True):
         return year, month, day
     return save_date
 
+def state_owner(ctx):
+    """state id -> the country listing it, built once per save.
+
+    Countries are visited in database order and the first to claim a state keeps it.
+    """
+    owner = ctx.payload.get("_state_owner")
+    if owner is None:
+        owner = {}
+        for country_id, country in ctx.payload["save_data"]["country_manager"]["database"].items():
+            if not isinstance(country, dict) or "states" not in country:
+                continue
+            for state_id in country["states"]["value"]:
+                owner.setdefault(state_id, country_id)
+        ctx.payload["_state_owner"] = owner
+    return owner
+
+
+def building_country(building, ctx):
+    """The country a building belongs to, via the state that holds it."""
+    return state_owner(ctx).get(building.get("state"))
+
+
+# Grouping keys available to building-stage aggregates.
+BUILD_GROUP = Call(building_country, name="building_country")
+
+
+def building_state_country(building, ctx):
+    """The country the building's own state names as its owner.
+
+    Differs from ``BUILD_GROUP`` for a handful of states per save; the two keys are
+    not interchangeable.
+    """
+    state = ctx.payload["save_data"]["states"]["database"].get(building.get("state"))
+    return state.get("country") if isinstance(state, dict) else None
+
+
+STATE_COUNTRY = Call(building_state_country, name="building_state_country")
+
+
+def building_output_of(target, methods=None, methods_name="all"):
+    """A Call summing one modifier's building output, for a building-stage Agg.
+
+    ``methods`` is a ``ctx -> {name: production_method}`` selection; it changes the
+    result, since ``get_building_output`` divides by the employment those methods
+    declare. ``methods_name`` distinguishes two selections in the dedup key.
+    """
+    def value(building, ctx):
+        production_methods = (methods(ctx) if methods is not None
+                              else ctx.payload["definitions"]["production_methods"])
+        return get_building_output(building, target, production_methods)
+    return Call(value, name=f"building_output:{target}@{methods_name}")
+
+
+def building_of_type(building_type):
+    """A Call selecting one kind of building."""
+    def where(building, ctx):
+        return building.get("building") == building_type
+    return Call(where, name=f"building_is:{building_type}")
+
+
+EMPLOYED_WORKFORCE = Agg(
+    "pop", by="workplace", name="employed_workforce", value=F("workforce"),
+    where=present("workplace") & present("workforce"),
+    attach=("building_manager", "employed_workforce"),
+)
+
+
 def get_building_output(building, target, def_production_methods, modifier_type="country_modifiers"):
     """
     Calculate a building's output of a variable with respected to production methods, employees and throughput
-    Employees must be added into a building from the outside in building["pops_employed"]
+    Employees come from the building's attached ``employed_workforce``.
     """
     output = 0
     employees = 0
     employees_pl = dict()
     for pm_name in building["production_methods"]["value"]:
-        # def_production_methods is filtered to PMs carrying a relevant modifier;
-        # a building's other active PMs (e.g. ownership) simply carry no target.
+        # Only the methods passed in count; a building's others carry no target.
         if pm_name not in def_production_methods:
             continue
         pm = def_production_methods[pm_name]
@@ -216,9 +290,7 @@ def get_building_output(building, target, def_production_methods, modifier_type=
                 else:
                     employees_pl[key] += int(addition)
 
-    if "pops_employed" in building:
-        for key, pop in building["pops_employed"].items():
-            employees += int(pop["workforce"] )
+    employees += building.get("employed_workforce", 0)
 
     # print(employees_pl)
     # print(f"Total Employees at level {int(building['level'])}: {employees}")

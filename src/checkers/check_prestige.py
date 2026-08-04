@@ -10,6 +10,76 @@ There are several sources of prestige, some fixed to a certain amount, some scal
 prestige_columns = ["tier prestige", "army projection", "navy projection", "GDP prestige",
             "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "prestige goods prestige", "monuments prestige", "events prestige", "modifiers"]
 
+PRESTIGE_MODIFIERS = ["country_prestige_add", "country_prestige_mult",
+                      "country_prestige_from_army_power_projection_mult",
+                      "country_prestige_from_navy_power_projection_mult"]
+# Techs grow the ship damage/armor terms that navy power projection is built from.
+SHIP_STAT_MODIFIERS = ["ship_hull_damage_add", "ship_crew_damage_add", "ship_armor_add"]
+
+
+def prestige_modifiers(definitions):
+    """Every modifier this checker reads, prestige's own plus the combat stats.
+
+    Also selects the production methods in ``_prestige_production_methods``.
+    """
+    unit_stats = [f"unit_{unit_type}_{stat}"
+                  for unit_type in definitions["combat_unit_types"]
+                  for stat in ("offense_mult", "defense_mult", "offense_add", "defense_add")]
+    return PRESTIGE_MODIFIERS + unit_stats + SHIP_STAT_MODIFIERS
+
+
+def _prestige_production_methods(ctx):
+    """The production methods carrying any modifier this checker reads.
+
+    Part of the result, not a shortcut: ``get_building_output`` divides by the
+    employment the given methods declare. Built once per save, kept on the payload.
+    """
+    methods = ctx.payload.get("_prestige_pms")
+    if methods is None:
+        definitions = ctx.payload["definitions"]
+        modifiers = prestige_modifiers(definitions)
+        methods = {name: pm for name, pm in definitions["production_methods"].items()
+                   if any(walk_tree(pm, modifier) for modifier in modifiers)}
+        ctx.payload["_prestige_pms"] = methods
+    return methods
+
+
+def _is_alive(building, ctx):
+    return retrieve_from_tree(building, "dead") != "yes"
+
+
+def _is_monument(building, ctx):
+    """A building running a production method that carries a prestige modifier."""
+    methods = _prestige_production_methods(ctx)
+    return any(pm in methods
+               for pm in retrieve_from_tree(building, ["production_methods", "value"], null=[]))
+
+
+def _output_goods(building, ctx):
+    """What this building produces, as ``{good index: amount}``."""
+    goods = retrieve_from_tree(building, ["output_goods", "goods"])
+    if goods is None:
+        return {}
+    return {index: float(entry["value"]) for index, entry in goods.items()}
+
+
+# What prestige needs from the building tree: goods produced per country per good,
+# and the two monument modifiers.
+_MONUMENT = Call(_is_alive, name="building_alive") & Call(_is_monument, name="building_is_monument")
+
+GOODS_PRODUCED = Agg(
+    "building", by=STATE_COUNTRY, name="goods_produced",
+    value=Emit(_output_goods, name="output_goods"),
+    where=Call(_is_alive, name="building_alive"))
+MONUMENT_PRESTIGE = Agg(
+    "building", by=STATE_COUNTRY, name="monument_prestige",
+    value=building_output_of("country_prestige_add", _prestige_production_methods, "prestige"),
+    where=_MONUMENT)
+MONUMENT_PRESTIGE_MULT = Agg(
+    "building", by=STATE_COUNTRY, name="monument_prestige_mult",
+    value=building_output_of("country_prestige_mult", _prestige_production_methods, "prestige"),
+    where=_MONUMENT)
+
 class CheckPrestige(Checker):
     """
     Retrieve prestige and its modifiers for each country in each category.
@@ -21,6 +91,9 @@ class CheckPrestige(Checker):
                     "interest_groups", "military_formation_manager", "building_manager",
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops",
                     "ship_manager", "ship_templates_manager"]
+    column_backed = {"pops": "pop"}  # reached only through the declared aggregates
+    aggregates = [EMPLOYED_WORKFORCE, GOODS_PRODUCED, MONUMENT_PRESTIGE,
+                  MONUMENT_PRESTIGE_MULT]
     # ``defines`` is declared with depth_add=1: the prestige defines are spread
     # across sections (NEconomy, NMilitary, NCountry, ...) that must merge across
     # files rather than the last file replacing them wholesale. No other checker
@@ -28,8 +101,8 @@ class CheckPrestige(Checker):
     # company_types and subject_types are used by companies_manager and
     # subject_manager, which now take the definitions dict as an argument.
     definitions = (
-        ("defines", 1), "static_modifiers", "country_definitions", "buildings",
-        "goods", "prestige_goods", "production_methods", "production_method_groups",
+        ("defines", 1), "static_modifiers", "country_definitions",
+        "goods", "prestige_goods", "production_methods",
         "company_types", "subject_types", "interest_group_traits", "character_traits",
         "technology/technologies", "combat_unit_types", "combat_unit_groups",
         "combat_unit_experience_levels", "mobilization_options", "ship_types",
@@ -41,6 +114,10 @@ class CheckPrestige(Checker):
     # depends on the mod, so the columns come from the CSV header.
     file_categories = {"goods_produced.csv": ("Goods", 60)}
     header_columns = ("goods_produced.csv",)
+    # goods_produced names the file, not a column: one figure per good.
+    file_keys = {"goods_produced": "goods_produced.csv"}
+    # prestige.csv calls the campaign-wide total "total".
+    csv_columns = {"total_prestige": "total"}
     dependencies = ["finance.csv"]
 
     def __init__(self):
@@ -82,9 +159,9 @@ class CheckPrestige(Checker):
                 raise KeyError(f"Duplicate defines definition in section '{key}'")
             defines.update(defs)
 
-        relevant_modifiers = ["country_prestige_add", "country_prestige_mult",
-                            "country_prestige_from_army_power_projection_mult", "country_prestige_from_navy_power_projection_mult"]
-        def_modifiers = {k:v for k, v in definitions["static_modifiers"].items() if any([vi in relevant_modifiers for vi in v.keys()])}
+        # Static modifiers carry only prestige's own four; the combat stats come
+        # from techs.
+        def_modifiers = {k:v for k, v in definitions["static_modifiers"].items() if any([vi in PRESTIGE_MODIFIERS for vi in v.keys()])}
         
         # key_veterancy = resolve_compatibility("veterancy", version)
         key_veterancy = "current_veterancy_level"
@@ -117,16 +194,11 @@ class CheckPrestige(Checker):
         pp_divisor = float(defines["POWER_PROJECTION_DIVISOR"])
         def_unit_types = definitions["combat_unit_types"]
         def_unit_type_groups = definitions["combat_unit_groups"]
-        unit_types_specific_modifiers = [f"unit_{def_unit_type}_{modifier}" for def_unit_type in def_unit_types for modifier in ["offense_mult", "defense_mult", "offense_add", "defense_add"]]
-        relevant_modifiers += unit_types_specific_modifiers
-
         # Grouping
         army_type_groups = {type_name: def_unit_type_groups[unit_type["group"]].get("type", "army") for type_name, unit_type in def_unit_types.items() if "group" in unit_type}
 
-        # Ship combat stats (navy power projection). Techs grow the damage/armor terms;
-        # relevant_modifiers is extended so the tech loop captures them per country.
-        ship_stat_modifiers = ["ship_hull_damage_add", "ship_crew_damage_add", "ship_armor_add"]
-        relevant_modifiers += ship_stat_modifiers
+        # Prestige's own modifiers plus the combat stats, for the tech and trait loops.
+        relevant_modifiers = prestige_modifiers(definitions)
         def_ship_types = dict()
         for ship_type_name, ship_type in definitions["ship_types"].items():
             mod = retrieve_from_tree(ship_type, "modifier", {})
@@ -284,30 +356,6 @@ class CheckPrestige(Checker):
 
 
         """
-        Defining relevant buildings
-        """
-
-        def_production_methods = dict()
-        file_production_methods = definitions["production_methods"]
-        for pm_name, production_method in file_production_methods.items():
-            for relevant_modifier in relevant_modifiers:
-                if len(walk_tree(production_method, relevant_modifier)) > 0:
-                    def_production_methods[pm_name] = production_method
-                    break
-        
-        def_production_method_groups = dict()
-        for pmg_name, production_method_group in definitions["production_method_groups"].items():
-            if any([pm in def_production_methods for pm in retrieve_from_tree(production_method_group, ["production_methods"], null=[])]):
-                def_production_method_groups[pmg_name] = production_method_group
-
-        def_buildings = dict()
-        for building_name, building in definitions["buildings"].items():
-            for def_pmg in def_production_methods:
-                if def_pmg in building["production_method_groups"]:
-                    def_buildings[building_name] = building
-                    break
-
-        """
         Buildings Goods output
         Per-spot award = prestige_factor * 2^(MIN_SPOT_PRESTIGE_AWARD - rank - 1),
         scaled (since 1.12) by the global-GDP factor below.
@@ -324,55 +372,31 @@ class CheckPrestige(Checker):
 
         if (min_spot_prestige_award := int(defines["MIN_SPOT_PRESTIGE_AWARD"])) != 3:
             warnings.warn("This mod modifies the MIN_SPOT_PRESTIGE_AWARD and may make the producing leader prestige calculation inaccurate", UserWarning)
-        states = save_data["states"]["database"]
         num_to_goods = dict()
         def_goods = definitions["goods"]
         for i, good in enumerate(def_goods.keys()):
             num_to_goods[i] = good
-        
+
+        """
+        Goods and monuments, from the shared building pass
+        """
+        # From the shared building pass. goods_leaderboard is the same table
+        # transposed, per good rather than per country.
+        goods_produced = cache["aggregates"].get("goods_produced", {})
+        monument_prestige = cache["aggregates"].get("monument_prestige", {})
+        monument_prestige_mult = cache["aggregates"].get("monument_prestige_mult", {})
+
         goods_leaderboard = {f'{v}':{} for v in range(len(num_to_goods))}
-        buildings = save_data["building_manager"]["database"]
-        df_countries_goods = dict()
-        """
-        Loop buildings for goods and monuments
-        """
-        # Loop through population to get monument employees
-        pops = save_data["pops"]["database"]
-        for pop_id, pop in pops.items():
-            if not isinstance(pop, dict):
-                continue
-            if "workplace" not in pop:
-                continue
-            building = buildings[pop["workplace"]]
-            if "pops_employed" not in building:
-                building["pops_employed"] = dict()
-            building["pops_employed"][pop_id] = pop
-            
-        for building_id, building in buildings.items():
-            if not isinstance(building, dict):
-                continue
-            if retrieve_from_tree(building, "dead") == "yes":
-                continue
-            country = states[building["state"]]["country"]
-            country_tag = countries[country]["definition"]
-            if any([False] + [pm in def_production_methods for pm in retrieve_from_tree(building, ["production_methods", "value"], null=[])]):
-                if "monuments" not in countries[country]:
-                    countries[country]["monuments"] = dict()
-                countries[country]["monuments"][building_id] = building
-            if (output_goods := retrieve_from_tree(building, ["output_goods", "goods"])) is None:
-                continue
-            for k, v in output_goods.items():
-                if country not in goods_leaderboard[k]:
-                    goods_leaderboard[k][country] = float(v["value"])
-                else:
-                    goods_leaderboard[k][country] += float(v["value"])
-                if country_tag not in df_countries_goods:
-                    df_countries_goods[country_tag] = {"id":country, "country":get_country_name(countries[country], localization)} | {num_to_goods[j]:0 for j in range(len(num_to_goods))}
-                df_countries_goods[country_tag][num_to_goods[int(k)]] += float(v["value"])
-                
-
-
-        df_countries_goods = [{"tag": k} | v for k, v in df_countries_goods.items()]
+        df_countries_goods = []
+        for country_key, per_good in goods_produced.items():
+            country = countries[country_key]
+            row = {"tag": country["definition"], "id": country_key,
+                   "country": get_country_name(country, localization)}
+            row |= {num_to_goods[j]: 0 for j in range(len(num_to_goods))}
+            for goods_num, produced in per_good.items():
+                goods_leaderboard[goods_num][country_key] = produced
+                row[num_to_goods[int(goods_num)]] = produced
+            df_countries_goods.append(row)
         df_goods_leaderboard = pd.DataFrame(df_countries_goods, columns=["id", "tag", "country"] + [num_to_goods[int(i)] for i in range(len(num_to_goods))])
         df_goods_leaderboard.to_csv(f"{address}/data/goods_produced.csv", sep=",")
         df_goods_leaderboard = df_goods_leaderboard[df_goods_leaderboard["id"].isin(players)]
@@ -640,18 +664,12 @@ class CheckPrestige(Checker):
             """
             The major canals and most other monuments grant prestige. (Vickypedia)
             """
-            for monument_id, monument in retrieve_from_tree(country, "monuments", null=dict()).items():
-                # A monument PM can add flat prestige and/or a prestige multiplier;
-                # (the old guard compared a modifier name against a PM-keyed dict and
-                # so skipped every monument, leaving this category permanently 0).
-                for relevant_modifier in ("country_prestige_add", "country_prestige_mult"):
-                    output = get_building_output(monument, relevant_modifier, def_production_methods)
-                    if output == 0:
-                        continue
-                    national_modifiers[relevant_modifier][buildings[monument_id]["building"]] = output
-                    if relevant_modifier == "country_prestige_add":
-                        national_prestige["monuments prestige"] += output
-            
+            # Flat prestige and a prestige multiplier, each summed over the
+            # country's monuments and scaled by their employed workforce.
+            national_prestige["monuments prestige"] = monument_prestige.get(country_key, 0)
+            national_modifiers["country_prestige_mult"]["monuments"] = monument_prestige_mult.get(country_key, 0)
+
+
             country["national_prestige"] = national_prestige
             country["national_modifiers"] = national_modifiers
             

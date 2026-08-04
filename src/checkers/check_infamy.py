@@ -15,29 +15,21 @@ class CheckInfamy(Checker):
     
     def __init__(self):
         super().__init__()
-    
+
+    def on_country(self, country_id, country, cache):
+        if "definition" not in country:
+            return None
+        return [country_id, country["definition"],
+                get_country_name(country, cache["localization"]),
+                float(country.get("infamy", 0))]
+
     def execute_check(self, cache):
-        save_data = cache["save_data"]
-        localization = cache["localization"]
         save_date = cache["metadata"]["save_date"]
         players = players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
-        
-        countries = save_data["country_manager"]["database"]
-        infamies = dict()
-        for k, country in countries.items():
-            if "definition" not in country:
-                continue
-            tag = country["definition"]
-            country_name = get_country_name(country, localization)
-            if "infamy" in country:
-                infamies[k] = (tag, country_name, country["infamy"])
-            else:
-                infamies[k] = (tag, country_name, 0)
 
-        vlist = [[k, v[0] , v[1], float(v[2])] for k, v in infamies.items()]
-        
-        df = pd.DataFrame(vlist, columns=["id", "tag", "country", "infamy"])
+        df = pd.DataFrame(cache["country_rows"][self.name],
+                          columns=["id", "tag", "country", "infamy"])
         df = df.sort_values(by='infamy', ascending=False)
         with pd.option_context('display.max_rows', None, 'display.max_columns', None):
             year, month, day = save_date
