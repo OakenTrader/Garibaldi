@@ -121,11 +121,40 @@ class SaveManager:
 
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 
+    def country_pass(self, checks):
+        """One walk over the countries, serving every checker about to run.
+
+        Called once per wave of ready checkers, since CSV dependencies mean they do
+        not all become ready together. Rows land in cache["country_rows"][name].
+        """
+        walkers = [check for check in checks if check.walks_countries()]
+        if not walkers:
+            return
+        rows = {check.name: [] for check in walkers}
+        for check in walkers:
+            check.before_countries(self.cache)
+        for country_id, country in self.save_data["country_manager"]["database"].items():
+            if not isinstance(country, dict):
+                continue
+            for check in walkers:
+                row = check.on_country(country_id, country, self.cache)
+                if row is not None:
+                    rows[check.name].append(row)
+        self.cache["country_rows"] = rows
+
     def start_checking(self):
         outputs = dict()
         while self.checks:
+            ready = [check for check in self.checks if check.will_run(self.cache)]
+            self.country_pass(ready)
+            served = {check.name for check in ready}
             remaining_checks = []
             for check in self.checks:
+                # A checker only runs in the wave whose pass fed it; one that
+                # became ready mid-wave waits for the next.
+                if check.walks_countries() and check.name not in served and check.will_run(self.cache):
+                    remaining_checks.append(check)
+                    continue
                 output = check.check(self.cache)
                 if output is False: # Due to dependencies
                     remaining_checks.append(check)
@@ -217,10 +246,8 @@ def check_save_folders(checks, campaign_folder, folders, stop_event, finish_even
     """
     check_map = build_check_map()
     try:
-        # Sorted by the registered display order rather than iterated out of a set:
-        # a set's order varies between runs, and checkers with a CSV dependency
-        # (Prestige needs finance.csv, Innovation and Finance need demographics.csv)
-        # would then be deferred and retried a varying number of times.
+        # Registry order, not set order, so deferral of CSV-dependent checkers is
+        # the same on every run.
         selected = {check_map[check][0] for check in checks}
         checkers = [c() for c in registered_checkers() if c in selected] # Instantiate a single object from each class
         # Game data is the same for every folder below, so it is read once here

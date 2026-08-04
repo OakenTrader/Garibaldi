@@ -87,6 +87,25 @@ class Checker:
             return cls.column_labels[column]
         return column.replace("_", " ").capitalize()
 
+    def before_countries(self, cache: dict):
+        """Prepare whatever ``on_country`` needs, once per save.
+
+        Runs immediately before the walk, and only for checkers about to run. State
+        put on ``self`` here is valid only for that walk: instances outlive a save.
+        """
+
+    def on_country(self, country_id: str, country: dict, cache: dict):
+        """This checker's row for one country, or None to leave the country out.
+
+        Called by SaveManager.country_pass for each country in turn. Non-dict
+        entries never reach here.
+        """
+        return None
+
+    @classmethod
+    def walks_countries(cls):
+        return cls.on_country is not Checker.on_country
+
     def check_needs(self, address: str, reset: bool):
         if reset:
             return True
@@ -94,7 +113,16 @@ class Checker:
             for output in self.output:
                 if not (output in os.listdir(address) and output in os.listdir(f"{address}/data")):
                     return True
-        return False            
+        return False
+
+    def dependencies_met(self, cache: dict):
+        return all(dependency in os.listdir(f"{cache['address']}/data")
+                   for dependency in self.dependencies)
+
+    def will_run(self, cache: dict):
+        """Whether ``check`` would do work now: dependencies met and output missing."""
+        return (self.dependencies_met(cache)
+                and self.check_needs(cache["address"], cache.get("reset", False)))
 
     def check(self, cache: dict):
         """
@@ -103,9 +131,8 @@ class Checker:
         """
         if "reset" not in cache: # TODO Remove this later when reset is properly wired
             cache["reset"] = False
-        for dependency in self.dependencies:
-            if dependency not in os.listdir(f"{cache["address"]}/data"):
-                return False
+        if not self.dependencies_met(cache):
+            return False
         if self.check_needs(cache["address"], cache["reset"]):
             check_output = self.execute_check(cache)
         else:
