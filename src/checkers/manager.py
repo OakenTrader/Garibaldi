@@ -31,17 +31,12 @@ def load_definitions(checkers):
     """
     Parse the union of the given checkers' declared ``definitions``, once.
 
-    Definitions are identical for every save, so they are read here — before the
-    first save is opened — and handed down as ``cache["definitions"]``, keyed by
-    the declared path. Previously each checker loaded its own folders inside every
-    save: 36 load_def* calls expanding to ~690 files per save, because
-    static_modifiers, production_methods, company_types and
-    technology/technologies are each wanted by three or four checkers.
+    Read before the first save is opened and handed down as ``cache["definitions"]``,
+    keyed by the declared path.
 
     A ``.txt`` entry is one file (``load_def``); anything else is a folder
-    (``load_def_multiple``). ``depth_add`` comes from the declaration because the
-    same folder read with a different value yields a different tree, so two
-    checkers disagreeing about it is an error rather than a silent coin-flip.
+    (``load_def_multiple``). Two checkers declaring different ``depth_add`` for the
+    same folder is an error, since the two settings produce different trees.
     """
     depths = dict()
     for checker in checkers:
@@ -61,6 +56,28 @@ def load_definitions(checkers):
             definitions[path] = load_def_multiple(path, "Common Directory", depth_add)
     return definitions
 
+def required_topics(checks, address, reset=False):
+    """Save topics that must be resident for these checkers on this save.
+
+    Shared by ``SaveManager`` (deciding what to load) and ``parse_files`` (deciding
+    what of a freshly parsed tree to keep); the two must agree.
+    """
+    requirements = set()
+    if not os.path.exists(f"{address}/metadata.json") or reset:
+        # Needed to build metadata.json for a save that has none yet.
+        requirements |= {"meta_data", "player_manager", "country_manager"}
+    for check in checks:
+        if not check.check_needs(address, reset):
+            continue
+        for topic in check.requirements:
+            # Skip a column-backed topic only when its columns are actually there.
+            entity = check.column_backed.get(topic)
+            if entity is not None and load_columns(address, entity) is not None:
+                continue
+            requirements.add(topic)
+    return requirements
+
+
 class SaveManager:
     """
     Class to manage a single save file's resource
@@ -69,13 +86,15 @@ class SaveManager:
     Checkers will no longer load data on their own.
     """
 
-    def __init__(self, address, checks=None, definitions=None, localization=None):
+    def __init__(self, address, checks=None, definitions=None, localization=None,
+                 save_data=None):
         """
-        definitions / localization: game data that is the same for every save.
-        ``check_save_folders`` reads them once and passes them in; they are built
-        here only when a caller (a script, a test) drives a single save directly.
-        This used to call get_all_localization twice per save, 0.30 s and ~20 MiB
-        each time, on top of every checker re-reading its own definition folders.
+        definitions / localization: game data identical for every save, read once by
+        ``check_save_folders`` and passed in. Built here when None, for a caller
+        driving a single save directly.
+
+        save_data: an already-parsed save tree, passed straight through by
+        ``parse_files``. When None, the tree is read back from the save's blobs.
         """
         self.localization = get_all_localization() if localization is None else localization
         self.definitions = load_definitions(checks) if definitions is None else definitions
@@ -83,15 +102,22 @@ class SaveManager:
                       "definitions": self.definitions}
         self.checks = checks
         os.makedirs(f"{address}/data", exist_ok=True)  # Create a data folder for outputs
-        requirements = self.check_metadata(False) # mandatory to obtain metadata
-        for check in checks: # Combine all needed requirements
-            if not check.check_needs(address, False): # TODO deal with resetting later
-                continue
-            requirements.update(check.requirements)
-        self.save_data = load_save(list(requirements), address)
+        if save_data is None:
+            save_data = load_save(list(required_topics(checks, address)), address)
+        self.save_data = save_data
         self.metadata = self.get_metadata(address)
+        # Every aggregate any checker with work left asked for, deduplicated and run
+        # once. This check_needs test must match required_topics', or an aggregate
+        # can ask for a topic that was never loaded.
+        declared = [agg for check in checks if check.check_needs(address, False)
+                    for agg in check.aggregates]
+        payload = {"save_data": save_data, "definitions": self.definitions,
+                   "localization": self.localization, "address": address}
+        self.aggregates = (run_aggregates(declared, address, save_data, payload)
+                           if declared else {})
         self.cache = {"save_data":self.save_data, "metadata":self.metadata, "localization":self.localization,
-                      "definitions":self.definitions, "address":address}
+                      "definitions":self.definitions, "address":address,
+                      "aggregates":self.aggregates}
 
         """TODO Check sequence matters because some data from the first checkers can be reused later"""
 
