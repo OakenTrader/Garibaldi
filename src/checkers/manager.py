@@ -6,12 +6,9 @@ from src.checkers.check_prestige import CheckPrestige
 from src.checkers.check_tech import CheckTech
 from src.checkers.check_demographics import CheckDemographics
 from src.checkers.check_finance import CheckFinance
-# company_columns still decides which plotter a check needs; the other per-checker
-# column lists became import-only once plot_results stopped expanding groups, since
-# every column is now declared in its checker's `output`.
-from src.checkers.check_companies import CheckCompanies, company_columns
+from src.checkers.check_companies import CheckCompanies
 
-from src.helpers.plotter import plot_stat, plot_goods_produced, plot_company_stat, csv_value_columns
+from src.helpers.plotter import plot_stat, plot_file_columns, plot_company_stat, csv_value_columns
 from src.helpers.convert_localization import get_all_localization
 from src.helpers.utility import load_def, load_def_multiple
 import os, glob, multiprocessing
@@ -208,11 +205,8 @@ class SaveManager:
 def build_check_map():
     """Maps each selectable output key to its (checker_class, output_file).
 
-    Two checkers can declare the same column — CheckPrestige writes
-    goods_produced.csv as a by-product of its production-leader maths, and a
-    dedicated goods checker would own it. Iterating in a stable order and letting
-    the declared owner (``owns_output``) win keeps this deterministic; the previous
-    version iterated a ``set()``, so the winner varied between runs.
+    Two checkers may declare the same column; iteration is in registry order and the
+    declared owner (``owns_output``) wins, so the map is deterministic.
     """
     check_map = dict()
     for checker_class in registered_checkers():
@@ -222,6 +216,30 @@ def build_check_map():
                     continue
                 check_map[outvar] = (checker_class, output)
     return check_map
+
+
+def output_grain():
+    """Output file -> what one of its rows is. Anything not declared is a country."""
+    grain = dict()
+    for checker_class in registered_checkers():
+        grain.update(checker_class.row_grain)
+    return grain
+
+
+def file_keys():
+    """Declared key -> the output file it names, for keys that stand for a whole file."""
+    keys = dict()
+    for checker_class in registered_checkers():
+        keys.update(checker_class.file_keys)
+    return keys
+
+
+def csv_columns():
+    """Declared key -> the CSV column carrying it, where the two names differ."""
+    columns = dict()
+    for checker_class in registered_checkers():
+        columns.update(checker_class.csv_columns)
+    return columns
 
 
 def all_check_keys():
@@ -279,7 +297,8 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
     figures on demand via ``figures_for``; this is purely the batch pass, so the PNG
     set on disk stays complete for use outside the app.
 
-    Make exceptional cases for prestige (many subcategories) and goods_produced (many goods).
+    Which plotter a key needs, and under what column and name, is read off the
+    checkers' ``row_grain``, ``file_keys`` and ``csv_columns``.
 
     A stat that cannot be plotted is skipped rather than aborting the batch. One
     pass renders ~90 figures and any single CSV may be stale: ValueError covers
@@ -288,6 +307,7 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
     either escape would cost every plot queued behind it.
     """
     check_map = build_check_map()
+    grain, whole_files, columns = output_grain(), file_keys(), csv_columns()
     dates = {"start_date": start_date, "end_date": end_date}
 
     def render(check, plot):
@@ -296,37 +316,28 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
         except (ValueError, KeyError) as e:
             print(f"Skipped plotting {check}: {type(e).__name__}: {e}")
 
-    # One plot per declared column. There used to be group branches here — "GDP"
-    # rendered every finance column, "literacy" every demographic one — left over
-    # from the old Analyze window's one-checkbox-per-group. Every column is now a
-    # key in its own right, so those branches would render each figure twice.
+    # One plot per declared column.
     for check in checks:
-        if check == "total_prestige":
-            # The campaign-wide total lives in prestige.csv under the column "total".
-            render(check, lambda: plot_stat(
-                campaign_folder, "total", input_file="prestige.csv", players=True,
-                save_name="total_prestige.csv", **dates))
-        elif check == "goods_produced":
-            # Not a column: expands to one plot per good.
-            render(check, lambda: plot_goods_produced(campaign_folder, 10, **dates))
-        elif check in company_columns:
-            # A line here is a company, not a country, so it needs the company
-            # plotter; the per-country rollups in company_countries.csv go through
-            # plot_stat like anything else.
-            render(check, lambda c=check: plot_company_stat(
-                campaign_folder, c, input_file="companies.csv", players=True, **dates))
-        else:
-            outfile = check_map[check][1]
-            render(check, lambda c=check, f=outfile: plot_stat(
+        if check in whole_files:
+            render(check, lambda k=check, f=whole_files[check]: plot_file_columns(
+                campaign_folder, k, f, 10, **dates))
+            continue
+        outfile = check_map[check][1]
+        column = columns.get(check, check)
+        if grain.get(outfile) == "company":
+            render(check, lambda c=column, f=outfile: plot_company_stat(
                 campaign_folder, c, input_file=f, players=True, **dates))
+        else:
+            render(check, lambda c=column, k=check, f=outfile: plot_stat(
+                campaign_folder, c, input_file=f, players=True, save_name=k, **dates))
 
     # Columns that only the campaign's own CSV header knows about (income and
     # expense slots, goods). They are not in ``checks`` because they cannot be
     # declared, but the batch pass still owns rendering them.
     for checker in registered_checkers():
         for input_file in checker.header_columns:
-            if input_file == "goods_produced.csv":
-                continue  # already covered by plot_goods_produced above
+            if input_file in whole_files.values():
+                continue  # a declared key already renders every column of this file
             for column in csv_value_columns(campaign_folder, input_file):
                 render(column, lambda c=column, f=input_file: plot_stat(
                     campaign_folder, c, input_file=f, players=True, **dates))
@@ -336,18 +347,15 @@ def figures_for(campaign_folder, column, input_file, players=True, start_date=0,
                 end_date=2024, figsize=None):
     """Render one stat interactively: return its Figures without saving anything.
 
-    The interactive counterpart to ``plot_results``. Which plotter applies is
-    decided by the source file, not the column: a line in companies.csv is a
-    company, everywhere else it is a country.
+    The interactive counterpart to ``plot_results``; the plotter is chosen by the
+    file's declared grain.
     """
     kwargs = {"players": players, "save": False, "start_date": start_date, "end_date": end_date}
     if figsize is not None:
         kwargs["figsize"] = figsize
-    if input_file == "companies.csv":
+    column = csv_columns().get(column, column)
+    if output_grain().get(input_file) == "company":
         return plot_company_stat(campaign_folder, column, input_file=input_file, **kwargs)
-    if column == "total_prestige":
-        # The campaign-wide total lives in prestige.csv under the column "total".
-        return [plot_stat(campaign_folder, "total", input_file=input_file, **kwargs)]
     return [plot_stat(campaign_folder, column, input_file=input_file, **kwargs)]
 
 

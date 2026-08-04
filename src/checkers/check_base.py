@@ -48,22 +48,27 @@ class Checker:
     sort_order = 100
 
     # Output files this checker is the canonical producer of. Only needed when two
-    # checkers declare the same file, so that the column -> checker map does not
-    # depend on iteration order.
+    # checkers declare the same file, to make the column -> checker map deterministic.
     owns_output = ()
 
-    # Output files that belong under their own tree category rather than this
-    # checker's. Maps file -> (category label, sort order). CheckPrestige writes
-    # goods_produced.csv as a by-product of its production-leader maths, but goods
-    # should not appear nested under "Prestige".
+    # file -> (category label, sort order), for outputs listed under a tree category
+    # of their own rather than this checker's.
     file_categories = dict()
 
-    # Output files whose plottable columns cannot be written down here because they
-    # depend on the campaign: the goods a mod defines, or the income and expense
-    # slots a game version happens to use. Their columns are read from the CSV
-    # header instead. Everything else must be declared in ``output``, which is the
-    # only thing the statistics tree reads.
+    # Output files whose plottable columns vary per campaign (a mod's goods, a
+    # version's budget slots) and are read from the CSV header instead of ``output``.
     header_columns = ()
+
+    # file -> what one of its rows is ("company"). Undeclared files are per country.
+    # The plotting layer picks its plotter from this.
+    row_grain = dict()
+
+    # key -> file, for keys naming a whole output rather than one column. Plotting
+    # renders one figure per column of that file; the tree shows a single entry.
+    file_keys = dict()
+
+    # key -> the CSV column carrying it, where the two names differ.
+    csv_columns = dict()
 
     def __init__(self):
         pass

@@ -18,12 +18,9 @@ which is why the tree is rebuilt whenever the campaign changes:
 
 import os
 
-from src.checkers.manager import registered_checkers
+from src.checkers.manager import file_keys, registered_checkers
 from src.helpers.plotter import csv_value_columns, goods_in_campaign
 from src.helpers.utility import iter_save_folders
-
-# Declared as a column but not plottable on its own.
-SKIP_COLUMNS = {"goods_produced"}
 
 
 class Leaf:
@@ -73,6 +70,9 @@ def build_categories(campaign_folder):
     written by CheckPrestige yet is nothing to do with prestige.
     """
     grouped = {}   # label -> [order, checker, leaves]
+    # A key naming a whole file is not a leaf; its file's columns are, and they come
+    # from the CSV header below.
+    whole_files = file_keys()
     for checker in registered_checkers():
         for input_file, columns in checker.output.items():
             label, order = checker.file_categories.get(
@@ -80,7 +80,7 @@ def build_categories(campaign_folder):
             )
             entry = grouped.setdefault(label, [order, checker, []])
             for column in columns:
-                if column in SKIP_COLUMNS:
+                if column in whole_files:
                     continue
                 entry[2].append(Leaf(column, checker.label_for(column), input_file, checker))
             if input_file in checker.header_columns:
