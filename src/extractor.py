@@ -7,10 +7,9 @@ import zstandard as zstd
 with open("./src/variables.json", "r") as file:
     VARIABLES = json.load(file)
 
-# Compression level for the extracted per-topic blobs. zstd-10 produces files
-# ~20% smaller than the old gzip-9 while writing ~3.5x faster and reading ~2x
-# faster on Victoria 3 saves.
-ZSTD_LEVEL = 10
+# zstd compression level for the per-topic blobs. Decompression speed does not
+# depend on it, so this trades write time against blob size only.
+ZSTD_LEVEL = 1
 
 class Extractor:
     """
@@ -134,51 +133,72 @@ class ExtractorSave(Extractor):
         # they never put whitespace around '='. So instead of the general
         # regex field matcher we use str.partition, and strip quotes inline
         # rather than walking the whole tree again in unquote().
-        spacing_ex_save = re.compile(r"\s+")
+        #
+        # The file is scanned once, brace by brace, with `re.finditer` yielding one
+        # chunk at a time rather than materialising them all. Chunks keep their
+        # surrounding whitespace; `str.split()` with no argument splits on any run
+        # of it, so no normalising pre-pass is needed.
+        brace_ex = re.compile(r"[{}]")
 
         with open(address, "r", encoding='utf-8-sig') as file:
             text = file.read()
-        text = spacing_ex_save.sub(" ", text)
 
-        for sstr in re.split(r"\s?([{}])\s?", text):
-            if not sstr.strip():
-                continue
+        def parse_fields(sstr, last_scope):
+            """Consume one brace-free chunk: either a bare value list or key=value fields."""
+            if "=" not in sstr: # Simple list of values
+                if "field_type" not in last_scope:
+                    last_scope["field_type"] = "list"
+                last_scope["value"] = [f.replace('"', '') for f in sstr.split()]
+            else: # Dictionary type fields with equations
+                # `opened` is not returned early: the chunk is processed to its end,
+                # so the key paired with the next '{' is the LAST one declared.
+                opened = None
+                for field in sstr.split():
+                    if "=" in field:
+                        key, _, value = field.partition("=")
+                        if value == "": # key={...} : block opens in the next chunk
+                            last_scope[key] = {}
+                            opened = key
+                        elif value in ("rgb", "hsv360", "hsv"): # colour block opens next
+                            last_scope[key] = {"field_type": value}
+                            opened = key
+                        else: # simple key = value
+                            last_scope[key] = value.replace('"', '')
+                    else: # Lone value inside a dict scope -> default index key
+                        last_scope[f"index{len(last_scope)}"] = field.replace('"', '')
+                return opened
+            return None
+
+        pos = 0
+        for match in brace_ex.finditer(text):
+            sstr = text[pos:match.start()]
+            pos = match.end()
             if pline:
                 print(repr(sstr))
+                print(repr(match.group()))
+            if not sstr.isspace() and sstr:
+                # A chunk only ever opens the last key it declares.
+                key = parse_fields(sstr, scope[-1])
+                if key is not None:
+                    current_key = key
             last_scope = scope[-1]
-            if "{" in sstr:
+            if match.group() == "{":
                 if current_key is None: # Double opening brackets
                     current_key = f"index{len(last_scope)}"
                     last_scope[current_key] = dict()
                 scope.append(last_scope[current_key])
                 current_key = None
-            elif '}' in sstr:
+            else:
                 scope = scope[:-1]
                 if len(scope) == 0 and focuses is not None and in_focus:
                     if focuses == []:
                         break
                     else:
                         in_focus = False
-            elif "=" not in sstr: # Simple list of values
-                if "field_type" not in last_scope:
-                    last_scope["field_type"] = "list"
-                last_scope["value"] = [f.replace('"', '') for f in sstr.split(" ") if f]
-            else: # Dictionary type fields with equations
-                for field in sstr.split(" "):
-                    if not field:
-                        continue
-                    if "=" in field:
-                        key, _, value = field.partition("=")
-                        if value == "": # key={...} : block opens in the next chunk
-                            last_scope[key] = {}
-                            current_key = key
-                        elif value in ("rgb", "hsv360", "hsv"): # colour block opens next
-                            last_scope[key] = {"field_type": value}
-                            current_key = key
-                        else: # simple key = value
-                            last_scope[key] = value.replace('"', '')
-                    else: # Lone value inside a dict scope -> default index key
-                        last_scope[f"index{len(last_scope)}"] = field.replace('"', '')
+
+        tail = text[pos:]
+        if tail and not tail.isspace():
+            parse_fields(tail, scope[-1])
 
 
 class ExtractorCommon(Extractor):

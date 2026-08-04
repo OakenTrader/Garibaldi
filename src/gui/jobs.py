@@ -1,9 +1,9 @@
 """
 Driving the multiprocessing backend from Qt.
 
-The worker side is untouched: ``extract_files``, ``check_save_folders`` and
-``plot_results_job`` all take ``(…, stop_event, finish_event, queue)`` and are run
-as plain ``multiprocessing.Process`` objects, exactly as the tkinter GUI ran them.
+The worker side is untouched: ``parse_files`` and ``plot_results_job`` both take
+``(…, stop_event, finish_event, queue)`` and are run as plain
+``multiprocessing.Process`` objects, exactly as the tkinter GUI ran them.
 What changes is the supervision. The old code interleaved two ``after()`` loops —
 ``check_progress`` every second and ``end_task`` every half second — and each
 window re-implemented joining, error handling and re-enabling its own controls.

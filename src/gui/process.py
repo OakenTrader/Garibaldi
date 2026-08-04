@@ -21,12 +21,12 @@ from PySide6.QtWidgets import (
     QSpinBox, QStatusBar, QVBoxLayout, QWidget,
 )
 
-from src.checkers.manager import all_check_keys, check_save_folders, plot_results_job
+from src.checkers.manager import all_check_keys, plot_results_job
 from src.gui.base import GaribaldiWindow, readonly_line_edit
 from src.gui.jobs import JobRunner, Phase
-from src.helpers.extraction import extract_files
+from src.helpers.extraction import parse_files
 from src.helpers.save_watch import watch_save_job
-from src.helpers.utility import is_reserved_folder, iter_save_folders
+from src.helpers.utility import is_reserved_folder
 
 # Above this many worker processes the UI warns; the machine's core count is the cap.
 THREAD_WARN_ABOVE = 4
@@ -270,7 +270,15 @@ class ProcessWindow(GaribaldiWindow):
         threads = self.thread_slider.value()
         checks = all_check_keys()
 
-        def build_extract(stop_event, queue):
+        def build_parse(stop_event, queue):
+            # Extraction and checking run as one phase, so the parsed tree goes
+            # straight to the checkers.
+            #
+            # Targets are raw .v3 files and existing save folders alike; a folder with
+            # nothing left to melt is still checked, from its cached blobs.
+            #
+            # Year filtering happens inside the worker, since a raw
+            # autosave_<timestamp>.v3 carries no date until melted.
             targets = glob.glob(f"./saves/{campaign}/*.v3") + glob.glob(f"./saves/{campaign}/*/")
             targets = [t for t in targets if not is_reserved_folder(t)]
             processes, events = [], []
@@ -280,26 +288,11 @@ class ProcessWindow(GaribaldiWindow):
                 event = multiprocessing.Event()
                 events.append(event)
                 processes.append(multiprocessing.Process(
-                    target=extract_files,
-                    args=(campaign, subset, stop_event, event, queue, delete),
+                    target=parse_files,
+                    args=(campaign, subset, checks, stop_event, event, queue, delete,
+                          start_year, end_year),
                 ))
             return processes, events, len(targets)
-
-        def build_check(stop_event, queue):
-            # Year filtering applies here, not to extraction: a raw
-            # autosave_<timestamp>.v3 carries no date until it has been melted.
-            folders = [f for f, _, _ in iter_save_folders(campaign, start_year, end_year, need_metadata=False)]
-            processes, events = [], []
-            for subset in split_evenly(folders, threads):
-                if not subset:
-                    continue
-                event = multiprocessing.Event()
-                events.append(event)
-                processes.append(multiprocessing.Process(
-                    target=check_save_folders,
-                    args=(checks, campaign, subset, stop_event, event, queue),
-                ))
-            return processes, events, len(folders)
 
         def build_plot(stop_event, queue):
             # The reduction: reads across every save, so exactly one process.
@@ -312,8 +305,7 @@ class ProcessWindow(GaribaldiWindow):
 
         self._current_job = "parse"
         self.runner.start([
-            Phase("Extracting", build_extract),
-            Phase("Checking", build_check),
+            Phase("Parsing", build_parse),
             Phase("Plotting", build_plot),
         ], exempt=[self.parse_stop])
         self.parse_stop.setEnabled(True)
