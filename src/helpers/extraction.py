@@ -8,7 +8,7 @@ import gc
 from src.helpers.columnar import write_columns
 from src.helpers.convert_localization import get_all_localization
 from src.extractor import ExtractorSave
-from src.helpers.melt import melt
+from src.helpers.melt import extract_native, melt
 from src.helpers.utility import *
 import time, shutil, re
 from glob import glob
@@ -20,6 +20,12 @@ def _melt_and_extract(file, campaign_folder, delete):
     ``file`` is a raw ``.v3``, a folder holding an already-melted ``save.txt``, or a
     folder extracted in an earlier session. In that last case the tree is ``None``
     and the folder is returned anyway, so its checkers run from the cached blobs.
+
+    A ``.v3`` goes through the native extractor when one is installed, which melts
+    and writes the blobs and columns in a single Rust process -- no ``save.txt``, no
+    Python parse. It hands back no tree, so ``SaveManager`` reads the blobs, exactly
+    as it does for a folder extracted in an earlier session. Whenever the extractor
+    is absent or declines the save, the Python path below runs unchanged.
 
     Returns ``(None, None)`` when there is nothing to do. The folder is renamed to
     its save date here, so the returned path is final.
@@ -34,19 +40,23 @@ def _melt_and_extract(file, campaign_folder, delete):
 
     folder = file.replace(".v3", "")
     os.makedirs(folder, exist_ok=True)
-    try:
-        t_execute(melt)(file, f"{folder}/save.txt")
-    except NotImplementedError:
-        return None, None
-    except Exception as e:
-        raise RuntimeError("Melting failed:", e)
 
-    try:
-        tree = extract_save_file(folder)
-    except Exception as e:
-        raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
+    tree = None
+    if t_execute(extract_native)(file, folder) is None:
+        try:
+            t_execute(melt)(file, f"{folder}/save.txt")
+        except NotImplementedError:
+            return None, None
+        except Exception as e:
+            raise RuntimeError("Melting failed:", e)
 
-    os.remove(f"{folder}/save.txt")
+        try:
+            tree = extract_save_file(folder)
+        except Exception as e:
+            raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
+
+        os.remove(f"{folder}/save.txt")
+
     new_name = rename_folder_to_date(folder)
     if delete:
         os.remove(file)
@@ -174,21 +184,25 @@ def extract_files(campaign_folder, files, stop_event, finish_event, queue, delet
             except FileExistsError:
                 pass
 
-            try:
-                t_execute(melt)(file, f"{folder}/save.txt")
-            except NotImplementedError:
-                continue
-            except Exception as e:
-                raise RuntimeError("Melting failed:", e)
+            # Native extractor first; see _melt_and_extract for why it may decline.
+            if t_execute(extract_native)(file, folder) is None:
+                try:
+                    t_execute(melt)(file, f"{folder}/save.txt")
+                except NotImplementedError:
+                    continue
+                except Exception as e:
+                    raise RuntimeError("Melting failed:", e)
+                if stop_event.is_set():
+                    raise InterruptedError("Stop event set")
+
+                try:
+                    extract_save_file(folder)
+                except Exception as e:
+                    raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
+
+                os.remove(f"{folder}/save.txt")
             if stop_event.is_set():
                 raise InterruptedError("Stop event set")
-            
-            try:
-                extract_save_file(folder)
-            except Exception as e:
-                raise RuntimeError(f"Extraction of {file} failed: {str(e)}")
-            
-            os.remove(f"{folder}/save.txt")
             new_name = rename_folder_to_date(folder)
             if delete:
                 os.remove(file)
