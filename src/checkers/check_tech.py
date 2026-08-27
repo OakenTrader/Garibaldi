@@ -18,12 +18,15 @@ class CheckTech(Checker):
     def __init__(self):
         super().__init__()
     
-    def execute_check(self, cache):
+    def before_countries(self, cache):
+        """Everything the missing-tech table needs before a country can be asked.
+
+        The walk below writes ``country["Missing tech"]`` and the categorised column
+        order that ``on_country`` then reads.
+        """
         save_data = cache["save_data"]
         localization = cache["localization"]
-        save_date = cache["metadata"]["save_date"]
         players = [str(p[0]) for p in cache["metadata"]["players"]]
-        address = cache["address"]
 
         countries = save_data["country_manager"]["database"]
         technologies = save_data["technology"]["database"]
@@ -102,33 +105,44 @@ class CheckTech(Checker):
                 output += "Missing tech\n"
                 output += f"{len(his_missing_tech)}, {his_missing_tech}\n\n"
 
-        df_missing_techs = []
-        df_missing_techs_players = []
         miss_mil_tech = []
         miss_soc_tech = []
         miss_prod_tech = []
-        for missing_tech in missing_techs: # Assign categories to techs
+        # Sorted: these become the row labels of the transposed missing_techs.csv,
+        # and set iteration order varies between processes.
+        for missing_tech in sorted(missing_techs): # Assign categories to techs
             if missing_tech in def_mil_tech:
                 miss_mil_tech.append(missing_tech)
             elif missing_tech in def_soc_tech:
                 miss_soc_tech.append(missing_tech)
             elif missing_tech in def_prod_tech:
                 miss_prod_tech.append(missing_tech)
-        missing_techs_keys = miss_mil_tech + miss_soc_tech + miss_prod_tech
+        self.missing_techs_keys = miss_mil_tech + miss_soc_tech + miss_prod_tech
+        self.miss_mil_tech, self.miss_soc_tech = miss_mil_tech, miss_soc_tech
+        self.df_tech = df_tech
+        self.report = output
 
-        for country_id in countries: # Create a table for missing tech
-            if not isinstance(country := retrieve_from_tree(countries, [country_id]), dict):
-                continue
-            df_missing_tech = {"id":country_id, "tag":country["definition"], "country":get_country_name(country, localization)}
-            df_missing_tech.update({tech:False for tech in missing_techs_keys})
-            missing_tech = retrieve_from_tree(countries, [country_id, "Missing tech"], null=None)
-            if missing_tech is None: # Primitive countries with no techs researched
-                continue
-            df_missing_tech.update({tech:True for tech in missing_tech})
-            df_missing_techs.append(df_missing_tech)
-            if country_id in players:
-                df_missing_techs_players.append(df_missing_tech)
-        
+    def on_country(self, country_id, country, cache): # One row of the missing-tech table
+        df_missing_tech = {"id":country_id, "tag":country["definition"],
+                           "country":get_country_name(country, cache["localization"])}
+        df_missing_tech.update({tech:False for tech in self.missing_techs_keys})
+        missing_tech = retrieve_from_tree(country, ["Missing tech"], null=None)
+        if missing_tech is None: # Primitive countries with no techs researched
+            return None
+        df_missing_tech.update({tech:True for tech in missing_tech})
+        return df_missing_tech
+
+    def execute_check(self, cache):
+        save_date = cache["metadata"]["save_date"]
+        players = [str(p[0]) for p in cache["metadata"]["players"]]
+        address = cache["address"]
+        missing_techs_keys = self.missing_techs_keys
+        miss_mil_tech, miss_soc_tech = self.miss_mil_tech, self.miss_soc_tech
+        df_tech, output = self.df_tech, self.report
+
+        df_missing_techs = cache["country_rows"][self.name]
+        df_missing_techs_players = [row for row in df_missing_techs if row["id"] in players]
+
         df_missing_techs = pd.DataFrame(df_missing_techs, columns=["id", "tag", "country"] + missing_techs_keys)
         count_country = df_missing_techs.iloc[:, 3:].sum()
         total_row = pd.DataFrame([['', '', 'Total', *count_country]], index=[0], columns=df_missing_techs.columns)

@@ -310,6 +310,28 @@ def is_reserved_folder(folder):
     return re.split(r"[\\/]", folder.strip("\\/"))[-1] in ["campaign_data", "archive"]
 
 
+def load_campaign_config(campaign_folder):
+    """Read a campaign's ``campaign_config.json``, or an empty dict if it has none.
+
+    Campaign-scoped settings, as opposed to the app-wide ones in
+    ``user_variables.json``. Absent by default — every campaign works without one.
+    """
+    path = f"saves/{campaign_folder}/campaign_config.json"
+    return jopen(path) if os.path.exists(path) else dict()
+
+
+def campaign_tag_filters(campaign_folder):
+    """Return ``(override_player_tags, show_ai_tags)`` for a campaign.
+
+    ``override_player_tags`` replaces the player list derived from each save's
+    ``player_manager``; ``show_ai_tags`` adds countries to plot alongside the
+    players for comparison. Both plotters need exactly this pair, and both had
+    their own copy of the read — which meant a new key had to be added twice.
+    """
+    config = load_campaign_config(campaign_folder)
+    return config.get("override_player_tags", []), config.get("show_ai_tags", [])
+
+
 def save_year_number(year, month, day):
     """Collapse a save date into a single fractional year, for plotting and sorting."""
     return int(year) + (int(month) - 1) / 12 + int(day) / 365

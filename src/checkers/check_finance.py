@@ -1,9 +1,41 @@
+from src.checkers.aggregates import Agg, Call
 from src.checkers.check_base import Checker
-from src.checkers.checkers_functions import get_country_name, safe_ratio, MISSING
+from src.checkers.checkers_functions import STATE_COUNTRY, get_country_name, safe_ratio, MISSING
 from src.helpers.utility import retrieve_from_tree
 import pandas as pd
 import numpy as np
 import warnings
+
+OWNERSHIP_BUILDINGS = ["building_financial_district", "building_manor_house", "building_company"]
+
+
+def _has_cash_reserves(building, ctx):
+    return "cash_reserves" in building
+
+
+def _cash_reserves(building, ctx):
+    return float(building["cash_reserves"])
+
+
+def _is_ownership(building, ctx):
+    # Containment, not equality, so modded variants of these buildings count too.
+    return any(building["building"] in name for name in OWNERSHIP_BUILDINGS)
+
+
+def _levels(building, ctx):
+    return int(building["levels"])
+
+
+# GDP is derived from a country's credit minus what its buildings hold.
+_HAS_RESERVES = Call(_has_cash_reserves, name="has_cash_reserves")
+
+BUILDING_RESERVES = Agg(
+    "building", by=STATE_COUNTRY, name="building_cash_reserves",
+    value=Call(_cash_reserves, name="cash_reserves"), where=_HAS_RESERVES)
+OWNERSHIP_LEVELS = Agg(
+    "building", by=STATE_COUNTRY, name="ownership_levels",
+    value=Call(_levels, name="building_levels"),
+    where=_HAS_RESERVES & Call(_is_ownership, name="is_ownership_building"))
 
 # ---------------------------------------------------------------------------
 # Weekly income / expense category maps
@@ -302,7 +334,7 @@ class CheckFinance(Checker):
     name = "CheckFinance"
     display_name = "Finance"
     sort_order = 30
-    requirements = ["pops", "country_manager", "building_manager", "states", "laws", "technology"]
+    requirements = ["country_manager", "building_manager", "states", "laws", "technology"]
     # defines/00_defines.txt is declared as a single file rather than the defines
     # folder, so a mod override of GOLD_RESERVE_LIMIT_FACTOR / COUNTRY_MIN_CREDIT_*
     # keeps being ignored exactly as it was before — folding it into the folder read
@@ -313,6 +345,7 @@ class CheckFinance(Checker):
     # a seven-item subset, which silently hid total income, total expense, net
     # balance and the whole interest group from the statistics tree even though the
     # checker wrote them and the batch pass plotted them.
+    aggregates = [BUILDING_RESERVES, OWNERSHIP_LEVELS]
     output = {"finance.csv": finance_columns,
               "income.csv": [], "expenses.csv": []}
     # The per-slot income and expense breakdowns depend on game version and mod, so
@@ -324,28 +357,24 @@ class CheckFinance(Checker):
     def __init__(self):
         super().__init__()
     
-    def execute_check(self, cache: dict):
+    def before_countries(self, cache: dict):
         save_data = cache["save_data"]
-        localization = cache["localization"]
-        save_date = cache["metadata"]["save_date"]
-        players = [str(p[0]) for p in cache["metadata"]["players"]]
         address = cache["address"]
 
         countries = save_data["country_manager"]["database"]
-        states = save_data["states"]["database"]
-        buildings = save_data["building_manager"]["database"]
+        # Population per country id, read back from demographics.csv.
         df_demographics = pd.read_csv(f"{address}/data/demographics.csv", sep=",")[["id", "population"]]
+        self.population = {}
+        for country_id, population in zip(df_demographics["id"], df_demographics["population"]):
+            self.population.setdefault(str(country_id), population)
 
-        df_finance = []
-        df_income = []
-        df_expenses = []
-        selfcheck_warned = set()
+        self.selfcheck_warned = set()
 
         # --- Interest-rate reconstruction inputs (see reconstruct_interest_rate) ---
         definitions = cache["definitions"]
-        idefs = load_interest_defs(definitions)
-        rank_mult_by_name = {name: mult for name, _rv, _a, _r, _vt, mult in idefs["ranks"]}
-        country_rank = compute_country_ranks(countries, idefs["ranks"])
+        idefs = self.idefs = load_interest_defs(definitions)
+        self.rank_mult_by_name = {name: mult for name, _rv, _a, _r, _vt, mult in idefs["ranks"]}
+        self.country_rank = compute_country_ranks(countries, idefs["ranks"])
 
         # Society technologies that shift country_loan_interest_rate_add. Values are
         # read from the tech defs (mod-robust) rather than hardcoded.
@@ -383,37 +412,19 @@ class CheckFinance(Checker):
 
         """get definition from defines/00_defines.txt GOLD_RESERVE_LIMIT_FACTOR = 0.2"""
         defines = definitions["defines/00_defines.txt"]["NEconomy"]
-        def_gold_reserve_limit_factor = float(defines["GOLD_RESERVE_LIMIT_FACTOR"])
-        def_min_credit_base = float(defines["COUNTRY_MIN_CREDIT_BASE"])
-        def_min_credit_scale = float(defines["COUNTRY_MIN_CREDIT_SCALED"])
-        ownership_buildings = ["building_financial_district", "building_manor_house", "building_company"]
+        self.gold_reserve_limit_factor = float(defines["GOLD_RESERVE_LIMIT_FACTOR"])
+        self.min_credit_base = float(defines["COUNTRY_MIN_CREDIT_BASE"])
+        self.min_credit_scale = float(defines["COUNTRY_MIN_CREDIT_SCALED"])
 
-        for building_key, building in buildings.items():
-            if not isinstance(building, dict):
-                continue
-            if "cash_reserves" in building:
-                if building["state"] not in states:
-                    continue
-                cash_reserve = building["cash_reserves"]
-                country = countries[states[building["state"]]["country"]]
-                if "data_building_reserves" not in country:
-                    country["data_building_reserves"] = 0
-                country["data_building_reserves"] += float(cash_reserve)
-                "add ownership levels to the country if the building is financial_district or company"
-                if any(building["building"] in b for b in ownership_buildings):
-                    levels = building["levels"]
-                    if "ownership_levels" not in country:
-                        country["ownership_levels"] = 0
-                    country["ownership_levels"] += int(levels)
+        # From the shared building pass; a country absent from it has no
+        # cash-reserve buildings and gets no finance row.
+        self.building_reserves = cache["aggregates"].get("building_cash_reserves", {})
+        self.ownership_levels = cache["aggregates"].get("ownership_levels", {})
 
-        
-        
-        """Loop through countries and calculate the money and money_percentage"""
-        for country_key, country in countries.items():
-            if not isinstance(country, dict):
-                continue
-            if "data_building_reserves" not in country:
-                continue
+    """Money and money_percentage, one country at a time"""
+    def on_country(self, country_key, country, cache):
+            if country_key not in self.building_reserves:
+                return None
             if "money" not in country["budget"]:
                 money = 0
             else:
@@ -427,24 +438,23 @@ class CheckFinance(Checker):
             else:
                 credit = float(country["budget"]["credit"])
             # print(country)
-            building_cash_reserves = country["data_building_reserves"]
-            gdp = (credit - def_min_credit_base - building_cash_reserves) / def_min_credit_scale
-            cash_reserve_limit = gdp * def_gold_reserve_limit_factor
+            localization = cache["localization"]
+            building_cash_reserves = self.building_reserves[country_key]
+            gdp = (credit - self.min_credit_base - building_cash_reserves) / self.min_credit_scale
+            cash_reserve_limit = gdp * self.gold_reserve_limit_factor
             money_percentage = safe_ratio(money, gdp)
             debt_percentage = safe_ratio(principal, credit)
             if principal > 0:
                 money = -principal
-            population_row = df_demographics[df_demographics["id"].astype(str) == str(country_key)]
-            if not population_row.empty:
-                population = population_row.iloc[0]["population"]
-            else:
+            population = self.population.get(str(country_key))
+            if population is None:
                 population = MISSING
                 warnings.warn(f"No population record for {country_key}:{country['definition']}")
             gdp_per_capita = safe_ratio(gdp, population)  # MISSING when population is absent/zero
 
             # ---- Weekly income / expense breakdown (this save week) ----
             budget = country["budget"]
-            _budget_selfcheck(budget, selfcheck_warned)
+            _budget_selfcheck(budget, self.selfcheck_warned)
             weekly_income = [float(x) for x in retrieve_from_tree(budget, ["weekly_income", "value"], null=[])]
             weekly_expenses = [float(x) for x in retrieve_from_tree(budget, ["weekly_expenses", "value"], null=[])]
             total_income = sum(weekly_income)
@@ -459,7 +469,6 @@ class CheckFinance(Checker):
             income_row["total_income"] = total_income
             income_row["income_pct_gdp"] = safe_ratio(total_income, gdp)
             income_row["income_per_capita"] = safe_ratio(total_income, population)
-            df_income.append(income_row)
 
             expense_row = dict(base_row)
             for i, v in enumerate(weekly_expenses):
@@ -467,7 +476,6 @@ class CheckFinance(Checker):
             expense_row["total_expense"] = total_expense
             expense_row["expense_pct_gdp"] = safe_ratio(total_expense, gdp)
             expense_row["expense_per_capita"] = safe_ratio(total_expense, population)
-            df_expenses.append(expense_row)
 
             # ---- Interest: payment (exact), realized rate (exact for debtors),
             #      reconstructed nominal rate from modifiers (approximate) ----
@@ -475,11 +483,11 @@ class CheckFinance(Checker):
             interest_payment = weekly_expenses[interest_idx] if interest_idx < len(weekly_expenses) else 0.0
             # principal>0 means the country is in debt; realized rate is undefined otherwise.
             interest_rate_realized = safe_ratio(interest_payment * WEEKS_PER_YEAR, principal)
-            rank_name = country_rank.get(country_key)
+            rank_name = self.country_rank.get(country_key)
             interest_rate, interest_add, interest_mult = reconstruct_interest_rate(
-                country, rank_name, idefs, rank_mult_by_name)
+                country, rank_name, self.idefs, self.rank_mult_by_name)
 
-            df_finance.append({
+            finance_row = {
                 "id": country_key,
                 "tag": country["definition"],
                 "country": get_country_name(country, localization),
@@ -490,7 +498,7 @@ class CheckFinance(Checker):
                 "credit": credit,
                 "debt_percentage": debt_percentage,
                 "cash_reserve_limit": cash_reserve_limit,
-                "ownership_levels": country["ownership_levels"] if "ownership_levels" in country else 0,
+                "ownership_levels": self.ownership_levels.get(country_key, 0),
                 "total_income": total_income,
                 "total_expense": total_expense,
                 "net_balance": net_balance,
@@ -507,7 +515,20 @@ class CheckFinance(Checker):
                 "interest_pct_gdp": safe_ratio(interest_payment, gdp),
                 "interest_per_capita": safe_ratio(interest_payment, population),
                 "interest_pct_income": safe_ratio(interest_payment, total_income),
-            })
+            }
+            # Three tables, one walk: the finance row and its income and expense
+            # breakdowns all come from the same country's budget.
+            return finance_row, income_row, expense_row
+
+    def execute_check(self, cache: dict):
+        save_date = cache["metadata"]["save_date"]
+        players = [str(p[0]) for p in cache["metadata"]["players"]]
+        address = cache["address"]
+
+        rows = cache["country_rows"][self.name]
+        df_finance = [row[0] for row in rows]
+        df_income = [row[1] for row in rows]
+        df_expenses = [row[2] for row in rows]
 
         finance_cols = ["id", "tag", "country", "GDP", "GDP per capita", "money", "money_percentage",
                         "credit", "debt_percentage", "cash_reserve_limit", "ownership_levels"] + \

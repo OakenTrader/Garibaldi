@@ -1,3 +1,4 @@
+from src.checkers.aggregates import Agg, F, present, run_aggregates
 from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import get_country_name, get_building_output, institution_manager, safe_ratio, MISSING
 from src.helpers.utility import retrieve_from_tree
@@ -5,25 +6,68 @@ import pandas as pd
 
 demographics_columns = ["literacy", "standard of living", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage"]
 
+# `loyalists_and_radicals` is a pop's NET count of politically aligned individuals:
+# positive => loyalists, negative => radicals. Fixed-point, shown by the melter as
+# raw / 100000, so multiply back to recover the count. Not a per-capita rate.
+LOYALTY_SCALE = 100000
+
+_TOTAL_KEYS = ("population", "workforce", "literates", "peasants", "unemployed",
+               "loyalists", "radicals")
+
+# What demographics needs out of the pop table.
+LOYALTY = F("loyalists_and_radicals", scaled=True)
+
+POP_AGGREGATES = [
+    Agg("pop", by="location", name="population",
+        value=F("workforce") + F("dependents")),
+    Agg("pop", by="location", name="workforce", value=F("workforce")),
+    Agg("pop", by="location", name="literates", value=F("num_literate")),
+    Agg("pop", by="location", name="peasants", value=F("workforce"),
+        where=F("type") == "peasants"),
+    Agg("pop", by="location", name="unemployed", value=F("workforce"),
+        where=~present("workplace")),
+    Agg("pop", by="location", name="loyalists", value=LOYALTY, where=LOYALTY > 0),
+    # Summed as raw negatives, then negated once per group.
+    Agg("pop", by="location", name="radicals", value=LOYALTY, where=LOYALTY < 0,
+        negate=True),
+]
+
+
+def _state_totals(state):
+    """The per-state accumulator, created on first use."""
+    totals = state.get("demographics")
+    if totals is None:
+        totals = state["demographics"] = dict.fromkeys(_TOTAL_KEYS, 0)
+    return totals
+
+
+def apply_state_demographics(states, totals):
+    """Attach the engine's per-state sums to the states that hold pops.
+
+    Only populated states get an entry, which is what the country rollup keys off.
+    """
+    for name in _TOTAL_KEYS:
+        for location, value in totals.get(name, {}).items():
+            state = states.get(location)
+            if isinstance(state, dict):
+                _state_totals(state)[name] += value
+
+
 class CheckDemographics(Checker):
     
     name = "CheckDemographics"
     display_name = "Demographics"
     sort_order = 20
     requirements = ["pops", "states", "country_manager", "building_manager"]
+    column_backed = {"pops": "pop"}  # reached only through the declared aggregates
+    aggregates = POP_AGGREGATES
     output = {"demographics.csv":demographics_columns}
 
     def __init__(self):
         super().__init__()
     
-    def execute_check(self, cache: dict):
+    def before_countries(self, cache: dict):
         save_data = cache["save_data"]
-        localization = cache["localization"]
-        save_date = cache["metadata"]["save_date"]
-        players = [str(p[0]) for p in cache["metadata"]["players"]]
-        address = cache["address"]
-
-        pops = save_data["pops"]["database"]
         states = save_data["states"]["database"]
         countries = save_data["country_manager"]["database"]
         # buildings = save_data["building_manager"]["database"]
@@ -51,47 +95,9 @@ class CheckDemographics(Checker):
         #         state["GBD_pollution_effect"] = pollution_effect
 
 
-        for pop_key, pop in pops.items():
-            if not isinstance(pop, dict):
-                continue
-            workers, dependents, literates, literacy, peasants, unemployed, loyalists = 0, 0, 0, 0, 0, 0, 0
-            try:
-                if "workforce" in pop:
-                    workers = int(pop["workforce"])
-                if "dependents" in pop:
-                    dependents = int(pop["dependents"])
-                total = workers + dependents
-                if "num_literate" in pop:
-                    literates = int(pop["num_literate"])
-                if pop["type"] == "peasants" and "workforce" in pop:
-                    peasants = int(pop["workforce"])
-                if "workplace" not in pop and "workforce" in pop:
-                    unemployed = int(pop["workforce"])
-                if "loyalists_and_radicals" in pop:
-                    # `loyalists_and_radicals` is the pop's *net* count of politically
-                    # aligned individuals (positive => loyalists, negative => radicals),
-                    # matching the engine's CPop::CalcRadicalFraction/CalcLoyalistFraction:
-                    # num = max(0, +/- field) with the fraction = num / pop_size. The field
-                    # is a fixed-point integer that the melter shows as raw / 100000, so
-                    # multiply back to recover the individual count. It is NOT a per-capita
-                    # rate: do not scale by pop size.
-                    loyalists = float(pop["loyalists_and_radicals"]) * 100000
-                if "wealth" in pop:
-                    """Standard of living (SOL) = wealth + modifiers + pollution_effect + ruler personality + power_bloc modifier + state modifiers
-                    pollution_effect is workforce_scaled from all building production methods.
-                    Pollution effect is reduced by institutions and technologies.
-                    """
-                    pass
-            except KeyError:
-                print(pop)
-                raise KeyError("Missing key in pop")
-            literacy = literates / max(workers, 0.0000001) # TODO Might use this to visualize distribution of literacy
-            state = states[pop["location"]]
-            if "demographics" not in state:
-                state["demographics"] = []
-            demographics = {"population":total, "workforce":workers, "dependents":dependents, "literates":literates, "literacy":literacy, "peasants":peasants, "unemployed":unemployed, "loyalists":loyalists}
-            state["demographics"].append(demographics) # Total pop, literacy rate
-        
+        # Per-state totals from the shared pop pass, attached to the states.
+        apply_state_demographics(states, cache["aggregates"])
+
         for key, state in states.items():
             if retrieve_from_tree(state, ["demographics"]) is None:
                 continue
@@ -103,39 +109,36 @@ class CheckDemographics(Checker):
             incorporation = float(retrieve_from_tree(state, ["incorporation"], null=0))
             country["demographics"].append([incorporation, state["demographics"]])
 
-        df_demographics = []
-        for country_id, country in countries.items():
-            if not isinstance(country, dict) or "demographics" not in country:
-                continue
-            total_population, total_workers, total_literates, total_unemployed, total_peasants, total_radicals, total_loyalists = 0, 0, 0, 0, 0, 0, 0
-            incorporated_population, incorporated_workers, incorporated_literates, incorporated_unemployed, incorporated_peasants = 0, 0, 0, 0, 0
-            for state in country["demographics"]:
-                incorporation, pops = state
-                total_population += sum([pop["population"] for pop in pops])
-                total_workers += sum([pop["workforce"] for pop in pops])
-                total_literates += sum([pop["literates"] for pop in pops])
-                total_unemployed += sum([pop["unemployed"] for pop in pops])
-                total_peasants += sum([pop["peasants"] for pop in pops])
-                total_loyalists += sum([pop["loyalists"] for pop in pops if pop["loyalists"] > 0])
-                total_radicals += -sum([pop["loyalists"] for pop in pops if pop["loyalists"] < 0])
-                if incorporation >= 1:
-                    incorporated_population += sum([pop["population"] for pop in pops])
-                    incorporated_workers += sum([pop["workforce"] for pop in pops])
-                    incorporated_literates += sum([pop["literates"] for pop in pops])
-                    incorporated_peasants += sum([pop["peasants"] for pop in pops])
-                    incorporated_unemployed += sum([pop["unemployed"] for pop in pops])
-            literacy = safe_ratio(incorporated_literates, incorporated_workers)
-            peasants_percentage = safe_ratio(total_peasants, total_workers)
-            unemployed_percentage = safe_ratio(total_unemployed, total_workers)
-            radicals_percentage = safe_ratio(total_radicals, total_population)
-            loyalists_percentage = safe_ratio(total_loyalists, total_population)
-            standard_of_living = retrieve_from_tree(country, ["avgsoltrend", "channels", "0", "values", "value"], null=[MISSING])[-1]
-            country_tag = country["definition"]
-            country_name = get_country_name(country, localization)
-            df_country = {
+    def on_country(self, country_id, country, cache):
+        if "demographics" not in country:
+            return None
+        total_population, total_workers, total_literates, total_unemployed, total_peasants, total_radicals, total_loyalists = 0, 0, 0, 0, 0, 0, 0
+        incorporated_population, incorporated_workers, incorporated_literates, incorporated_unemployed, incorporated_peasants = 0, 0, 0, 0, 0
+        for state in country["demographics"]:
+            incorporation, totals = state
+            total_population += totals["population"]
+            total_workers += totals["workforce"]
+            total_literates += totals["literates"]
+            total_unemployed += totals["unemployed"]
+            total_peasants += totals["peasants"]
+            total_loyalists += totals["loyalists"]
+            total_radicals += totals["radicals"]
+            if incorporation >= 1:
+                incorporated_population += totals["population"]
+                incorporated_workers += totals["workforce"]
+                incorporated_literates += totals["literates"]
+                incorporated_peasants += totals["peasants"]
+                incorporated_unemployed += totals["unemployed"]
+        literacy = safe_ratio(incorporated_literates, incorporated_workers)
+        peasants_percentage = safe_ratio(total_peasants, total_workers)
+        unemployed_percentage = safe_ratio(total_unemployed, total_workers)
+        radicals_percentage = safe_ratio(total_radicals, total_population)
+        loyalists_percentage = safe_ratio(total_loyalists, total_population)
+        standard_of_living = retrieve_from_tree(country, ["avgsoltrend", "channels", "0", "values", "value"], null=[MISSING])[-1]
+        return {
                 "id": country_id,
-                "tag": country_tag,
-                "country": country_name,
+                "tag": country["definition"],
+                "country": get_country_name(country, cache["localization"]),
                 "population": total_population,
                 "literacy": literacy,
                 "standard of living": standard_of_living,
@@ -155,8 +158,13 @@ class CheckDemographics(Checker):
                 "radicals percentage": radicals_percentage,
                 "loyalists percentage": loyalists_percentage,
             }
-            df_demographics.append(df_country)
 
+    def execute_check(self, cache: dict):
+        save_date = cache["metadata"]["save_date"]
+        players = [str(p[0]) for p in cache["metadata"]["players"]]
+        address = cache["address"]
+
+        df_demographics = cache["country_rows"][self.name]
         df_demographics = pd.DataFrame(df_demographics, columns=df_demographics[0].keys())
         df_demographics = df_demographics.sort_values(by='population', ascending=False)
 

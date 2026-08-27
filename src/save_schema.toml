@@ -1,0 +1,130 @@
+# Extraction schema, read by the column writer and reader.
+#
+# Per entity:
+#   source  -- where the records live in the save tree
+#   tier    -- "fundamental" (always present in a save) or "engine-cached"
+#   order   -- the key order a rebuilt record is emitted in
+#   fields / arrays / side / presence -- see below
+#
+# Field types map to numpy dtypes. `dict` is a low-cardinality string, stored as an
+# int code column plus a vocabulary list so the column stays fixed-width.
+
+# No field list: every building aggregate goes through Call() into the game's
+# production-method definitions, which has no column form.
+[entity.building]
+source = "building_manager.database"
+grain = "building"
+tier = "fundamental"
+
+[entity.pop]
+source = "pops.database"
+grain = "pop"
+tier = "fundamental"
+# The key order the melter writes; each record is this sequence minus its absent keys.
+order = ["type", "workforce", "dependents", "location", "interest_group_support_data",
+         "political_movement_support", "culture", "workplace", "religion",
+         "conversion_religion", "assimilation_culture", "num_literate", "qualifications",
+         "wealth", "wealth_progress", "previous_quality_of_life", "loyalists_and_radicals",
+         "political_strength", "weekly_budget", "job_satisfaction", "partial_growth_wa",
+         "partial_growth_dn", "acceptance_data", "social_class", "food_security"]
+
+# One column per scalar, read directly off the record.
+[entity.pop.fields]
+location = { type = "i32", default = -1, fk = "state" }
+workforce = { type = "i32", default = 0 }
+dependents = { type = "i32", default = 0 }
+num_literate = { type = "i32", default = 0 }
+workplace = { type = "i64", default = -1, fk = "building" }
+culture = { type = "i32", default = -1 }
+wealth = { type = "i32", default = 0 }
+previous_quality_of_life = { type = "i32", default = 0 }
+political_strength = { type = "i32", default = 0 }
+job_satisfaction = { type = "f64", default = 0.0 }
+partial_growth_wa = { type = "f64", default = 0.0 }
+partial_growth_dn = { type = "f64", default = 0.0 }
+wealth_progress = { type = "f64", default = 0.0 }
+assimilation_culture = { type = "i32", default = -1 }
+type = { type = "dict" }
+religion = { type = "dict" }
+conversion_religion = { type = "dict" }
+
+# Stored raw; `scale` is the factor a reader multiplies by to recover the count.
+[entity.pop.fields.loyalists_and_radicals]
+type = "f64"
+default = 0.0
+scale = 100000
+note = "signed NET individual count, +loyalist / -radical (CPop::CalcRadicalFraction)"
+
+# Nested scalars: `path` reads the value from inside a sub-object rather than off
+# the record. One column per leaf.
+[entity.pop.fields.acceptance_value]
+type = "i32"
+default = 0
+path = ["acceptance_data", "acceptance_value"]
+
+[entity.pop.fields.acceptance_status]
+type = "dict"
+path = ["acceptance_data", "acceptance_status"]
+
+[entity.pop.fields.food_security_value]
+type = "f64"
+default = 0.0
+path = ["food_security", "value"]
+
+# Fractional, despite reading as an integer on most pops.
+[entity.pop.fields.food_security_starvation]
+type = "f64"
+default = 0.0
+path = ["food_security", "starvation"]
+
+[entity.pop.fields.food_security_state]
+type = "dict"
+path = ["food_security", "state"]
+
+[entity.pop.fields.social_class]
+type = "dict"
+path = ["social_class", "social_class"]
+
+# Bounded slot lists, each one 2-D column `slots` wide, `default` filling absent
+# slots. `layout` is the shape the melter writes: "list", "indexed", or "either"
+# when both occur (the shape used is then recorded per row).
+[entity.pop.arrays.weekly_budget]
+type = "f64"
+slots = 13
+default = 0.0
+path = ["weekly_budget"]
+layout = "list"
+
+[entity.pop.arrays.qualifications]
+type = "f64"
+slots = 13
+default = 0.0
+path = ["qualifications"]
+layout = "either"
+
+[entity.pop.arrays.interest_group_support]
+type = "f64"
+slots = 8
+default = 0.0
+path = ["interest_group_support_data", "interest_group_support_array"]
+layout = "either"
+
+# Ragged key -> value maps, stored as a side table of three parallel arrays
+# (row, key, value) since the key set varies per record.
+[entity.pop.side.political_movement_support]
+path = ["political_movement_support"]
+key = "i64"
+value = "f64"
+
+# Named presence flags: record key -> the bool column saying whether it was carried.
+# Keys not named here still get a generated `<key>__present` column.
+[entity.pop.presence]
+workforce = "has_workforce"
+workplace = "has_workplace"
+acceptance_data = "has_acceptance_data"
+food_security = "has_food_security"
+social_class = "has_social_class"
+weekly_budget = "has_weekly_budget"
+qualifications = "has_qualifications"
+interest_group_support_data = "has_ig_support"
+political_movement_support = "has_movement_support"

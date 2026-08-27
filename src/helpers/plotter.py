@@ -142,13 +142,7 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     if save:
         os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
 
-    if "campaign_config.json" in os.listdir(f"saves/{campaign_folder}"):
-        campaign_config = jopen(f"saves/{campaign_folder}/campaign_config.json")
-        set_player_list = campaign_config.get("override_player_tags", [])
-        set_ai_list = campaign_config.get("show_ai_tags", [])
-    else:
-        set_player_list = []
-        set_ai_list = []
+    set_player_list, set_ai_list = campaign_tag_filters(campaign_folder)
 
     t0 = time.time()
     last_save = None
@@ -282,13 +276,7 @@ def plot_company_stat(campaign_folder, mode, input_file="companies.csv", limit=1
     if save:
         os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
 
-    if "campaign_config.json" in os.listdir(f"saves/{campaign_folder}"):
-        campaign_config = jopen(f"saves/{campaign_folder}/campaign_config.json")
-        set_player_list = campaign_config.get("override_player_tags", [])
-        set_ai_list = campaign_config.get("show_ai_tags", [])
-    else:
-        set_player_list = []
-        set_ai_list = []
+    set_player_list, set_ai_list = campaign_tag_filters(campaign_folder)
 
     t0 = time.time()
     dfs = dict()
@@ -439,14 +427,17 @@ def goods_in_campaign(campaign_folder):
         list(load_def_multiple("goods", "Common Directory").keys())
 
 
-def plot_goods_produced(campaign_folder, limit=10, save=True, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+def plot_file_columns(campaign_folder, key, input_file, limit=10, save=True,
+                      start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """Plot every column of an output whose columns the campaign decides.
+
+    For a declared key naming a file rather than one of its columns: ``goods_produced``
+    renders one figure per good. Columns come from the campaign's CSV header, and the
+    images are numbered in header order.
     """
-    Plot all goods produced in a campaign. Returns a list of Figures.
-    """
-    goods = load_def_multiple("goods", "Common Directory")
     figs = []
-    for i, good in enumerate(goods.keys()):
-        figs.append(plot_stat(campaign_folder, good, input_file="goods_produced.csv", limit=limit,
-                              players=True, title=good, save_name=f"goods_produced_{i + 1}_{good}",
+    for i, column in enumerate(csv_value_columns(campaign_folder, input_file)):
+        figs.append(plot_stat(campaign_folder, column, input_file=input_file, limit=limit,
+                              players=True, title=column, save_name=f"{key}_{i + 1}_{column}",
                               save=save, start_date=start_date, end_date=end_date, figsize=figsize))
     return figs

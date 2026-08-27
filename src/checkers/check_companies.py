@@ -88,6 +88,8 @@ class CheckCompanies(Checker):
     requirements = ["companies", "country_manager"]
     output = {"companies.csv": company_columns,
               "company_countries.csv": company_country_columns}
+    # A row of companies.csv is a company; company_countries.csv is per country.
+    row_grain = {"companies.csv": "company"}
     dependencies = []
 
     def __init__(self):
