@@ -5,6 +5,7 @@ Functions that manage data plotting.
 import os, warnings, time
 from src.helpers.utility import *
 from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 from random import randint
 from matplotlib import colors as mpl_colors
 import numpy as np
@@ -209,6 +210,166 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
         ax.plot(df[:, 0], df[:, 1], label=name[1], color=country_color, linewidth=3.5)
         ax.plot(df[:, 0], df[:, 1], linestyle="--", color="black", linewidth=1)
 
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.set_title(f"{title} graph over the years")
+    ax.grid(True)
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    print(f"Finished plotting {mode} in {time.time() - t0} seconds")
+    return fig
+
+def accumulate_by_country(frames, mode):
+    """Running total of ``mode`` per country over a campaign, from per-war rows.
+
+    ``frames`` maps a save's year number to that save's rows, one per (war, country),
+    with the columns ``id``, ``tag``, ``country``, ``play_id``, ``start_date`` and
+    ``mode``. A save lists only the wars still running; an ended war is gone. The
+    count of one war never decreases while it runs, so its highest value seen so far
+    is what it has cost to date, and a country's total is the sum over its wars. A
+    war keeps counting after it leaves the saves.
+
+    A war can hand a country's record to another country id while it runs (a
+    revolution that takes over a country). Counting both would count the same dead
+    twice, so ids are linked into one country when, inside one war, an id with a
+    record vanishes as a new id appears holding at least that much.
+
+    Countries are identified as ``plot_stat`` does, by ``(tag, country)``: two ids
+    with the same tag and name (a country re-created by a revolution) are one line.
+
+    A war that began and ended between two saves is never seen, and the last stretch
+    of every war before its end is lost: the total is a floor.
+
+    Returns ``(series, members)``, keyed by ``(tag, country)``: ``series[key]`` is
+    ``[[year, total], ...]`` with a point for every save (0 before the country's
+    first war) and ``members[key]`` every country id counted in it.
+    """
+    years = sorted(frames)
+    saves = []
+    for year in years:
+        wars, names = dict(), dict()
+        for row in frames[year].itertuples(index=False):
+            wars.setdefault((row.play_id, row.start_date), dict())[row.id] = getattr(row, mode)
+            names[row.id] = (row.tag, row.country)
+        saves.append((wars, names))
+
+    parent = dict()
+
+    def root(country_id):
+        while parent.get(country_id, country_id) != country_id:
+            country_id = parent[country_id]
+        return country_id
+
+    last_seen = dict()
+    for wars, _ in saves:
+        for war, now in wars.items():
+            then = last_seen.get(war, dict())
+            gone = {c: v for c, v in then.items() if c not in now and v > 0}
+            for new_id in sorted((c for c in now if c not in then), key=lambda c: -now[c]):
+                fits = [c for c, v in gone.items() if v <= now[new_id]]
+                if fits:
+                    old_id = max(fits, key=lambda c: gone[c])
+                    parent[root(old_id)] = root(new_id)
+                    del gone[old_id]
+            last_seen[war] = now
+
+    peak = dict()
+    snapshots = dict()
+    labels = dict()
+    for year, (wars, names) in zip(years, saves):
+        for war, now in wars.items():
+            held = dict()
+            for country_id, value in now.items():
+                held[root(country_id)] = held.get(root(country_id), 0) + value
+            for country_root, value in held.items():
+                peak[(war, country_root)] = max(peak.get((war, country_root), 0), value)
+        for country_id, name in names.items():
+            labels[root(country_id)] = name
+        totals = dict()
+        for (_, country_root), value in peak.items():
+            totals[country_root] = totals.get(country_root, 0) + value
+        snapshots[year] = totals
+    series, members = dict(), dict()
+    for country_root, name in labels.items():
+        points = series.setdefault(name, [[year, 0] for year in years])
+        for point, year in zip(points, years):
+            point[1] += snapshots[year].get(country_root, 0)
+        members.setdefault(name, set()).update(
+            c for c in parent.keys() | {country_root} if root(c) == country_root)
+    return series, members
+
+
+def plot_cumulative_stat(campaign_folder, mode, input_file, limit=15, players=True, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot a running total over the campaign for a file with one row per (war, country)
+
+    A sibling of ``plot_stat`` for statistics that a save only shows while they are
+    live (war casualties). The total of a country is built by ``accumulate_by_country``
+    and starts at the first save in range.
+
+    Reads ``data/{input_file}`` of each save, which holds every country, where
+    ``plot_stat`` reads the players-only copy.
+
+    players: True plots the players and the campaign's extra AI tags; False plots
+        the ``limit`` countries with the highest total at the end of the range.
+    Other arguments mirror ``plot_stat``.
+
+    Returns the Figure.
+    """
+    if title is None:
+        title = mode
+    if save_name is None:
+        save_name = title
+    img_folder = input_file.replace(".csv", "")
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
+
+    set_player_list, set_ai_list = campaign_tag_filters(campaign_folder)
+
+    t0 = time.time()
+    frames = dict()
+    player_ids = set()
+    for save_folder, year_number, metadata in iter_save_folders(campaign_folder, start_date, end_date):
+        if input_file not in os.listdir(f"{save_folder}/data"):
+            print(f"No {input_file} at {save_folder}")
+            continue
+        frames[year_number] = pd.read_csv(f"{save_folder}/data/{input_file}")
+        player_ids.update(int(p[0]) for p in metadata["players"])
+    if not frames:
+        raise ValueError(f"No {input_file} data to plot for {campaign_folder} in {start_date}-{end_date}")
+
+    series, members = accumulate_by_country(frames, mode)
+    final = {name: points[-1][1] for name, points in series.items()}
+    if set_player_list:
+        chosen = [c for c in series if c[0] in set_player_list + set_ai_list]
+    elif players:
+        chosen = [c for c in series if members[c] & player_ids or c[0] in set_ai_list]
+    else:
+        chosen = sorted(series, key=lambda c: final[c], reverse=True)[:limit]
+    chosen = sorted(chosen, key=lambda c: final[c], reverse=True)
+    if not chosen:
+        raise ValueError(f"No {mode} to plot for {campaign_folder} in {start_date}-{end_date}")
+
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    # A save shows the wars running on its date and nothing in between, so a total is
+    # known only at the saves: it steps, and a long stretch with no save is shaded.
+    years = sorted(frames)
+    shaded = False
+    for before, after in zip(years, years[1:]):
+        if after - before > 1:
+            ax.axvspan(before, after, color="gray", alpha=0.15, label=None if shaded else "No saves")
+            shaded = True
+    for tag, name in chosen:
+        country_color = get_color(tag)
+        if "Revolutionary" in name:
+            country_color[-1] *= 0.7
+        points = np.array(series[(tag, name)])
+        ax.plot(points[:, 0], points[:, 1], label=name, color=country_color, linewidth=3.5, drawstyle="steps-post")
+        ax.plot(points[:, 0], points[:, 1], linestyle="--", color="black", linewidth=1, drawstyle="steps-post")
+
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:,.0f}"))
     ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
     ax.set_title(f"{title} graph over the years")
     ax.grid(True)

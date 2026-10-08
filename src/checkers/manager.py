@@ -7,15 +7,17 @@ from src.checkers.check_tech import CheckTech
 from src.checkers.check_demographics import CheckDemographics
 from src.checkers.check_finance import CheckFinance
 from src.checkers.check_companies import CheckCompanies
+from src.checkers.check_war_casualties import CheckWarCasualties
 
-from src.helpers.plotter import plot_stat, plot_file_columns, plot_company_stat, csv_value_columns
+from src.helpers.plotter import (plot_stat, plot_file_columns, plot_company_stat,
+                                 plot_cumulative_stat, csv_value_columns)
 from src.helpers.convert_localization import get_all_localization
 from src.helpers.utility import load_def, load_def_multiple
 import os, glob, multiprocessing
 
 ALL_CHECKERS = [
     CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech,
-    CheckDemographics, CheckFinance, CheckCompanies,
+    CheckDemographics, CheckFinance, CheckCompanies, CheckWarCasualties,
 ]
 
 
@@ -327,6 +329,10 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
         if grain.get(outfile) == "company":
             render(check, lambda c=column, f=outfile: plot_company_stat(
                 campaign_folder, c, input_file=f, players=True, **dates))
+        elif grain.get(outfile) == "war":
+            # Every country that fought, not only the players: the top of the range.
+            render(check, lambda c=column, k=check, f=outfile: plot_cumulative_stat(
+                campaign_folder, c, f, players=False, save_name=k, **dates))
         else:
             render(check, lambda c=column, k=check, f=outfile: plot_stat(
                 campaign_folder, c, input_file=f, players=True, save_name=k, **dates))
@@ -356,6 +362,8 @@ def figures_for(campaign_folder, column, input_file, players=True, start_date=0,
     column = csv_columns().get(column, column)
     if output_grain().get(input_file) == "company":
         return plot_company_stat(campaign_folder, column, input_file=input_file, **kwargs)
+    if output_grain().get(input_file) == "war":
+        return [plot_cumulative_stat(campaign_folder, column, input_file, **kwargs)]
     return [plot_stat(campaign_folder, column, input_file=input_file, **kwargs)]
 
 
