@@ -5,6 +5,8 @@ Functions that manage data plotting.
 import os, warnings, time
 from src.helpers.utility import *
 from src.helpers.compare import break_at_gaps, collect_series
+from src.helpers.latest_save import latest_save_folder
+from src.helpers.snapshot import population_shares
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 from random import randint
@@ -435,6 +437,71 @@ def plot_comparison(campaign_folder, comparison, limit=10, players=True, title=N
     print(f"Finished plotting {comparison.key} in {time.time() - t0} seconds")
     return fig
 
+
+def plot_distribution(campaign_folder, distribution, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot how each player country's people divide over a statistic, in the latest save
+
+    A snapshot sibling of ``plot_stat``: the x-axis is the statistic (standard of living)
+    rather than the date. Each line is one country and its height at a bin is the share
+    of that country's total population in the bin, so countries of any size compare. The
+    last bin also holds everything above it (``distribution.cap``).
+
+    Countries are the ones ``plot_stat`` draws: the latest save's players plus the
+    campaign's extra AI tags, or only the tags the campaign config names. The latest
+    save is the last one in range by date. Its ``data/{input_file}`` must exist, so a
+    save checked before the file was introduced raises ValueError.
+
+    Saved as ``{distribution.key}.png`` in campaign_data/ itself, beside the latest
+    save's CSVs, and overwritten each time: the date is in the title.
+
+    Other arguments mirror ``plot_stat``. Returns the Figure.
+    """
+    if title is None:
+        title = distribution.label
+    if save_name is None:
+        save_name = distribution.key
+    set_player_list, set_ai_list = campaign_tag_filters(campaign_folder)
+
+    t0 = time.time()
+    save_folder = latest_save_folder(campaign_folder, start_date, end_date)
+    path = f"{save_folder}/data/{distribution.input_file}"
+    if not os.path.isfile(path):
+        raise ValueError(f"No {distribution.input_file} at {save_folder}: check that save again")
+    metadata = jopen(f"{save_folder}/metadata.json")
+    tags = set_player_list if set_player_list else [player[1] for player in metadata["players"]]
+    frame = pd.read_csv(path)
+    shares = population_shares(frame[frame["tag"].isin(tags + set_ai_list)], distribution)
+    if not shares:
+        raise ValueError(f"No {distribution.label} to plot for {campaign_folder} at {save_folder}")
+
+    bins = np.arange(distribution.cap + 1)
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    # Legend order follows each country's mean bin, highest first, as plot_stat's follows its latest value.
+    for tag, country in sorted(shares, key=lambda name: shares[name] @ bins, reverse=True):
+        country_color = get_color(tag)
+        if "Revolutionary" in country:
+            country_color[-1] *= 0.7
+        ax.plot(bins, shares[(tag, country)] * 100, label=country, color=country_color, linewidth=3.5)
+        ax.plot(bins, shares[(tag, country)] * 100, linestyle="--", color="black", linewidth=1)
+
+    ticks = sorted(set(range(0, distribution.cap + 1, 5)) | {distribution.cap})
+    ax.set_xticks(ticks, [f"{tick}+" if tick == distribution.cap else str(tick) for tick in ticks])
+    ax.set_xlim(0, distribution.cap)
+    ax.set_xlabel("Standard of living")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}%"))
+    ax.set_ylabel("Share of the country's population")
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.set_title(f"{title} on {'.'.join(str(part) for part in metadata['save_date'])}")
+    ax.grid(True)
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data", exist_ok=True)
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
+    print(f"Finished plotting {distribution.key} in {time.time() - t0} seconds")
+    return fig
 
 # Level bands the company plots are split into, so a few giant companies don't flatten
 # the rest. Each company is classified by its levels in its latest save; the plot for a

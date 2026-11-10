@@ -5,7 +5,9 @@ from src.checkers.pop_growth import (GROWTH_DEFINITIONS, CONTEXT_TOPICS, LOYALTY
                                      state_growth)
 from src.helpers.columnar import build_columns, load_columns
 from src.helpers.compare import Growth
+from src.helpers.snapshot import Distribution
 from src.helpers.utility import retrieve_from_tree
+import numpy as np
 import pandas as pd
 
 demographics_columns = ["literacy", "standard of living", "population", "incorporated population", "total peasants", "total unemployed", "peasants percentage", "unemployed percentage", "radicals", "loyalists", "radicals percentage", "loyalists percentage",
@@ -43,6 +45,57 @@ def _state_totals(state):
     if totals is None:
         totals = state["demographics"] = dict.fromkeys(_TOTAL_KEYS, 0)
     return totals
+
+
+# Standard of living above this is pooled into the last bin of ``sol_distribution.csv``.
+SOL_CAP = 30
+SOL_DISTRIBUTION_COLUMNS = ["id", "tag", "country", "sol", "population"]
+
+
+def population_by_sol(columns, states, cap=SOL_CAP):
+    """People in each country at each standard of living, from the pop table.
+
+    ``counts[i]`` is the number of people (workforce + dependents, as in ``population``)
+    whose pop has SoL ``i``; every SoL above ``cap`` is pooled into ``counts[cap]``. Pops
+    in no state or in a dead state belong to no country and are left out, as in the
+    state totals.
+
+    Returns ``{str(country id): counts}``, with ``counts`` of length ``cap + 1``.
+    """
+    owner_of_state = {int(key): str(state["country"]) for key, state in states.items()
+                      if isinstance(state, dict) and state.get("country") is not None}
+    owners = {owner: i for i, owner in enumerate(sorted(set(owner_of_state.values())))}
+
+    location = np.asarray(columns["location"]).astype(np.int64)
+    size = (np.asarray(columns["workforce"]).astype(float)
+            + np.asarray(columns["dependents"]).astype(float))
+    sol = np.clip(np.asarray(columns["previous_quality_of_life"]).astype(np.int64), 0, cap)
+
+    table = np.full(max(max(owner_of_state, default=-1), int(location.max(initial=-1))) + 1, -1, np.int64)
+    for state_id, owner in owner_of_state.items():
+        table[state_id] = owners[owner]
+    owner = np.where(location >= 0, table[np.maximum(location, 0)], -1)
+    keep = owner >= 0
+
+    bins = cap + 1
+    counts = np.bincount(owner[keep] * bins + sol[keep], weights=size[keep],
+                         minlength=len(owners) * bins).reshape(len(owners), bins)
+    return {name: counts[i] for name, i in owners.items()}
+
+
+def sol_distribution_frame(countries, counts):
+    """One row per country and SoL bin that holds anyone, for ``sol_distribution.csv``.
+
+    countries: the demographics rows (``id``, ``tag``, ``country``), which decide who
+    is listed. ``counts`` is ``population_by_sol``'s result.
+    """
+    rows = []
+    for country_id, tag, name in zip(countries["id"], countries["tag"], countries["country"]):
+        per_sol = counts.get(str(country_id))
+        if per_sol is None:
+            continue
+        rows.extend((country_id, tag, name, int(sol), int(per_sol[sol])) for sol in np.flatnonzero(per_sol))
+    return pd.DataFrame(rows, columns=SOL_DISTRIBUTION_COLUMNS)
 
 
 def apply_state_demographics(states, totals):
@@ -87,7 +140,7 @@ class CheckDemographics(Checker):
     column_backed = {"pops": "pop"}  # reached only through the declared aggregates
     aggregates = POP_AGGREGATES
     definitions = GROWTH_DEFINITIONS
-    output = {"demographics.csv":demographics_columns}
+    output = {"demographics.csv":demographics_columns, "sol_distribution.csv": []}
     column_labels = {"birth rate": "Birth rate (estimate, per year)",
                      "mortality rate": "Mortality rate (estimate, per year)",
                      "natural growth": "Natural growth (estimate, per year)"}
@@ -95,6 +148,10 @@ class CheckDemographics(Checker):
         Growth("population_growth", "demographics.csv", "population", "Population growth (% per year)"),
         Growth("standard_of_living_growth", "demographics.csv", "standard of living",
                "Standard of living growth (% per year)"),
+    ]
+    distributions = [
+        Distribution("standard_of_living_distribution", "sol_distribution.csv", "standard of living",
+                     "Standard of living distribution", cap=SOL_CAP),
     ]
 
     def __init__(self):
@@ -109,6 +166,7 @@ class CheckDemographics(Checker):
         if pops is None:   # a save with no column cache: the pop tree was loaded instead
             pops = build_columns(save_data["pops"]["database"], "pop", only=POP_FIELDS)
         columns, vocabs, _ = pops
+        cache["sol_distribution"] = population_by_sol(columns, states)
         growth = state_growth(columns, vocabs, states, countries, save_data["laws"]["database"],
                               save_data["building_manager"]["database"], cache["definitions"], context_of(save_data),
                               cache["metadata"]["save_date"])
@@ -199,6 +257,9 @@ class CheckDemographics(Checker):
             df_demographics.to_csv(f"{address}/data/demographics.csv", sep=",", index=False)
             df_demographics_players = df_demographics[df_demographics["id"].isin(players)]
             df_demographics_players.to_csv(f"{address}/demographics.csv", sep=",", index=False)
+            df_sol = sol_distribution_frame(df_demographics, cache["sol_distribution"])
+            df_sol.to_csv(f"{address}/data/sol_distribution.csv", index=False)
+            df_sol[df_sol["id"].isin(players)].to_csv(f"{address}/sol_distribution.csv", index=False)
             with open(f"{address}/demographics.txt", "w") as file:
                 file.write(f"{day}/{month}/{year}\n")
                 df_demographics_players.to_string(buf=f"{address}/demographics.txt", encoding="utf-8")

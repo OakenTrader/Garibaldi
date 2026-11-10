@@ -76,6 +76,11 @@ class Checker:
     # layer builds them from the per-save CSVs.
     comparisons = ()
 
+    # Plots of one save, the latest (see src/helpers/snapshot.py): the spread of a
+    # statistic inside each player country, read from a per-save CSV this checker
+    # writes. Each is drawn whenever the column it names is selected.
+    distributions = ()
+
     def __init__(self):
         pass
 
