@@ -211,6 +211,12 @@ DEVASTATION_MAX = 100.0
 # impact, the share in force of the ``state_region_pollution_health`` modifier.
 POLLUTION_MAX = 255.0
 MARGINAL_IG_TRAIT_PENALTY = 0.5
+# FOOD_SECURITY_STARVATION_THRESHOLD, FOOD_SECURITY_SEVERE_STARVATION_THRESHOLD and
+# STARVATION_EFFECTS_SCALING_FACTOR sit in the first of the two NPops blocks of 00_defines.txt,
+# which the parser drops (it keeps the last), so they are fixed here.
+STARVATION_THRESHOLD = 0.4
+SEVERE_STARVATION_THRESHOLD = 0.2
+STARVATION_SCALING = 1 / STARVATION_THRESHOLD
 STARVATION_BIRTH = {"starvation": -0.7, "severe_starvation": -0.9}
 STARVATION_MORTALITY = {"starvation": 0.6, "severe_starvation": 1.0}
 # ``static_modifiers.working_conditions`` entries: building_group_bg_X_<profession>_mortality_mult
@@ -609,6 +615,18 @@ def pop_growth(columns, vocabs, states, countries, laws, buildings, definitions,
     # and not as the last entry of the vocabulary: the appended 0 is what -1 lands on.
     starving_birth = np.append([STARVATION_BIRTH.get(f, 0.0) for f in vocabs["food_security_state"]], 0.0)[food] * starvation
     starving_mortality = np.append([STARVATION_MORTALITY.get(f, 0.0) for f in vocabs["food_security_state"]], 0.0)[food] * starvation
+    if "food_security_value" in columns and not (food >= 0).any():
+        # Since 1.15 a pop's food security is saved as its value alone. The game's state
+        # (starvation below 0.4, severe below 0.2) and the strength of its effect, which
+        # grows from 0 at 0.4 to 1 at 0, follow from it.
+        value = np.nan_to_num(np.asarray(columns["food_security_value"]).astype(float), nan=1.0)
+        starvation = np.clip((STARVATION_THRESHOLD - value) * STARVATION_SCALING, 0.0, 1.0)
+        severe = value < SEVERE_STARVATION_THRESHOLD
+        starving = value < STARVATION_THRESHOLD
+        starving_birth = np.where(severe, STARVATION_BIRTH["severe_starvation"],
+                                  np.where(starving, STARVATION_BIRTH["starvation"], 0.0)) * starvation
+        starving_mortality = np.where(severe, STARVATION_MORTALITY["severe_starvation"],
+                                      np.where(starving, STARVATION_MORTALITY["starvation"], 0.0)) * starvation
 
     ids, table = _building_mortality(buildings, states, by_country, by_state, definitions, professions)
     row = np.clip(np.searchsorted(ids, workplace), 0, max(len(ids) - 1, 0))
