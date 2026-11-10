@@ -88,7 +88,7 @@ def _record_keys(spec):
     return kinds
 
 
-def build_columns(database, entity):
+def build_columns(database, entity, only=None):
     """Turn an id -> record mapping into ``(columns, vocabs, ids)``.
 
     Rows keep the database's iteration order. Three kinds of declaration are handled:
@@ -96,12 +96,18 @@ def build_columns(database, entity):
       fields  -- one scalar per row, read off the record or from a declared ``path``
       arrays  -- a bounded slot list, one 2-D column of that width
       side    -- a ragged key -> value map, as three parallel arrays
+
+    ``only`` names the scalar fields wanted. A caller that reads a few of them (the growth
+    rebuild) gets just those, and not the arrays, whose bounded slots a save can overflow.
     """
     spec = entity_schema(entity)
     fields = spec["fields"]
     arrays = spec.get("arrays", {})
     sides = spec.get("side", {})
     presence = spec.get("presence", {})
+    if only is not None:
+        fields = {name: field for name, field in fields.items() if name in only}
+        arrays, sides, presence = {}, {}, {}
 
     records = [(k, v) for k, v in database.items() if isinstance(v, dict)]
     n = len(records)
@@ -122,7 +128,7 @@ def build_columns(database, entity):
         columns[f"{name}__form"] = np.zeros(n, np.int8)
         columns[f"{name}__index0"] = np.full(n, -1, np.int32)
         columns[f"{name}__len"] = np.zeros(n, np.int16)
-    kinds = _record_keys(spec)
+    kinds = _record_keys(spec) if only is None else {}
     for key in kinds:
         columns[_flag_name(spec, key)] = np.zeros(n, bool)
     for flag in presence.values():
