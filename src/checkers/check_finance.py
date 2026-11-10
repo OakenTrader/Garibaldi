@@ -2,7 +2,7 @@ from src.checkers.aggregates import Agg, Call
 from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import STATE_COUNTRY, get_country_name, safe_ratio, MISSING
 from src.helpers.compare import Growth
-from src.helpers.utility import retrieve_from_tree
+from src.helpers.utility import retrieve_from_tree, get_duration
 import pandas as pd
 import numpy as np
 import warnings
@@ -128,6 +128,9 @@ _EXPENSE_BUILDING_ANCHORS = {
 # (verified against the Budget-panel tooltip: weekly_interest * 52 / principal
 # reproduces the displayed yearly rate).
 WEEKS_PER_YEAR = 52
+# The two loan interest modifiers, which every source below can carry.
+INTEREST_ADD = "country_loan_interest_rate_add"
+INTEREST_MULT = "country_loan_interest_rate_mult"
 # Society technologies that each add to country_loan_interest_rate_add (v1.13).
 INTEREST_TECHS = {
     "banking", "central_banking", "mutual_funds",
@@ -287,9 +290,10 @@ def reconstruct_interest_rate(country, rank_name, defs, rank_mult_by_name):
     Expects the country dict to carry ``interest_tech_add`` (summed tech add),
     ``active_laws`` (list) and ``is_bankrupt`` (bool), populated by the caller.
     """
-    add = defs["base_add"] + float(retrieve_from_tree(country, "interest_tech_add", null=0.0))
+    add = (defs["base_add"] + float(retrieve_from_tree(country, "interest_tech_add", null=0.0))
+           + float(retrieve_from_tree(country, "interest_extra_add", null=0.0)))
 
-    mult = 0.0
+    mult = float(retrieve_from_tree(country, "interest_extra_mult", null=0.0))
     if rank_name in rank_mult_by_name:
         mult += rank_mult_by_name[rank_name]
     for law in retrieve_from_tree(country, "active_laws", null=[]):
@@ -335,13 +339,14 @@ class CheckFinance(Checker):
     name = "CheckFinance"
     display_name = "Finance"
     sort_order = 30
-    requirements = ["country_manager", "building_manager", "states", "laws", "technology"]
+    requirements = ["country_manager", "building_manager", "states", "laws", "technology",
+                    "interest_groups", "character_manager", "companies", "country_rankings"]
     # defines/00_defines.txt is declared as a single file rather than the defines
     # folder, so a mod override of GOLD_RESERVE_LIMIT_FACTOR / COUNTRY_MIN_CREDIT_*
     # keeps being ignored exactly as it was before — folding it into the folder read
     # would change what the GDP formula sees, which is not a caching change.
     definitions = ("defines/00_defines.txt", "static_modifiers", "country_ranks",
-                   "laws", "technology/technologies")
+                   "laws", "technology/technologies", "interest_group_traits", "character_traits")
     # finance.csv carries every column in ``finance_columns``. This used to declare
     # a seven-item subset, which silently hid total income, total expense, net
     # balance and the whole interest group from the statistics tree even though the
@@ -377,6 +382,12 @@ class CheckFinance(Checker):
         idefs = self.idefs = load_interest_defs(definitions)
         self.rank_mult_by_name = {name: mult for name, _rv, _a, _r, _vt, mult in idefs["ranks"]}
         self.country_rank = compute_country_ranks(countries, idefs["ranks"])
+        # The save records the rank the game gave each country, hysteresis included, so
+        # it wins over the reconstruction (kept for saves without it).
+        rankings = retrieve_from_tree(save_data, ["country_rankings", "country_rankings"], null={})
+        for entry in (rankings.values() if isinstance(rankings, dict) else []):
+            if isinstance(entry, dict) and entry.get("rank") in self.rank_mult_by_name:
+                self.country_rank[str(entry.get("country"))] = entry["rank"]
 
         # Society technologies that shift country_loan_interest_rate_add. Values are
         # read from the tech defs (mod-robust) rather than hardcoded.
@@ -401,6 +412,56 @@ class CheckFinance(Checker):
             country = retrieve_from_tree(countries, [law.get("country")], null=None)
             if isinstance(country, dict):
                 country.setdefault("active_laws", []).append(law.get("law"))
+
+        # Interest group traits, the ruler's traits and timed modifiers can carry a loan
+        # interest modifier too. Each country sums them into interest_extra_add / _mult.
+        def interest_part(modifiers, scale=1.0):
+            if not isinstance(modifiers, dict):
+                return
+            for key, bucket in ((INTEREST_ADD, "interest_extra_add"), (INTEREST_MULT, "interest_extra_mult")):
+                if key in modifiers:
+                    yield bucket, float(modifiers[key]) * scale
+
+        def add_interest(country, modifiers, scale=1.0):
+            for bucket, value in interest_part(modifiers, scale):
+                country[bucket] = country.get(bucket, 0.0) + value
+
+        ig_traits = definitions["interest_group_traits"]
+        for ig in save_data["interest_groups"]["database"].values():
+            if not isinstance(ig, dict) or not isinstance(country := countries.get(ig.get("country")), dict):
+                continue
+            for trait in retrieve_from_tree(ig, ["enabled_traits", "value"], null=[]):
+                add_interest(country, retrieve_from_tree(ig_traits, [trait, "modifier"]))
+
+        characters = save_data["character_manager"]["database"]
+        character_traits = definitions["character_traits"]
+        company_database = save_data["companies"]["database"]
+        for country in countries.values():
+            if not isinstance(country, dict):
+                continue
+            # A chartered company country is ruled by its founding company's CEO.
+            ruler = country.get("ruler")
+            if ruler not in characters:
+                ruler = retrieve_from_tree(company_database, [country.get("founding_company"), "ceo"])
+            for trait in retrieve_from_tree(characters, [ruler, "traits", "value"], null=[]):
+                add_interest(country, retrieve_from_tree(character_traits, [trait, "country_modifier"]))
+
+        save_date = cache["metadata"]["save_date"]
+        static_modifiers = definitions["static_modifiers"]
+        for country in countries.values():
+            if not isinstance(country, dict):
+                continue
+            timed = retrieve_from_tree(country, ["timed_modifiers", "modifiers"], null={})
+            for entry in (timed.values() if isinstance(timed, dict) else []):
+                if not isinstance(entry, dict) or entry.get("modifier") == "declared_bankruptcy":
+                    continue   # bankruptcy has its own flag below
+                modifiers = static_modifiers.get(entry.get("modifier"))
+                if not isinstance(modifiers, dict) or not (INTEREST_ADD in modifiers or INTEREST_MULT in modifiers):
+                    continue
+                scale = float(entry.get("multiplier", 1))
+                if entry.get("decay") in ("yes", "linear") and entry.get("end_date"):
+                    scale *= 1 - get_duration(save_date, entry["start_date"], entry["end_date"])[-1]
+                add_interest(country, modifiers, scale)
 
         # Bankruptcy penalty applies while the declared_bankruptcy modifier is active.
         for country in countries.values():
