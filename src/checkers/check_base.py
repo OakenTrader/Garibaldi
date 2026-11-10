@@ -70,6 +70,12 @@ class Checker:
     # key -> the CSV column carrying it, where the two names differ.
     csv_columns = dict()
 
+    # Statistics derived from this checker's columns across saves, such as a growth
+    # rate (see src/helpers/compare.py). No save holds them, so they are not in
+    # ``output``: the tree lists each beside the column it comes from, and the plotting
+    # layer builds them from the per-save CSVs.
+    comparisons = ()
+
     def __init__(self):
         pass
 

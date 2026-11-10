@@ -1,6 +1,7 @@
 from src.checkers.aggregates import Agg, Call
 from src.checkers.check_base import Checker
 from src.checkers.checkers_functions import STATE_COUNTRY, get_country_name, safe_ratio, MISSING
+from src.helpers.compare import Growth
 from src.helpers.utility import retrieve_from_tree
 import pandas as pd
 import numpy as np
@@ -352,6 +353,7 @@ class CheckFinance(Checker):
     # their columns are read from the CSV header instead of being declared.
     header_columns = ("income.csv", "expenses.csv")
     file_categories = {"income.csv": ("Income", 31), "expenses.csv": ("Expenses", 32)}
+    comparisons = [Growth("gdp_growth", "finance.csv", "GDP", "GDP growth (% per year)")]
     dependencies = ["demographics.csv"]
 
     def __init__(self):

@@ -4,6 +4,7 @@ Functions that manage data plotting.
 
 import os, warnings, time
 from src.helpers.utility import *
+from src.helpers.compare import break_at_gaps, collect_series
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 from random import randint
@@ -379,6 +380,61 @@ def plot_cumulative_stat(campaign_folder, mode, input_file, limit=15, players=Tr
         fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
     print(f"Finished plotting {mode} in {time.time() - t0} seconds")
     return fig
+
+def plot_comparison(campaign_folder, comparison, limit=10, players=True, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot a statistic derived across saves, such as a growth rate (see ``compare``)
+
+    A sibling of ``plot_stat`` for statistics no single save holds. ``comparison``
+    names the column of the output file to follow and turns its series into the one
+    plotted. A country's line stops wherever the saves leave a stretch of more than
+    a year, instead of crossing it as if it had been measured.
+
+    Saved as ``{comparison.key}.png`` in the folder of the file it is derived from,
+    next to the plots of that file's own columns.
+
+    Arguments mirror ``plot_stat``. Returns the Figure.
+    """
+    if title is None:
+        title = comparison.label
+    if save_name is None:
+        save_name = comparison.key
+    img_folder = comparison.input_file.replace(".csv", "")
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
+
+    t0 = time.time()
+    levels = collect_series(campaign_folder, comparison.input_file, comparison.column,
+                            players=players, limit=limit, start_date=start_date, end_date=end_date)
+    derived = {name: comparison.transform(points) for name, points in levels.items()}
+    derived = {name: points for name, points in derived.items() if points}
+    if not derived:
+        raise ValueError(f"No {comparison.label} to plot for {campaign_folder} in "
+                         f"{start_date}-{end_date}: it needs saves a year apart")
+
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    ax.axhline(0, color="gray", linewidth=1)
+    # Legend order follows each country's latest value, as plot_stat's does.
+    for tag, country in sorted(derived, key=lambda name: derived[name][-1][1], reverse=True):
+        country_color = get_color(tag)
+        if "Revolutionary" in country:
+            country_color[-1] *= 0.7
+        line = np.array(break_at_gaps(derived[(tag, country)]))
+        ax.plot(line[:, 0], line[:, 1], label=country, color=country_color, linewidth=3.5)
+        ax.plot(line[:, 0], line[:, 1], linestyle="--", color="black", linewidth=1)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}{comparison.unit}"))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.set_title(f"{title} graph over the years")
+    ax.grid(True)
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    print(f"Finished plotting {comparison.key} in {time.time() - t0} seconds")
+    return fig
+
 
 # Level bands the company plots are split into, so a few giant companies don't flatten
 # the rest. Each company is classified by its levels in its latest save; the plot for a

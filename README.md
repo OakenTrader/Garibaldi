@@ -9,8 +9,9 @@ Save game analyzer for Victoria 3 which retrieve information from autosaves acro
     - Infamy
     - Prestige (consequently goods produced)
     - Technologies and table of technologies comparison
-    - Demographics, including Standard of Living
+    - Demographics, including Standard of Living and estimated birth rate, mortality and natural growth
     - Finance, including GDP, money and debt
+    - Year-over-year growth of GDP, population and standard of living, compared across saves
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 

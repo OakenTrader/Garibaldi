@@ -4,6 +4,7 @@ from src.checkers.checkers_functions import get_country_name, get_building_outpu
 from src.checkers.pop_growth import (GROWTH_DEFINITIONS, CONTEXT_TOPICS, LOYALTY_SCALE, POP_FIELDS, context_of,
                                      state_growth)
 from src.helpers.columnar import build_columns, load_columns
+from src.helpers.compare import Growth
 from src.helpers.utility import retrieve_from_tree
 import pandas as pd
 
@@ -90,6 +91,11 @@ class CheckDemographics(Checker):
     column_labels = {"birth rate": "Birth rate (estimate, per year)",
                      "mortality rate": "Mortality rate (estimate, per year)",
                      "natural growth": "Natural growth (estimate, per year)"}
+    comparisons = [
+        Growth("population_growth", "demographics.csv", "population", "Population growth (% per year)"),
+        Growth("standard_of_living_growth", "demographics.csv", "standard of living",
+               "Standard of living growth (% per year)"),
+    ]
 
     def __init__(self):
         super().__init__()

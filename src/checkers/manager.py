@@ -10,7 +10,8 @@ from src.checkers.check_companies import CheckCompanies
 from src.checkers.check_war_casualties import CheckWarCasualties
 
 from src.helpers.plotter import (plot_stat, plot_file_columns, plot_company_stat,
-                                 plot_cumulative_stat, csv_value_columns)
+                                 plot_cumulative_stat, plot_comparison,
+                                 csv_value_columns)
 from src.helpers.convert_localization import get_all_localization
 from src.helpers.utility import load_def, load_def_multiple
 import os, glob, multiprocessing
@@ -244,6 +245,15 @@ def csv_columns():
     return columns
 
 
+def comparisons():
+    """Declared key -> the cross-save statistic (src/helpers/compare.py) it names."""
+    found = dict()
+    for checker_class in registered_checkers():
+        for comparison in checker_class.comparisons:
+            found[comparison.key] = comparison
+    return found
+
+
 def all_check_keys():
     """Every selectable stat key — what a parse runs, now that checking is not selective."""
     return list(build_check_map())
@@ -337,6 +347,12 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
             render(check, lambda c=column, k=check, f=outfile: plot_stat(
                 campaign_folder, c, input_file=f, players=True, save_name=k, **dates))
 
+    # A statistic derived across saves is drawn whenever the column it comes from is.
+    for comparison in comparisons().values():
+        if comparison.column in checks:
+            render(comparison.key, lambda c=comparison: plot_comparison(
+                campaign_folder, c, players=True, **dates))
+
     # Columns that only the campaign's own CSV header knows about (income and
     # expense slots, goods). They are not in ``checks`` because they cannot be
     # declared, but the batch pass still owns rendering them.
@@ -359,6 +375,8 @@ def figures_for(campaign_folder, column, input_file, players=True, start_date=0,
     kwargs = {"players": players, "save": False, "start_date": start_date, "end_date": end_date}
     if figsize is not None:
         kwargs["figsize"] = figsize
+    if column in comparisons():
+        return [plot_comparison(campaign_folder, comparisons()[column], **kwargs)]
     column = csv_columns().get(column, column)
     if output_grain().get(input_file) == "company":
         return plot_company_stat(campaign_folder, column, input_file=input_file, **kwargs)
