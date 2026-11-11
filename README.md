@@ -9,8 +9,9 @@ Save game analyzer for Victoria 3 which retrieve information from autosaves acro
     - Infamy
     - Prestige (consequently goods produced)
     - Technologies and table of technologies comparison
-    - Demographics, including Standard of Living
+    - Demographics, including Standard of Living and estimated birth rate, mortality and natural growth
     - Finance, including GDP, money and debt
+    - Year-over-year growth of GDP, population and standard of living, compared across saves
 - Watch the autosave file and copy it to a designated folder whenever it's changed
 - View content of a save file (after extraction)
 
@@ -23,8 +24,7 @@ The melter integrated in this program is available in Windows and Linux platform
 
 Paradox definition files are required by the analyzers and **will not be provided** in the repository.
 
-Works for games in version 1.13.11
-The program is not guaranteed to work in any other version (it will certainly break in earlier versions because Paradox changes variable names over time and I am too lazy to maintain backward compatibility)
+Works for games in version 1.15.0
 
 The script is intended (atleast in the future) to be compatible with as many mods as possible and so we try not to hardcode any variable into the script, relying all data from the provided definition files
 
@@ -32,18 +32,19 @@ The script is intended (atleast in the future) to be compatible with as many mod
 Pandas, Numpy, Matplotlib, Zstandard, PySide6
 
 ## How to install and use
-Either clone this repository (it now has everything you need) to use, or download from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.13.0)
+Either clone this repository (it now has everything you need) to use, or download from [here](https://github.com/OakenTrader/Garibaldi/releases/tag/v0.14.0)
 
 After setup, press `run_linux.sh` or `run_windows.sh` to start the program.
 1. Configure the program by giving it the location of the game `.../steam/steamapps/common/Victoria 3`, set the localization language, optionally add the folder containing the mods you play the game with (currently supports saves with only 1 mod at a time)
 2. Accumulate save files during a game session by going to `Process`, select a folder to place all saves from a campaign. Then, browse for the location of the autosave file, and press start. The program will save the autosaves periodically to the campaign folder in `saves` folder as the game progresses.
-3. After stopping, start parsing the files to extract the statistics. Adjust the number of threads to speed up the process. The graphs will be saved in `campaign_data` within the campaign folder, and statistics for individual saves can be viewed in respective subfolders.
+3. After stopping, start parsing the files to extract the statistics. Adjust the number of threads to speed up the process. The graphs will be saved in `campaign_data` within the campaign folder, together with the player statistics (CSV files) of the latest save, a `leaderboard.csv` that ranks the players by technologies and a plot of how each player country's population divides over standard of living in the latest save (`standard_of_living_distribution.png`), and statistics for individual saves can be viewed in respective subfolders.
 4. You can also view the stats and graphs interactively.
 
 The project is not polished yet (after years of free-time work). Do not hesitate to open an issue for bug reports and suggestions!
 
-## Version 0.13.0
-- GUI overhaul with Pyside6, with improved interactive graphs experience
-- Several more statistics (income, expenses, companies)
-- Implement the Rust version of save parser for even more speed
-- Optimize the checking process
+## Version 0.14.0
+- Update to game version 1.15.0
+- Add calculation of population growth, including birth rate and mortality rate
+- Add the standard of living distribution 
+- Put the data from the latest save to the campaign_data folder
+- Add estimation of total war casualties of countries over time

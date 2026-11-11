@@ -16,14 +16,16 @@ import os
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
+    QApplication, QButtonGroup, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
     QLabel, QMessageBox, QProgressBar, QPushButton, QRadioButton, QSlider,
     QSpinBox, QStatusBar, QVBoxLayout, QWidget,
 )
 
 from src.checkers.manager import all_check_keys, plot_results_job
 from src.gui.base import GaribaldiWindow, readonly_line_edit
+from src.gui.busy import busy
 from src.gui.jobs import JobRunner, Phase
+from src.helpers.export import zip_campaign_data
 from src.helpers.extraction import parse_files
 from src.helpers.save_watch import watch_save_job
 from src.helpers.utility import is_reserved_folder
@@ -76,6 +78,10 @@ class ProcessWindow(GaribaldiWindow):
         new = QPushButton("New…")
         new.clicked.connect(self._new_campaign)
         row.addWidget(new)
+        export = QPushButton("Export…")
+        export.setToolTip("Zip the campaign's CSV and metadata files")
+        export.clicked.connect(self._export_campaign)
+        row.addWidget(export)
         return box
 
     def _refresh_campaigns(self):
@@ -111,6 +117,27 @@ class ProcessWindow(GaribaldiWindow):
         self.settings.set("Campaign Folder", name)
         self._refresh_campaigns()
         self.campaign_combo.setCurrentText(name)
+
+    def _export_campaign(self):
+        campaign = self.campaign_combo.currentText()
+        if not campaign:
+            QMessageBox.critical(self, "Error", "Select a campaign folder first.")
+            return
+        # Synchronous: zipping CSVs is short, and the freeze keeps the user from
+        # starting a parse that would rewrite them mid-zip.
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            with busy():
+                path, count = zip_campaign_data(campaign)
+        except OSError as error:
+            QMessageBox.critical(self, "Export failed", str(error))
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        if count == 0:
+            QMessageBox.warning(self, "Nothing to export", f"No parsed data found in saves/{campaign}. Parse it first.")
+            return
+        self.status.showMessage(f"Exported {count} files to {path}", 12000)
 
     # -- watch -------------------------------------------------------------
 

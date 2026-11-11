@@ -444,9 +444,9 @@ class StatisticsPage(QWidget):
                 other.column for other in category.leaves
                 if other.input_file == leaf.input_file
                 and other.column in frame.columns
-                and other.column != leaf.column
+                and other.column != leaf.table_column
             ]
-        values = ([leaf.column] if leaf.column in frame.columns else []) + siblings
+        values = ([leaf.table_column] if leaf.table_column in frame.columns else []) + siblings
         if values:
             frame = frame[identity + values]
         self.table_model.set_frame(frame)

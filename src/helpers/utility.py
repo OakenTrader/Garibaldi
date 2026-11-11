@@ -5,6 +5,7 @@ import sys, os, shutil, fnmatch, pickle, gzip, glob, json, re
 import zstandard as zstd
 from src.extractor import ExtractorCommon
 import time, functools
+from decimal import Decimal, InvalidOperation
 
 def t_execute(func):
     @functools.wraps(func)
@@ -97,6 +98,36 @@ def load_def(address, mode="Common Directory"):
     data = data.data
     return data
 
+_MODIFIER_BLOCKS = ("unscaled", "workforce_scaled", "level_scaled")
+
+
+def _number(value):
+    try:
+        return Decimal(value) if isinstance(value, str) else None
+    except InvalidOperation:
+        return None
+
+
+def _inject(target, addition, in_modifier=False):
+    """``INJECT:`` the script ``addition`` into the entry ``target``, in place.
+
+    A block merges key by key. Inside a modifier block (``modifier``, ``member_modifier``,
+    ``building_modifiers`` and the like) a number the entry already has is added to, since a
+    modifier given twice counts twice: a mod's ``state_mortality_mult = 0.08`` injected into a
+    vanilla ``-0.1`` makes ``-0.02``. Anything else the addition replaces.
+    """
+    for key, value in addition.items():
+        old = target.get(key)
+        modifier = in_modifier or key.endswith(("modifier", "modifiers")) or key in _MODIFIER_BLOCKS
+        if isinstance(old, dict) and isinstance(value, dict):
+            _inject(old, value, modifier)
+        elif in_modifier and _number(old) is not None and _number(value) is not None:
+            target[key] = format((_number(old) + _number(value)).normalize(), "f")
+        else:
+            target[key] = value
+    return target
+
+
 def load_def_multiple(folder, mode="Common Directory", depth_add=0):
     """
     Load a define (content) script from the vanilla folder, and then its mod counterpart if exists.
@@ -139,7 +170,7 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
                             if actual_key not in defs:
                                 raise ValueError(f"INJECT: {actual_key} does not exist")
                             if isinstance(value, dict) and isinstance(defs[actual_key], dict):
-                                defs[actual_key].update(value)
+                                _inject(defs[actual_key], value)
                             else:
                                 defs[actual_key] = value
                         elif prefix == 'REPLACE':
@@ -149,7 +180,7 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
                         elif prefix == 'TRY_INJECT':
                             if actual_key in defs:
                                 if isinstance(value, dict) and isinstance(defs[actual_key], dict):
-                                    defs[actual_key].update(value)
+                                    _inject(defs[actual_key], value)
                                 else:
                                     defs[actual_key] = value
                         elif prefix == 'TRY_REPLACE':
@@ -160,7 +191,7 @@ def load_def_multiple(folder, mode="Common Directory", depth_add=0):
                         elif prefix == 'INJECT_OR_CREATE':
                             if actual_key in defs:
                                 if isinstance(value, dict) and isinstance(defs[actual_key], dict):
-                                    defs[actual_key].update(value)
+                                    _inject(defs[actual_key], value)
                                 else:
                                     defs[actual_key] = value
                             else:

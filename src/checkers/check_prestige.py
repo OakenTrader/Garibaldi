@@ -8,13 +8,21 @@ from src.helpers.utility import *
 There are several sources of prestige, some fixed to a certain amount, some scaling by another metric. (Vickypedia)
 """
 prestige_columns = ["tier prestige", "army projection", "navy projection", "GDP prestige",
-            "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "prestige goods prestige", "monuments prestige", "events prestige", "modifiers"]
+            "subject gdp prestige", "subject army projection", "subject navy projection", "production leader prestige", "prestige goods prestige", "monuments prestige", "events prestige",
+            "ruler prestige", "disband penalty", "modifiers"]
 
 PRESTIGE_MODIFIERS = ["country_prestige_add", "country_prestige_mult",
                       "country_prestige_from_army_power_projection_mult",
                       "country_prestige_from_navy_power_projection_mult"]
-# Techs grow the ship damage/armor terms that navy power projection is built from.
-SHIP_STAT_MODIFIERS = ["ship_hull_damage_add", "ship_crew_damage_add", "ship_armor_add"]
+# Since 1.15 a ship's power projection is its own stat: the type's and modifications'
+# ``ship_power_projection_add``, scaled by the country's laws and the ship's veterancy.
+SHIP_STATS = ("ship_power_projection_add", "ship_hit_points_max_add", "ship_crew_max_add")
+SHIP_PROJECTION_MULT = "ship_power_projection_mult"
+# A unit's power projection uses its offense and defense with every country-wide bonus
+# applied (technologies, laws, timed modifiers, ...), not just the unit type and veterancy.
+# Terrain and battle conditions are left out: they only exist in a battle.
+UNIT_STAT_NAMES = ("offense_add", "defense_add", "offense_mult", "defense_mult")
+UNIT_GENERIC_MODIFIERS = [f"unit_{prefix}{stat}" for prefix in ("", "army_") for stat in UNIT_STAT_NAMES]
 
 
 def prestige_modifiers(definitions):
@@ -25,7 +33,19 @@ def prestige_modifiers(definitions):
     unit_stats = [f"unit_{unit_type}_{stat}"
                   for unit_type in definitions["combat_unit_types"]
                   for stat in ("offense_mult", "defense_mult", "offense_add", "defense_add")]
-    return PRESTIGE_MODIFIERS + unit_stats + SHIP_STAT_MODIFIERS
+    return PRESTIGE_MODIFIERS + unit_stats
+
+
+_MONTH_DAYS = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+
+def calendar_day(date):
+    """Day number on the game's 365-day calendar (no leap years), from ``y.m.d[.h]`` or ``[y, m, d]``.
+
+    The hour is dropped: the engine's disband penalty works in whole days.
+    """
+    year, month, day = (int(part) for part in (date.split(".") if isinstance(date, str) else date)[:3])
+    return year * 365 + sum(_MONTH_DAYS[:month - 1]) + day - 1
 
 
 def _prestige_production_methods(ctx):
@@ -90,7 +110,7 @@ class CheckPrestige(Checker):
     requirements = ["country_manager", "new_combat_unit_manager", "states",
                     "interest_groups", "military_formation_manager", "building_manager",
                     "companies", "technology", "character_manager", "player_manager", "pacts", "pops",
-                    "ship_manager", "ship_templates_manager"]
+                    "ship_manager", "ship_templates_manager", "laws"]
     column_backed = {"pops": "pop"}  # reached only through the declared aggregates
     aggregates = [EMPLOYED_WORKFORCE, GOODS_PRODUCED, MONUMENT_PRESTIGE,
                   MONUMENT_PRESTIGE_MULT]
@@ -106,7 +126,11 @@ class CheckPrestige(Checker):
         "company_types", "subject_types", "interest_group_traits", "character_traits",
         "technology/technologies", "combat_unit_types", "combat_unit_groups",
         "combat_unit_experience_levels", "mobilization_options", "ship_types",
-        "ship_modifications",
+        "ship_modifications", "ship_veterancy_levels", "laws",
+        # Prestige per point of power projection moved from defines to script values in 1.15.
+        "script_values",
+        # Some country types (decentralized) have no prestige at all.
+        "country_types",
     )
     output = {"prestige.csv": ["total_prestige"] + prestige_columns, "goods_produced.csv": ["goods_produced"]}
     # Goods production is written here (production leaders need it) but belongs in
@@ -136,15 +160,18 @@ class CheckPrestige(Checker):
         needed_defines = {
             "MIN_SPOT_PRESTIGE_AWARD", "PRESTIGE_FROM_COUNTRY_GDP_DIVISOR",
             "PRESTIGE_FROM_COUNTRY_GDP", "POWER_PROJECTION_DIVISOR",
-            "PRESTIGE_FROM_ARMY_POWER_PROJECTION", "PRESTIGE_FROM_NAVY_POWER_PROJECTION",
-            "PRESTIGE_FROM_SUBJECT_GDP", "PRESTIGE_FROM_SUBJECT_ARMY_POWER_PROJECTION",
-            "PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION",
+            "PRESTIGE_FROM_SUBJECT_GDP",
             # Goods-leaderboard prestige is scaled by global GDP since 1.12.
             "GOODS_LEADERBOARD_GLOBAL_GDP_SCALING", "GOODS_LEADERBOARD_PRESTIGE_BASE",
             "GOODS_LEADERBOARD_PRESTIGE_SCALED", "PRESTIGE_FROM_PRESTIGE_GOODS_PRODUCTION",
-            # Ship power-projection weights (navy prestige).
-            "SHIP_POWER_PROJECTION_HULL_DAMAGE_MULTIPLIER", "SHIP_POWER_PROJECTION_CREW_DAMAGE_MULTIPLIER",
-            "SHIP_POWER_PROJECTION_ARMOR_MULTIPLIER", "SHIP_POWER_PROJECTION_HIT_POINTS_MULTIPLIER",
+            # Navy power projection (1.15): a ship counts while its crew is above the active
+            # share, and its projection is scaled by hit points over this reference.
+            "PRESTIGE_FROM_NAVY_POWER_PROJECTION_HIT_POINTS_REFERENCE",
+            "ACTIVE_SHIP_LIVING_CREW_PERCENTAGE",
+            # Disbanding a unit costs prestige that fades linearly over this many years.
+            "DISBAND_PRESTIGE_PENALTY_YEARS",
+            # Conscripts (units of this building) do not count towards army prestige.
+            "CONSCRIPTION_CENTER_BUILDING",
         } | {f"COUNTRY_TIER_{t.upper()}_PRESTIGE" for t in tiers}
 
         defines_file = definitions["defines"]
@@ -159,10 +186,6 @@ class CheckPrestige(Checker):
                 raise KeyError(f"Duplicate defines definition in section '{key}'")
             defines.update(defs)
 
-        # Static modifiers carry only prestige's own four; the combat stats come
-        # from techs.
-        def_modifiers = {k:v for k, v in definitions["static_modifiers"].items() if any([vi in PRESTIGE_MODIFIERS for vi in v.keys()])}
-        
         # key_veterancy = resolve_compatibility("veterancy", version)
         key_veterancy = "current_veterancy_level"
 
@@ -198,39 +221,69 @@ class CheckPrestige(Checker):
         army_type_groups = {type_name: def_unit_type_groups[unit_type["group"]].get("type", "army") for type_name, unit_type in def_unit_types.items() if "group" in unit_type}
 
         # Prestige's own modifiers plus the combat stats, for the tech and trait loops.
-        relevant_modifiers = prestige_modifiers(definitions)
-        def_ship_types = dict()
-        for ship_type_name, ship_type in definitions["ship_types"].items():
-            mod = retrieve_from_tree(ship_type, "modifier", {})
-            def_ship_types[ship_type_name] = {
-                "hull": float(mod.get("ship_hull_damage_add", 0)),
-                "crew_dmg": float(mod.get("ship_crew_damage_add", 0)),
-                "armor": float(mod.get("ship_armor_add", 0)),
-            }
-        # Gun/armor/etc. modifications add flat combat stats on top of the base ship type.
-        def_ship_modifications = dict()
-        for mod_name, ship_mod in definitions["ship_modifications"].items():
-            m = retrieve_from_tree(ship_mod, "modifier", {})
-            def_ship_modifications[mod_name] = {
-                "hull": float(m.get("ship_hull_damage_add", 0)),
-                "crew_dmg": float(m.get("ship_crew_damage_add", 0)),
-                "armor": float(m.get("ship_armor_add", 0)),
-            }
+        relevant_modifiers = prestige_modifiers(definitions) + UNIT_GENERIC_MODIFIERS
+        # Static modifiers that the saved timed modifiers can refer to.
+        def_modifiers = {k: v for k, v in definitions["static_modifiers"].items()
+                         if any(vi in relevant_modifiers for vi in v.keys())}
+        def ship_stats_of(definition):
+            mod = retrieve_from_tree(definition, "modifier", {})
+            return {stat: float(mod.get(stat, 0)) for stat in SHIP_STATS}
+
+        def_ship_types = {name: ship_stats_of(ship_type)
+                          for name, ship_type in definitions["ship_types"].items()}
+        # Gun/armor/etc. modifications add flat stats on top of the base ship type.
+        def_ship_modifications = {name: ship_stats_of(ship_mod)
+                                  for name, ship_mod in definitions["ship_modifications"].items()}
         # Each ship references a design version -> ship type + chosen modifications. Precompute
-        # the (base type + modifications) combat stats per version id.
+        # the (base type + modifications) stats per version id.
         ship_version_stats = dict()
         for version_id, version in retrieve_from_tree(save_data, ["ship_templates_manager", "versions", "database"], null={}).items():
             info = retrieve_from_tree(version, "info")
             if not isinstance(info, dict):
                 continue
-            base = def_ship_types.get(info.get("type"), {"hull": 0, "crew_dmg": 0, "armor": 0})
-            stats = dict(base)
+            stats = dict(def_ship_types.get(info.get("type"), dict.fromkeys(SHIP_STATS, 0.0)))
             for mod_name in retrieve_from_tree(info, ["modifications", "value"], null=[]):
-                mod = def_ship_modifications.get(mod_name)
-                if mod:
-                    for k in ("hull", "crew_dmg", "armor"):
-                        stats[k] += mod[k]
+                for stat, value in def_ship_modifications.get(mod_name, {}).items():
+                    stats[stat] += value
             ship_version_stats[version_id] = stats
+
+        # Ship veterancy: a ship's experience puts it at the highest level whose threshold it has
+        # reached, and that level adds to its power projection.
+        veterancy_steps = sorted(
+            (float(level.get("experience_threshold", 0)),
+             float(retrieve_from_tree(level, ["modifier", SHIP_PROJECTION_MULT], null=0)))
+            for level in definitions["ship_veterancy_levels"].values()
+            if isinstance(level, dict) and "experience_threshold" in level)
+
+        def ship_veterancy_mult(experience):
+            bonus = 0.0
+            for threshold, mult in veterancy_steps:
+                if experience >= threshold:
+                    bonus = mult
+            return bonus
+
+        # The laws that scale every ship's power projection (the navy model).
+        law_ship_projection = {
+            name: float(retrieve_from_tree(law, ["modifier", SHIP_PROJECTION_MULT], null=0))
+            for name, law in definitions["laws"].items()
+            if isinstance(law, dict) and retrieve_from_tree(law, ["modifier", SHIP_PROJECTION_MULT]) is not None}
+        # Laws also carry prestige modifiers of their own (the professional navy law raises
+        # the prestige earned from navy power projection).
+        law_prestige_modifiers = {
+            name: {modifier: float(value) for modifier, value in law["modifier"].items()
+                   if modifier in PRESTIGE_MODIFIERS}
+            for name, law in definitions["laws"].items()
+            if isinstance(law, dict) and isinstance(law.get("modifier"), dict)}
+        country_ship_projection_mult = dict()
+        country_law_prestige = dict()
+        for law in save_data["laws"]["database"].values():
+            if not isinstance(law, dict) or law.get("active") != "yes":
+                continue
+            if law.get("law") in law_ship_projection:
+                country_ship_projection_mult[law.get("country")] = (
+                    country_ship_projection_mult.get(law.get("country"), 0.0) + law_ship_projection[law["law"]])
+            if law_prestige_modifiers.get(law.get("law")):
+                country_law_prestige.setdefault(law.get("country"), {})[law["law"]] = law_prestige_modifiers[law["law"]]
 
         combat_units = save_data["new_combat_unit_manager"]["database"]
         formations = save_data["military_formation_manager"]["database"]
@@ -288,12 +341,16 @@ class CheckPrestige(Checker):
         for key, veterancy in veterancy_def.items():
             def_veterancy[veterancy["level"]] = veterancy
 
-        pp_prestige_divisor_land = float(defines["PRESTIGE_FROM_ARMY_POWER_PROJECTION"])
-        pp_prestige_divisor_navy = float(defines["PRESTIGE_FROM_NAVY_POWER_PROJECTION"])
-        ship_pp_hull_mult = float(defines["SHIP_POWER_PROJECTION_HULL_DAMAGE_MULTIPLIER"])
-        ship_pp_crew_dmg_mult = float(defines["SHIP_POWER_PROJECTION_CREW_DAMAGE_MULTIPLIER"])
-        ship_pp_armor_mult = float(defines["SHIP_POWER_PROJECTION_ARMOR_MULTIPLIER"])
-        ship_pp_hp_mult = float(defines["SHIP_POWER_PROJECTION_HIT_POINTS_MULTIPLIER"])
+        # Prestige per point of power projection (script values since 1.15, defines before).
+        script_values = definitions["script_values"]
+        pp_prestige_divisor_land = float(script_values["prestige_from_army_power_projection"])
+        pp_prestige_divisor_navy = float(script_values["prestige_from_navy_power_projection"])
+        ship_hit_points_reference = float(defines["PRESTIGE_FROM_NAVY_POWER_PROJECTION_HIT_POINTS_REFERENCE"])
+        ship_active_crew_share = float(defines["ACTIVE_SHIP_LIVING_CREW_PERCENTAGE"])
+        conscription_building = str(defines["CONSCRIPTION_CENTER_BUILDING"]).strip('"')
+        buildings = save_data["building_manager"]["database"]
+        disband_penalty_days = float(defines["DISBAND_PRESTIGE_PENALTY_YEARS"]) * 365
+        today = calendar_day(save_date)
 
         """
         Companies
@@ -326,6 +383,7 @@ class CheckPrestige(Checker):
 
         def_character_traits = dict()
         characters = save_data["character_manager"]["database"]
+        company_database = save_data["companies"]["database"]
         # Consider only ruler modifier
         for character_trait_name, character_trait in definitions["character_traits"].items():
             if (ruler_modifiers := retrieve_from_tree(character_trait, "country_modifier")) is None:
@@ -474,6 +532,10 @@ class CheckPrestige(Checker):
                     if modifier in relevant_modifiers:
                         national_modifiers[modifier][f"military_wages_{mil_salaries}"] = float(value)
 
+            for law_name, law_modifiers in country_law_prestige.get(country_key, {}).items():
+                for modifier, value in law_modifiers.items():
+                    national_modifiers[modifier][law_name] = value
+
             """
             Timed and untimed modifiers registered on national level
             Certain events, such as expeditions to discover the South Pole or the source of Nile (Vickypedia)
@@ -502,13 +564,21 @@ class CheckPrestige(Checker):
             Ruler traits
             """
 
-            ruler_traits = retrieve_from_tree(characters, [country["ruler"], "traits", "value"], null=[])
+            # A chartered company country has no ruler of its own: its founding company's CEO
+            # holds the ruler role, so that character's traits apply.
+            ruler = country["ruler"]
+            if ruler not in characters:
+                ruler = retrieve_from_tree(company_database, [country.get("founding_company"), "ceo"])
+            ruler_traits = retrieve_from_tree(characters, [ruler, "traits", "value"], null=[])
             for ruler_trait in ruler_traits:
                 if ruler_trait not in def_character_traits:
                     continue
                 for country_modifier, value in def_character_traits[ruler_trait]["country_modifier"].items():
                     if country_modifier in relevant_modifiers:
                         national_modifiers[country_modifier][ruler_trait] = float(value)
+                        if country_modifier == "country_prestige_add":
+                            # The explorer trait: flat prestige for as long as it is the ruler's.
+                            national_prestige["ruler prestige"] += float(value)
             
             """
             A country's tier provides a small amount of prestige. This is inherent to a specific nation and can only be increased by forming a new, higher tier nation. (Vickypedia)
@@ -576,6 +646,11 @@ class CheckPrestige(Checker):
                     if "units" not in formation:
                         continue
                     for key2, unit in formation["units"].items():
+                        # Army prestige counts regular units only; those raised in the
+                        # conscription center are conscripts (CCountry::CalcTotalPowerProjectionImpl
+                        # called with the regular service type).
+                        if retrieve_from_tree(buildings, [unit.get("building"), "building"]) == conscription_building:
+                            continue
                         # Calculate Offense/Defennse
                         unit_modifiers = {"unit_offense_add":{}, "unit_defense_add":{}, "unit_offense_mult":{}, "unit_defense_mult":{}}
                         # Base
@@ -598,7 +673,11 @@ class CheckPrestige(Checker):
                                     continue
                                 unit_modifiers[vet_modifier][f"Veterancy level {unit[key_veterancy]}"] = float(value)
 
-                        # print(unit_modifiers)
+                        # Country-wide bonuses, for all units, for army units, and for this unit type.
+                        for stat in UNIT_STAT_NAMES:
+                            for key in (f"unit_{stat}", f"unit_army_{stat}", f"unit_{unit_type}_{stat}"):
+                                for source, value in national_modifiers.get(key, {}).items():
+                                    unit_modifiers[f"unit_{stat}"][f"{key} {source}"] = value
                         unit_offense = sum(unit_modifiers["unit_offense_add"].values())
                         unit_offense_mult = sum(unit_modifiers["unit_offense_mult"].values())
                         unit_defense = sum(unit_modifiers["unit_defense_add"].values())
@@ -607,21 +686,25 @@ class CheckPrestige(Checker):
                         unit_pp = float(unit["current_manpower"]) * (unit_offense * (1 + unit_offense_mult) + unit_defense * (1 + unit_defense_mult)) / 2 / pp_divisor
                         army_power_projection[unit_type_group] += unit_pp
 
-            # Navy power projection: ships sit outside mil_formations. Each ship's
-            # PP = 0.33*(hull + crew_damage + armor) + 0.1*max_hit_points (defines).
-            # Ships carry no type, so infer it from crew size (tech-invariant) and hit
-            # points; tech bonuses grow the damage/armor terms, hit points are stored.
-            ship_hull_bonus = sum(retrieve_from_tree(national_modifiers, ["ship_hull_damage_add"], null={}).values())
-            ship_crew_dmg_bonus = sum(retrieve_from_tree(national_modifiers, ["ship_crew_damage_add"], null={}).values())
-            ship_armor_bonus = sum(retrieve_from_tree(national_modifiers, ["ship_armor_add"], null={}).values())
+            # Navy power projection: ships sit outside mil_formations. Since 1.15 a ship's
+            # projection is its ``ship_power_projection_add`` (design type + modifications),
+            # scaled by (1 + navy-model law + veterancy), times max hit points over a
+            # reference (NShips::CalcHullWeightedPowerProjection). A ship whose living crew
+            # is at or below the active share of its maximum crew counts for nothing.
+            law_mult = country_ship_projection_mult.get(country_key, 0.0)
             navy_pp = 0.0
             for ship in retrieve_from_tree(country, "ships", null={}).values():
-                stats = ship_version_stats.get(ship.get("version"), {"hull": 0, "crew_dmg": 0, "armor": 0})
-                ship_hp = float(ship.get("hit_points", 0))
-                navy_pp += (ship_pp_hull_mult * (stats["hull"] + ship_hull_bonus)
-                            + ship_pp_crew_dmg_mult * (stats["crew_dmg"] + ship_crew_dmg_bonus)
-                            + ship_pp_armor_mult * (stats["armor"] + ship_armor_bonus)
-                            + ship_pp_hp_mult * ship_hp)
+                stats = ship_version_stats.get(ship.get("version"))
+                if stats is None or stats["ship_crew_max_add"] <= 0:
+                    continue
+                crew = sum(float(slot.get("crew", 0)) for slot in retrieve_from_tree(ship, "crew", null={}).values()
+                           if isinstance(slot, dict))
+                if crew / stats["ship_crew_max_add"] <= ship_active_crew_share:
+                    continue
+                experience = float(ship.get("veterancy_experience", 0))
+                mult = 1 + law_mult + ship_veterancy_mult(experience)
+                navy_pp += (stats["ship_power_projection_add"] * mult
+                            * stats["ship_hit_points_max_add"] / ship_hit_points_reference)
             army_power_projection["navy"] = navy_pp
 
             # if sum(army_power_projection.values()) > 2000:
@@ -669,6 +752,19 @@ class CheckPrestige(Checker):
             national_prestige["monuments prestige"] = monument_prestige.get(country_key, 0)
             national_modifiers["country_prestige_mult"]["monuments"] = monument_prestige_mult.get(country_key, 0)
 
+            """
+            Disbanding battalions and ships costs prestige (new in 1.15). Each disbanding is
+            logged with the prestige it cost, which then fades linearly to zero over
+            DISBAND_PRESTIGE_PENALTY_YEARS. The engine counts whole days of the 365-day calendar.
+            """
+            for penalty in retrieve_from_tree(country, "disband_prestige_penalties", null={}).values():
+                if not isinstance(penalty, dict):
+                    continue
+                start = calendar_day(penalty["date"])
+                end = start + disband_penalty_days
+                remaining = max(0, end - today)
+                national_prestige["disband penalty"] -= float(penalty["prestige"]) * remaining / disband_penalty_days
+
 
             country["national_prestige"] = national_prestige
             country["national_modifiers"] = national_modifiers
@@ -678,10 +774,11 @@ class CheckPrestige(Checker):
         Subjects contribute prestige to their overlord based on their own military and economic might. These contributions are reduced compared to the amount generated for the country itself. (Vickypedia)
         """
         prestige_per_subject_gdp = float(defines["PRESTIGE_FROM_SUBJECT_GDP"])
-        prestige_per_subject_army_pp = float(defines["PRESTIGE_FROM_SUBJECT_ARMY_POWER_PROJECTION"])
-        prestige_per_subject_navy_pp = float(defines["PRESTIGE_FROM_SUBJECT_NAVY_POWER_PROJECTION"])
+        prestige_per_subject_army_pp = float(script_values["prestige_from_subject_army_power_projection"])
+        prestige_per_subject_navy_pp = float(script_values["prestige_from_subject_navy_power_projection"])
 
         subject_manager(save_data, definitions, countries)
+        def_country_types = definitions["country_types"]
 
         for country_id, country in countries.items():
             if not isinstance(country, dict):
@@ -702,6 +799,9 @@ class CheckPrestige(Checker):
             country_name = get_country_name(country, localization)
             df_country = {"id":country_id, "tag":country_tag, "country":country_name, "total":total_prestige * (1 + total_modifiers)}
             df_country.update(country["national_prestige"])
+            if retrieve_from_tree(def_country_types, [country.get("country_type"), "uses_prestige"], null="yes") == "no":
+                # Decentralized countries always have a prestige of 0.
+                df_country.update({key: 0 for key in df_country if key in prestige_columns or key == "total"})
             df_prestige.append(df_country)
 
         df_prestige = pd.DataFrame(df_prestige, columns=["id", "tag", "country", "total"] + prestige_columns)

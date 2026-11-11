@@ -4,7 +4,11 @@ Functions that manage data plotting.
 
 import os, warnings, time
 from src.helpers.utility import *
+from src.helpers.compare import break_at_gaps, collect_series
+from src.helpers.latest_save import latest_save_folder
+from src.helpers.snapshot import population_shares
 from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 from random import randint
 from matplotlib import colors as mpl_colors
 import numpy as np
@@ -217,6 +221,286 @@ def plot_stat(campaign_folder, mode, input_file=None, limit=10, players=True, ti
     if save:
         fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
     print(f"Finished plotting {mode} in {time.time() - t0} seconds")
+    return fig
+
+def accumulate_by_country(frames, mode):
+    """Running total of ``mode`` per country over a campaign, from per-war rows.
+
+    ``frames`` maps a save's year number to that save's rows, one per (war, country),
+    with the columns ``id``, ``tag``, ``country``, ``play_id``, ``start_date`` and
+    ``mode``. A save lists only the wars still running; an ended war is gone. The
+    count of one war never decreases while it runs, so its highest value seen so far
+    is what it has cost to date, and a country's total is the sum over its wars. A
+    war keeps counting after it leaves the saves.
+
+    A war can hand a country's record to another country id while it runs (a
+    revolution that takes over a country). Counting both would count the same dead
+    twice, so ids are linked into one country when, inside one war, an id with a
+    record vanishes as a new id appears holding at least that much.
+
+    Countries are identified as ``plot_stat`` does, by ``(tag, country)``: two ids
+    with the same tag and name (a country re-created by a revolution) are one line.
+
+    A war that began and ended between two saves is never seen, and the last stretch
+    of every war before its end is lost: the total is a floor.
+
+    Returns ``(series, members)``, keyed by ``(tag, country)``: ``series[key]`` is
+    ``[[year, total], ...]`` with a point for every save (0 before the country's
+    first war) and ``members[key]`` every country id counted in it.
+    """
+    years = sorted(frames)
+    saves = []
+    for year in years:
+        wars, names = dict(), dict()
+        for row in frames[year].itertuples(index=False):
+            wars.setdefault((row.play_id, row.start_date), dict())[row.id] = getattr(row, mode)
+            names[row.id] = (row.tag, row.country)
+        saves.append((wars, names))
+
+    parent = dict()
+
+    def root(country_id):
+        while parent.get(country_id, country_id) != country_id:
+            country_id = parent[country_id]
+        return country_id
+
+    last_seen = dict()
+    for wars, _ in saves:
+        for war, now in wars.items():
+            then = last_seen.get(war, dict())
+            gone = {c: v for c, v in then.items() if c not in now and v > 0}
+            for new_id in sorted((c for c in now if c not in then), key=lambda c: -now[c]):
+                fits = [c for c, v in gone.items() if v <= now[new_id]]
+                if fits:
+                    old_id = max(fits, key=lambda c: gone[c])
+                    parent[root(old_id)] = root(new_id)
+                    del gone[old_id]
+            last_seen[war] = now
+
+    peak = dict()
+    snapshots = dict()
+    labels = dict()
+    for year, (wars, names) in zip(years, saves):
+        for war, now in wars.items():
+            held = dict()
+            for country_id, value in now.items():
+                held[root(country_id)] = held.get(root(country_id), 0) + value
+            for country_root, value in held.items():
+                peak[(war, country_root)] = max(peak.get((war, country_root), 0), value)
+        for country_id, name in names.items():
+            labels[root(country_id)] = name
+        totals = dict()
+        for (_, country_root), value in peak.items():
+            totals[country_root] = totals.get(country_root, 0) + value
+        snapshots[year] = totals
+    series, members = dict(), dict()
+    for country_root, name in labels.items():
+        points = series.setdefault(name, [[year, 0] for year in years])
+        for point, year in zip(points, years):
+            point[1] += snapshots[year].get(country_root, 0)
+        members.setdefault(name, set()).update(
+            c for c in parent.keys() | {country_root} if root(c) == country_root)
+    return series, members
+
+
+def plot_cumulative_stat(campaign_folder, mode, input_file, limit=15, players=True, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot a running total over the campaign for a file with one row per (war, country)
+
+    A sibling of ``plot_stat`` for statistics that a save only shows while they are
+    live (war casualties). The total of a country is built by ``accumulate_by_country``
+    and starts at the first save in range.
+
+    Reads ``data/{input_file}`` of each save, which holds every country, where
+    ``plot_stat`` reads the players-only copy.
+
+    players: True plots the players and the campaign's extra AI tags; False plots
+        the ``limit`` countries with the highest total at the end of the range.
+    Other arguments mirror ``plot_stat``.
+
+    Returns the Figure.
+    """
+    if title is None:
+        title = mode
+    if save_name is None:
+        save_name = title
+    img_folder = input_file.replace(".csv", "")
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
+
+    set_player_list, set_ai_list = campaign_tag_filters(campaign_folder)
+
+    t0 = time.time()
+    frames = dict()
+    player_ids = set()
+    for save_folder, year_number, metadata in iter_save_folders(campaign_folder, start_date, end_date):
+        if input_file not in os.listdir(f"{save_folder}/data"):
+            print(f"No {input_file} at {save_folder}")
+            continue
+        frames[year_number] = pd.read_csv(f"{save_folder}/data/{input_file}")
+        player_ids.update(int(p[0]) for p in metadata["players"])
+    if not frames:
+        raise ValueError(f"No {input_file} data to plot for {campaign_folder} in {start_date}-{end_date}")
+
+    series, members = accumulate_by_country(frames, mode)
+    final = {name: points[-1][1] for name, points in series.items()}
+    if set_player_list:
+        chosen = [c for c in series if c[0] in set_player_list + set_ai_list]
+    elif players:
+        chosen = [c for c in series if members[c] & player_ids or c[0] in set_ai_list]
+    else:
+        chosen = sorted(series, key=lambda c: final[c], reverse=True)[:limit]
+    chosen = sorted(chosen, key=lambda c: final[c], reverse=True)
+    if not chosen:
+        raise ValueError(f"No {mode} to plot for {campaign_folder} in {start_date}-{end_date}")
+
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    # A save shows the wars running on its date and nothing in between, so a total is
+    # known only at the saves: it steps, and a long stretch with no save is shaded.
+    years = sorted(frames)
+    shaded = False
+    for before, after in zip(years, years[1:]):
+        if after - before > 1:
+            ax.axvspan(before, after, color="gray", alpha=0.15, label=None if shaded else "No saves")
+            shaded = True
+    for tag, name in chosen:
+        country_color = get_color(tag)
+        if "Revolutionary" in name:
+            country_color[-1] *= 0.7
+        points = np.array(series[(tag, name)])
+        ax.plot(points[:, 0], points[:, 1], label=name, color=country_color, linewidth=3.5, drawstyle="steps-post")
+        ax.plot(points[:, 0], points[:, 1], linestyle="--", color="black", linewidth=1, drawstyle="steps-post")
+
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:,.0f}"))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.set_title(f"{title} graph over the years")
+    ax.grid(True)
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    print(f"Finished plotting {mode} in {time.time() - t0} seconds")
+    return fig
+
+def plot_comparison(campaign_folder, comparison, limit=10, players=True, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot a statistic derived across saves, such as a growth rate (see ``compare``)
+
+    A sibling of ``plot_stat`` for statistics no single save holds. ``comparison``
+    names the column of the output file to follow and turns its series into the one
+    plotted. A country's line stops wherever the saves leave a stretch of more than
+    a year, instead of crossing it as if it had been measured.
+
+    Saved as ``{comparison.key}.png`` in the folder of the file it is derived from,
+    next to the plots of that file's own columns.
+
+    Arguments mirror ``plot_stat``. Returns the Figure.
+    """
+    if title is None:
+        title = comparison.label
+    if save_name is None:
+        save_name = comparison.key
+    img_folder = comparison.input_file.replace(".csv", "")
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data/{img_folder}", exist_ok=True)
+
+    t0 = time.time()
+    levels = collect_series(campaign_folder, comparison.input_file, comparison.column,
+                            players=players, limit=limit, start_date=start_date, end_date=end_date)
+    derived = {name: comparison.transform(points) for name, points in levels.items()}
+    derived = {name: points for name, points in derived.items() if points}
+    if not derived:
+        raise ValueError(f"No {comparison.label} to plot for {campaign_folder} in "
+                         f"{start_date}-{end_date}: it needs saves a year apart")
+
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    ax.axhline(0, color="gray", linewidth=1)
+    # Legend order follows each country's latest value, as plot_stat's does.
+    for tag, country in sorted(derived, key=lambda name: derived[name][-1][1], reverse=True):
+        country_color = get_color(tag)
+        if "Revolutionary" in country:
+            country_color[-1] *= 0.7
+        line = np.array(break_at_gaps(derived[(tag, country)]))
+        ax.plot(line[:, 0], line[:, 1], label=country, color=country_color, linewidth=3.5)
+        ax.plot(line[:, 0], line[:, 1], linestyle="--", color="black", linewidth=1)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}{comparison.unit}"))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.set_title(f"{title} graph over the years")
+    ax.grid(True)
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{img_folder}/{save_name}.png")
+    print(f"Finished plotting {comparison.key} in {time.time() - t0} seconds")
+    return fig
+
+
+def plot_distribution(campaign_folder, distribution, title=None, save=True, save_name=None, start_date=0, end_date=2024, figsize=DEFAULT_FIGSIZE):
+    """
+    Plot how each player country's people divide over a statistic, in the latest save
+
+    A snapshot sibling of ``plot_stat``: the x-axis is the statistic (standard of living)
+    rather than the date. Each line is one country and its height at a bin is the share
+    of that country's total population in the bin, so countries of any size compare. The
+    last bin also holds everything above it (``distribution.cap``).
+
+    Countries are the ones ``plot_stat`` draws: the latest save's players plus the
+    campaign's extra AI tags, or only the tags the campaign config names. The latest
+    save is the last one in range by date. Its ``data/{input_file}`` must exist, so a
+    save checked before the file was introduced raises ValueError.
+
+    Saved as ``{distribution.key}.png`` in campaign_data/ itself, beside the latest
+    save's CSVs, and overwritten each time: the date is in the title.
+
+    Other arguments mirror ``plot_stat``. Returns the Figure.
+    """
+    if title is None:
+        title = distribution.label
+    if save_name is None:
+        save_name = distribution.key
+    set_player_list, set_ai_list = campaign_tag_filters(campaign_folder)
+
+    t0 = time.time()
+    save_folder = latest_save_folder(campaign_folder, start_date, end_date)
+    path = f"{save_folder}/data/{distribution.input_file}"
+    if not os.path.isfile(path):
+        raise ValueError(f"No {distribution.input_file} at {save_folder}: check that save again")
+    metadata = jopen(f"{save_folder}/metadata.json")
+    tags = set_player_list if set_player_list else [player[1] for player in metadata["players"]]
+    frame = pd.read_csv(path)
+    shares = population_shares(frame[frame["tag"].isin(tags + set_ai_list)], distribution)
+    if not shares:
+        raise ValueError(f"No {distribution.label} to plot for {campaign_folder} at {save_folder}")
+
+    bins = np.arange(distribution.cap + 1)
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    # Legend order follows each country's mean bin, highest first, as plot_stat's follows its latest value.
+    for tag, country in sorted(shares, key=lambda name: shares[name] @ bins, reverse=True):
+        country_color = get_color(tag)
+        if "Revolutionary" in country:
+            country_color[-1] *= 0.7
+        ax.plot(bins, shares[(tag, country)] * 100, label=country, color=country_color, linewidth=3.5)
+        ax.plot(bins, shares[(tag, country)] * 100, linestyle="--", color="black", linewidth=1)
+
+    ticks = sorted(set(range(0, distribution.cap + 1, 5)) | {distribution.cap})
+    ax.set_xticks(ticks, [f"{tick}+" if tick == distribution.cap else str(tick) for tick in ticks])
+    ax.set_xlim(0, distribution.cap)
+    ax.set_xlabel("Standard of living")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}%"))
+    ax.set_ylabel("Share of the country's population")
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    ax.set_title(f"{title} on {'.'.join(str(part) for part in metadata['save_date'])}")
+    ax.grid(True)
+    fig.subplots_adjust(right=0.75)
+    label_figure(fig, title, save_name)
+    if save:
+        os.makedirs(f"saves/{campaign_folder}/campaign_data", exist_ok=True)
+        fig.savefig(f"saves/{campaign_folder}/campaign_data/{save_name}.png")
+    print(f"Finished plotting {distribution.key} in {time.time() - t0} seconds")
     return fig
 
 # Level bands the company plots are split into, so a few giant companies don't flatten

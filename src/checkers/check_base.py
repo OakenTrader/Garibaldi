@@ -70,6 +70,17 @@ class Checker:
     # key -> the CSV column carrying it, where the two names differ.
     csv_columns = dict()
 
+    # Statistics derived from this checker's columns across saves, such as a growth
+    # rate (see src/helpers/compare.py). No save holds them, so they are not in
+    # ``output``: the tree lists each beside the column it comes from, and the plotting
+    # layer builds them from the per-save CSVs.
+    comparisons = ()
+
+    # Plots of one save, the latest (see src/helpers/snapshot.py): the spread of a
+    # statistic inside each player country, read from a per-save CSV this checker
+    # writes. Each is drawn whenever the column it names is selected.
+    distributions = ()
+
     def __init__(self):
         pass
 

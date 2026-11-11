@@ -7,15 +7,19 @@ from src.checkers.check_tech import CheckTech
 from src.checkers.check_demographics import CheckDemographics
 from src.checkers.check_finance import CheckFinance
 from src.checkers.check_companies import CheckCompanies
+from src.checkers.check_war_casualties import CheckWarCasualties
 
-from src.helpers.plotter import plot_stat, plot_file_columns, plot_company_stat, csv_value_columns
+from src.helpers.plotter import (plot_stat, plot_file_columns, plot_company_stat,
+                                 plot_cumulative_stat, plot_comparison, plot_distribution,
+                                 csv_value_columns)
 from src.helpers.convert_localization import get_all_localization
+from src.helpers.latest_save import export_latest_save
 from src.helpers.utility import load_def, load_def_multiple
 import os, glob, multiprocessing
 
 ALL_CHECKERS = [
     CheckConstruction, CheckInnovation, CheckInfamy, CheckPrestige, CheckTech,
-    CheckDemographics, CheckFinance, CheckCompanies,
+    CheckDemographics, CheckFinance, CheckCompanies, CheckWarCasualties,
 ]
 
 
@@ -242,6 +246,24 @@ def csv_columns():
     return columns
 
 
+def comparisons():
+    """Declared key -> the cross-save statistic (src/helpers/compare.py) it names."""
+    found = dict()
+    for checker_class in registered_checkers():
+        for comparison in checker_class.comparisons:
+            found[comparison.key] = comparison
+    return found
+
+
+def distributions():
+    """Declared key -> the one-save distribution (src/helpers/snapshot.py) it names."""
+    found = dict()
+    for checker_class in registered_checkers():
+        for distribution in checker_class.distributions:
+            found[distribution.key] = distribution
+    return found
+
+
 def all_check_keys():
     """Every selectable stat key — what a parse runs, now that checking is not selective."""
     return list(build_check_map())
@@ -300,6 +322,12 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
     Which plotter a key needs, and under what column and name, is read off the
     checkers' ``row_grain``, ``file_keys`` and ``csv_columns``.
 
+    The distributions inside one save (standard of living of each player country) are
+    drawn for the latest save, into campaign_data/ itself.
+
+    After the plots, the latest save's player CSVs are copied to campaign_data/ and a
+    leaderboard.csv is written beside them (``export_latest_save``).
+
     A stat that cannot be plotted is skipped rather than aborting the batch. One
     pass renders ~90 figures and any single CSV may be stale: ValueError covers
     "no saves with this data in range", KeyError covers a CSV written before a
@@ -327,9 +355,26 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
         if grain.get(outfile) == "company":
             render(check, lambda c=column, f=outfile: plot_company_stat(
                 campaign_folder, c, input_file=f, players=True, **dates))
+        elif grain.get(outfile) == "war":
+            # Every country that fought, not only the players: the top of the range.
+            render(check, lambda c=column, k=check, f=outfile: plot_cumulative_stat(
+                campaign_folder, c, f, players=False, save_name=k, **dates))
         else:
             render(check, lambda c=column, k=check, f=outfile: plot_stat(
                 campaign_folder, c, input_file=f, players=True, save_name=k, **dates))
+
+    # A statistic derived across saves is drawn whenever the column it comes from is.
+    for comparison in comparisons().values():
+        if comparison.column in checks:
+            render(comparison.key, lambda c=comparison: plot_comparison(
+                campaign_folder, c, players=True, **dates))
+
+    # A distribution inside one save is drawn for the latest save, whenever the column
+    # it goes with is.
+    for distribution in distributions().values():
+        if distribution.column in checks:
+            render(distribution.key, lambda d=distribution: plot_distribution(
+                campaign_folder, d, **dates))
 
     # Columns that only the campaign's own CSV header knows about (income and
     # expense slots, goods). They are not in ``checks`` because they cannot be
@@ -342,6 +387,11 @@ def plot_results(checks, campaign_folder, start_date=0, end_date=2024):
                 render(column, lambda c=column, f=input_file: plot_stat(
                     campaign_folder, c, input_file=f, players=True, **dates))
 
+    try:
+        export_latest_save(campaign_folder, **dates)
+    except (ValueError, KeyError) as e:
+        print(f"Skipped latest save export: {type(e).__name__}: {e}")
+
 
 def figures_for(campaign_folder, column, input_file, players=True, start_date=0,
                 end_date=2024, figsize=None):
@@ -353,9 +403,13 @@ def figures_for(campaign_folder, column, input_file, players=True, start_date=0,
     kwargs = {"players": players, "save": False, "start_date": start_date, "end_date": end_date}
     if figsize is not None:
         kwargs["figsize"] = figsize
+    if column in comparisons():
+        return [plot_comparison(campaign_folder, comparisons()[column], **kwargs)]
     column = csv_columns().get(column, column)
     if output_grain().get(input_file) == "company":
         return plot_company_stat(campaign_folder, column, input_file=input_file, **kwargs)
+    if output_grain().get(input_file) == "war":
+        return [plot_cumulative_stat(campaign_folder, column, input_file, **kwargs)]
     return [plot_stat(campaign_folder, column, input_file=input_file, **kwargs)]
 
 

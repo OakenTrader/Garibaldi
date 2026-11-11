@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
 from src.gui.busy import busy_controller, find_freezable
+from src.gui.theme import apply_theme
 
 BUTTON_SIZE = (200, 120)
 
@@ -96,6 +97,7 @@ class Launcher(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    apply_theme(app)
     launcher = Launcher()
     launcher.show()
     return app.exec()

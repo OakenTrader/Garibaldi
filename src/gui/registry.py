@@ -26,11 +26,14 @@ from src.helpers.utility import iter_save_folders
 class Leaf:
     """One selectable statistic."""
 
-    def __init__(self, column, label, input_file, checker):
+    def __init__(self, column, label, input_file, checker, table_column=None):
         self.column = column
         self.label = label
         self.input_file = input_file
         self.checker = checker
+        # The CSV column the table leads with. It differs from ``column`` for a
+        # statistic derived across saves, which no CSV has a column for.
+        self.table_column = table_column or column
 
     def __repr__(self):
         return f"Leaf({self.column!r}, {self.input_file!r})"
@@ -88,6 +91,11 @@ def build_categories(campaign_folder):
                 # goods, its income and expense slots — come from the CSV header.
                 for column in _header_columns(campaign_folder, input_file):
                     entry[2].append(Leaf(column, checker.label_for(column), input_file, checker))
+            # Statistics derived across saves, beside the column they come from.
+            for comparison in checker.comparisons:
+                if comparison.input_file == input_file:
+                    entry[2].append(Leaf(comparison.key, comparison.label, input_file, checker,
+                                         table_column=comparison.column))
 
     categories = []
     for label, (order, checker, leaves) in sorted(grouped.items(), key=lambda kv: (kv[1][0], kv[0])):
